@@ -1,0 +1,68 @@
+package com.gagik.terminal.model
+
+/**
+ * A single visual terminal line of fixed width.
+ *
+ * Storage is "packed":
+ * Each `i` in the range [0, width-1] corresponds to a cell on the line.
+ * - codepoints[i] == 0 means empty cell (renders as space)
+ * - attrs[i] is a packed Int produced by AttributeCodec
+ *
+ * wrapped=true means this line is a soft continuation of the previous line
+ * caused by wrapping at the terminal width.
+ *
+ * @param width The fixed width of the line in cells. Must be > 0.
+ * @throws IllegalArgumentException if width is not greater than 0
+ */
+class Line(
+    val width: Int
+) {
+    init {
+        require(width > 0) { "width must be > 0" }
+    }
+
+    // The codepoints for each cell in the line. 0 means empty cell.
+    val codepoints: IntArray = IntArray(width) { 0 }
+    // The attributes for each cell in the line, packed into ints.
+    val attrs: IntArray = IntArray(width)
+    // Whether this line is a soft-wrapped continuation of the previous line.
+    var wrapped: Boolean = false
+
+    /**
+     * Clears the line by resetting all codepoints to 0 and all attributes to defaultCellAttr.
+     * Also sets wrapped to false.
+     * @param defaultCellAttr The attribute to set for all cells after clearing.
+     */
+    fun clear(defaultCellAttr: Int) {
+        codepoints.fill(0)
+        attrs.fill(defaultCellAttr)
+        wrapped = false
+    }
+
+    /**
+     * Sets the cell at the specified column to the given codepoint and attribute.
+     * If col is out of bounds, the method does nothing.
+     * @param col The column index of the cell to set
+     * @param codepoint The Unicode codepoint to set in the cell
+     * @param attr The packed attribute Int to set for the cell
+     */
+    fun setCell(col: Int, codepoint: Int, attr: Int) {
+        if (col !in 0 until width) return
+        codepoints[col] = codepoint
+        attrs[col] = attr
+    }
+
+    /**
+     * Gets the codepoint of the cell at the specified column.
+     * @param col The column index of the cell to query
+     * @return The Unicode codepoint at the specified column, or null if col is out of bounds
+     */
+    fun getCodepoint(col: Int): Int? = if (col in 0 until width) codepoints[col] else null
+
+    /**
+     * Gets the attribute of the cell at the specified column.
+     * @param col The column index of the cell to query
+     * @return The packed attribute Int at the specified column, or null if col is out of bounds
+     */
+    fun getAttr(col: Int): Int? = if (col in 0 until width) attrs[col] else null
+}
