@@ -15,6 +15,11 @@ class Cursor(
     private var width: Int,
     private var height: Int
 ) {
+    init {
+        require(height > 0) { "height ($height) must be > 0" }
+        require(width > 0) { "width ($width) must be > 0" }
+    }
+
     var col: Int = 0 // column index, 0-based
         private set
     var row: Int = 0 // row index, 0-based
