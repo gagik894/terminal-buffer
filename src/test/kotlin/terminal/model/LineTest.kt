@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
 import org.junit.jupiter.params.provider.ValueSource
@@ -117,6 +118,51 @@ class LineTest {
                 { assertEquals(0, line.getCodepoint(0), "Codepoints should be reset to 0") },
                 { assertEquals(defaultAttr, line.getAttr(0), "Attrs should be reset to default ($defaultAttr)") }
             )
+        }
+    }
+
+    @Nested
+    @DisplayName("copyFrom()")
+    inner class CopyFromTests {
+
+        @Test
+        fun `copies all data from another line`() {
+            val source = Line(10)
+            source.setCell(0, 'A'.code, 1)
+            source.setCell(5, 'B'.code, 2)
+            source.wrapped = true
+
+            val dest = Line(10)
+            dest.copyFrom(source)
+
+            assertEquals('A'.code, dest.getCodepoint(0))
+            assertEquals(1, dest.getAttr(0))
+            assertEquals('B'.code, dest.getCodepoint(5))
+            assertEquals(2, dest.getAttr(5))
+            assertTrue(dest.wrapped)
+        }
+
+        @Test
+        fun `throws on width mismatch`() {
+            val source = Line(10)
+            val dest = Line(20)
+
+            assertThrows<IllegalArgumentException> {
+                dest.copyFrom(source)
+            }
+        }
+
+        @Test
+        fun `overwrites existing data`() {
+            val source = Line(10)
+            source.setCell(0, 'X'.code, 99)
+
+            val dest = Line(10)
+            dest.setCell(0, 'Y'.code, 88)
+            dest.copyFrom(source)
+
+            assertEquals('X'.code, dest.getCodepoint(0))
+            assertEquals(99, dest.getAttr(0))
         }
     }
 }

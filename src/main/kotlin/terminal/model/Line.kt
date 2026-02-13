@@ -65,4 +65,18 @@ class Line(
      * @return The packed attribute Int at the specified column, or null if col is out of bounds
      */
     fun getAttr(col: Int): Int? = if (col in 0 until width) attrs[col] else null
+
+    /**
+     * Copies the contents of another line into this line.
+     * Both lines must have the same width.
+     *
+     * @param other The line to copy from
+     * @throws IllegalArgumentException if widths don't match
+     */
+    fun copyFrom(other: Line) {
+        require(other.width == width) { "width mismatch: this=$width, other=${other.width}" }
+        System.arraycopy(other.codepoints, 0, codepoints, 0, width)
+        System.arraycopy(other.attrs, 0, attrs, 0, width)
+        this.wrapped = other.wrapped
+    }
 }
