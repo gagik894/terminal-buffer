@@ -30,7 +30,7 @@ class HistoryRing(
      * @throws IndexOutOfBoundsException if i is not in the range [0, size-1]
      */
     operator fun get(i: Int): Line {
-        if (i !in 0..size) {
+        if (i !in 0 until size) {
             throw IndexOutOfBoundsException("index $i out of bounds (size=$size)")
         }
         val physical = (head + i) % capacity
