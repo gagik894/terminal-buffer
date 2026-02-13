@@ -43,7 +43,11 @@ class Cursor(
      * @param dy The change in row index (positive moves down, negative moves up)
      */
     fun move(dx: Int, dy: Int) {
-        set(col + dx, row + dy)
+        // Long to prevent integer overflow during addition
+        val newCol = (col.toLong() + dx).coerceIn(0L, (width - 1).toLong()).toInt()
+        val newRow = (row.toLong() + dy).coerceIn(0L, (height - 1).toLong()).toInt()
+
+        set(newCol, newRow)
     }
 
     /**
