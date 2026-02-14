@@ -21,15 +21,23 @@ import com.gagik.terminal.util.Validations.requirePositive
  * @throws IllegalArgumentException if width, height, or maxHistory are invalid
  */
 class TerminalBuffer(
-    val width: Int,
-    val height: Int,
-    maxHistory: Int = 1000
+    width: Int,
+    height: Int,
+    private val maxHistory: Int = 1000
 ) {
     init {
         requirePositive(width, "width")
         requirePositive(height, "height")
         requireNonNegative(maxHistory, "maxHistory")
     }
+
+    /** Current width of the terminal in columns */
+    var width: Int = width
+        private set
+
+    /** Current height of the terminal in rows */
+    var height: Int = height
+        private set
 
     private val cursor = Cursor(width, height)
     private val pen = Pen()
@@ -137,6 +145,38 @@ class TerminalBuffer(
      */
     fun moveCursor(dx: Int, dy: Int) {
         cursor.move(dx, dy)
+    }
+
+    /**
+     * Moves cursor up by N rows.
+     * @param n Number of rows to move (default 1)
+     */
+    fun cursorUp(n: Int = 1) {
+        cursor.move(0, -n)
+    }
+
+    /**
+     * Moves cursor down by N rows.
+     * @param n Number of rows to move (default 1)
+     */
+    fun cursorDown(n: Int = 1) {
+        cursor.move(0, n)
+    }
+
+    /**
+     * Moves cursor left by N columns.
+     * @param n Number of columns to move (default 1)
+     */
+    fun cursorLeft(n: Int = 1) {
+        cursor.move(-n, 0)
+    }
+
+    /**
+     * Moves cursor right by N columns.
+     * @param n Number of columns to move (default 1)
+     */
+    fun cursorRight(n: Int = 1) {
+        cursor.move(n, 0)
     }
 
     /**
@@ -256,6 +296,36 @@ class TerminalBuffer(
             "history index $index out of bounds (0..<$historySize)"
         }
         return ring[index]
+    }
+
+    /**
+     * Gets the character at a screen position.
+     *
+     * @param col Column (0-based)
+     * @param row Row (0-based)
+     * @return Unicode codepoint, or null if out of bounds
+     */
+    fun getCharAt(col: Int, row: Int): Int? {
+        return try {
+            screen.getLine(row).getCodepoint(col)
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+    }
+
+    /**
+     * Gets the attributes at a screen position.
+     *
+     * @param col Column (0-based)
+     * @param row Row (0-based)
+     * @return Packed attribute value, or null if out of bounds
+     */
+    fun getAttrAt(col: Int, row: Int): Int? {
+        return try {
+            screen.getLine(row).getAttr(col)
+        } catch (_: IllegalArgumentException) {
+            null
+        }
     }
 
     // Reset

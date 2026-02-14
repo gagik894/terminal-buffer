@@ -444,4 +444,103 @@ class TerminalBufferTest {
             assertEquals('B'.code, buffer.getLine(2).getCodepoint(0))
         }
     }
+
+    @Nested
+    @DisplayName("Directional Cursor Movement")
+    inner class DirectionalCursorTests {
+
+        @Test
+        fun `cursorUp moves up by n rows`() {
+            val buffer = TerminalBuffer(10, 5)
+            buffer.setCursor(5, 3)
+            buffer.cursorUp(2)
+
+            assertEquals(5, buffer.cursorCol)
+            assertEquals(1, buffer.cursorRow)
+        }
+
+        @Test
+        fun `cursorDown moves down by n rows`() {
+            val buffer = TerminalBuffer(10, 5)
+            buffer.setCursor(5, 1)
+            buffer.cursorDown(2)
+
+            assertEquals(5, buffer.cursorCol)
+            assertEquals(3, buffer.cursorRow)
+        }
+
+        @Test
+        fun `cursorLeft moves left by n columns`() {
+            val buffer = TerminalBuffer(10, 5)
+            buffer.setCursor(5, 2)
+            buffer.cursorLeft(3)
+
+            assertEquals(2, buffer.cursorCol)
+            assertEquals(2, buffer.cursorRow)
+        }
+
+        @Test
+        fun `cursorRight moves right by n columns`() {
+            val buffer = TerminalBuffer(10, 5)
+            buffer.setCursor(2, 2)
+            buffer.cursorRight(4)
+
+            assertEquals(6, buffer.cursorCol)
+            assertEquals(2, buffer.cursorRow)
+        }
+
+        @Test
+        fun `cursor movement clamps to bounds`() {
+            val buffer = TerminalBuffer(10, 5)
+            buffer.setCursor(0, 0)
+            buffer.cursorUp(10)
+            assertEquals(0, buffer.cursorRow)
+
+            buffer.cursorLeft(10)
+            assertEquals(0, buffer.cursorCol)
+
+            buffer.cursorDown(100)
+            assertEquals(4, buffer.cursorRow)
+
+            buffer.cursorRight(100)
+            assertEquals(9, buffer.cursorCol)
+        }
+    }
+
+    @Nested
+    @DisplayName("Content Access")
+    inner class ContentAccessTests {
+
+        @Test
+        fun `getCharAt returns character at position`() {
+            val buffer = TerminalBuffer(10, 5)
+            buffer.writeText("Hello")
+
+            assertEquals('H'.code, buffer.getCharAt(0, 0))
+            assertEquals('e'.code, buffer.getCharAt(1, 0))
+            assertEquals('o'.code, buffer.getCharAt(4, 0))
+        }
+
+        @Test
+        fun `getCharAt returns null for out of bounds`() {
+            val buffer = TerminalBuffer(10, 5)
+            buffer.writeText("Hello")
+
+            assertNull(buffer.getCharAt(-1, 0))
+            assertNull(buffer.getCharAt(100, 0))
+            assertNull(buffer.getCharAt(0, 100))
+        }
+
+        @Test
+        fun `getAttrAt returns attributes at position`() {
+            val buffer = TerminalBuffer(10, 5)
+            buffer.setAttributes(5, 3, bold = true)
+            buffer.writeChar('X'.code)
+
+            val attr = buffer.getAttrAt(0, 0)
+            assertNotNull(attr)
+            val expected = AttributeCodec.pack(5, 3, bold = true, italic = false, underline = false)
+            assertEquals(expected, attr)
+        }
+    }
 }
