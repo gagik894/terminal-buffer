@@ -125,4 +125,21 @@ internal class Screen(
         // Clear from beginning of current line to cursor
         getLine(row).clearToColumn(col, fillAttr)
     }
+
+    /**
+     * Gets the visible screen content as a string.
+     * Lines are separated by newlines.
+     * Trailing spaces on each line are trimmed.
+     *
+     * @return String representation of the visible screen
+     */
+    fun toText(): String {
+        val sb = StringBuilder()
+        val lineCount = height.coerceAtMost(ring.size)
+        for (row in 0 until lineCount) {
+            if (row > 0) sb.append('\n')
+            sb.append(getLine(row).toTextTrimmed())
+        }
+        return sb.toString()
+    }
 }

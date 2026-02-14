@@ -20,11 +20,11 @@ import com.gagik.terminal.util.Validations.requirePositive
  * @param maxHistory Maximum number of scrollback lines. Must be >= 0.
  * @throws IllegalArgumentException if width, height, or maxHistory are invalid
  */
-class TerminalBuffer(
+internal class TerminalBuffer(
     width: Int,
     height: Int,
     private val maxHistory: Int = 1000
-) {
+) : TerminalBufferApi {
     init {
         requirePositive(width, "width")
         requirePositive(height, "height")
@@ -32,11 +32,11 @@ class TerminalBuffer(
     }
 
     /** Current width of the terminal in columns */
-    var width: Int = width
+    override var width: Int = width
         private set
 
     /** Current height of the terminal in rows */
-    var height: Int = height
+    override var height: Int = height
         private set
 
     private val cursor = Cursor(width, height)
@@ -53,13 +53,13 @@ class TerminalBuffer(
     /**
      * Current cursor column (0-based).
      */
-    val cursorCol: Int
+    override val cursorCol: Int
         get() = cursor.col
 
     /**
      * Current cursor row (0-based).
      */
-    val cursorRow: Int
+    override val cursorRow: Int
         get() = cursor.row
 
     // Writing Operations
@@ -70,23 +70,8 @@ class TerminalBuffer(
      *
      * @param codepoint Unicode codepoint to write
      */
-    fun writeChar(codepoint: Int) {
-        screen.write(cursor.row, cursor.col, codepoint, pen.currentAttr)
-
-        when (val result = cursor.advance()) {
-            is AdvanceResult.Normal -> {
-                // Nothing special needed
-            }
-            is AdvanceResult.Wrapped -> {
-                // Mark the line we just left as wrapped
-                screen.getLine(result.fromRow).wrapped = true
-            }
-            is AdvanceResult.ScrollNeeded -> {
-                // Mark line as wrapped, then scroll
-                screen.getLine(result.fromRow).wrapped = true
-                screen.scrollUp(pen.currentAttr)
-            }
-        }
+    override fun writeChar(codepoint: Int) {
+        writeSingleChar(codepoint)
     }
 
     /**
@@ -95,9 +80,15 @@ class TerminalBuffer(
      *
      * @param text Text to write
      */
-    fun writeText(text: String) {
-        text.forEach { char ->
-            writeChar(char.code)
+    override fun writeText(text: String) {
+        forEachCodepoint(text) { codepoint ->
+            writeSingleChar(codepoint)
+        }
+    }
+
+    override fun insertText(text: String) {
+        forEachCodepoint(text) { codepoint ->
+            insertSingleChar(codepoint)
         }
     }
 
@@ -105,7 +96,7 @@ class TerminalBuffer(
      * Inserts a line break, moving cursor to the beginning of the next line.
      * If at the bottom of the screen, scrolls up.
      */
-    fun newLine() {
+    override fun newLine() {
         val nextRow = cursor.row + 1
 
         if (nextRow >= height) {
@@ -119,7 +110,7 @@ class TerminalBuffer(
     /**
      * Moves cursor to the beginning of the current line.
      */
-    fun carriageReturn() {
+    override fun carriageReturn() {
         cursor.set(0, cursor.row)
     }
 
@@ -132,7 +123,7 @@ class TerminalBuffer(
      * @param col Target column (0-based)
      * @param row Target row (0-based)
      */
-    fun setCursor(col: Int, row: Int) {
+    override fun setCursor(col: Int, row: Int) {
         cursor.set(col, row)
     }
 
@@ -143,7 +134,7 @@ class TerminalBuffer(
      * @param dx Column delta (positive = right, negative = left)
      * @param dy Row delta (positive = down, negative = up)
      */
-    fun moveCursor(dx: Int, dy: Int) {
+    override fun moveCursor(dx: Int, dy: Int) {
         cursor.move(dx, dy)
     }
 
@@ -151,7 +142,7 @@ class TerminalBuffer(
      * Moves cursor up by N rows.
      * @param n Number of rows to move (default 1)
      */
-    fun cursorUp(n: Int = 1) {
+    override fun cursorUp(n: Int) {
         cursor.move(0, -n)
     }
 
@@ -159,7 +150,7 @@ class TerminalBuffer(
      * Moves cursor down by N rows.
      * @param n Number of rows to move (default 1)
      */
-    fun cursorDown(n: Int = 1) {
+    override fun cursorDown(n: Int) {
         cursor.move(0, n)
     }
 
@@ -167,7 +158,7 @@ class TerminalBuffer(
      * Moves cursor left by N columns.
      * @param n Number of columns to move (default 1)
      */
-    fun cursorLeft(n: Int = 1) {
+    override fun cursorLeft(n: Int) {
         cursor.move(-n, 0)
     }
 
@@ -175,14 +166,14 @@ class TerminalBuffer(
      * Moves cursor right by N columns.
      * @param n Number of columns to move (default 1)
      */
-    fun cursorRight(n: Int = 1) {
+    override fun cursorRight(n: Int) {
         cursor.move(n, 0)
     }
 
     /**
      * Resets cursor to origin (0, 0).
      */
-    fun resetCursor() {
+    override fun resetCursor() {
         cursor.reset()
     }
 
@@ -197,12 +188,12 @@ class TerminalBuffer(
      * @param italic Italic style
      * @param underline Underline style
      */
-    fun setAttributes(
+    override fun setAttributes(
         fg: Int,
         bg: Int,
-        bold: Boolean = false,
-        italic: Boolean = false,
-        underline: Boolean = false
+        bold: Boolean,
+        italic: Boolean,
+        underline: Boolean
     ) {
         pen.setAttributes(fg, bg, bold, italic, underline)
     }
@@ -210,7 +201,7 @@ class TerminalBuffer(
     /**
      * Resets pen to default attributes.
      */
-    fun resetPen() {
+    override fun resetPen() {
         pen.reset()
     }
 
@@ -220,7 +211,7 @@ class TerminalBuffer(
      * Scrolls the screen up by one line.
      * Top line moves to history, new blank line appears at bottom.
      */
-    fun scrollUp() {
+    override fun scrollUp() {
         screen.scrollUp(pen.currentAttr)
     }
 
@@ -228,43 +219,14 @@ class TerminalBuffer(
      * Clears the entire visible screen.
      * History is not affected.
      */
-    fun clearScreen() {
+    override fun clearScreen() {
         screen.clear(pen.currentAttr)
     }
 
-    /**
-     * Clears the line where the cursor is currently located.
-     */
-    fun clearLine() {
-        screen.getLine(cursor.row).clear(pen.currentAttr)
-    }
-
-    /**
-     * Clears from cursor position to end of the current line.
-     */
-    fun clearToEndOfLine() {
-        screen.getLine(cursor.row).clearFromColumn(cursor.col, pen.currentAttr)
-    }
-
-    /**
-     * Clears from beginning of current line to cursor position.
-     */
-    fun clearToBeginningOfLine() {
-        screen.getLine(cursor.row).clearToColumn(cursor.col, pen.currentAttr)
-    }
-
-    /**
-     * Clears from cursor position to end of screen.
-     */
-    fun clearToEndOfScreen() {
-        screen.clearFromPosition(cursor.row, cursor.col, pen.currentAttr)
-    }
-
-    /**
-     * Clears from beginning of screen to cursor position.
-     */
-    fun clearToBeginningOfScreen() {
-        screen.clearToPosition(cursor.row, cursor.col, pen.currentAttr)
+    override fun clearAll() {
+        ring.clear()
+        initializeScreen()
+        cursor.reset()
     }
 
     /**
@@ -273,7 +235,7 @@ class TerminalBuffer(
      *
      * @param codepoint Unicode codepoint to fill with (0 for empty/space)
      */
-    fun fillLine(codepoint: Int = 0) {
+    override fun fillLine(codepoint: Int) {
         screen.getLine(cursor.row).fill(codepoint, pen.currentAttr)
     }
 
@@ -283,35 +245,22 @@ class TerminalBuffer(
      * @param row Screen row (0-based)
      * @param codepoint Unicode codepoint to fill with (0 for empty/space)
      */
-    fun fillLineAt(row: Int, codepoint: Int = 0) {
+    override fun fillLineAt(row: Int, codepoint: Int) {
         screen.getLine(row).fill(codepoint, pen.currentAttr)
     }
 
     // Query Operations
 
     /**
-     * Gets the Line at the specified screen row.
-     *
-     * @param row Screen row (0-based, 0 = top)
-     * @return Line at that row
-     * @throws IllegalArgumentException if row is out of bounds
-     */
-    fun getLine(row: Int): Line = screen.getLine(row)
-
-    /**
      * Number of lines currently in scrollback history.
      */
-    val historySize: Int
+    override val historySize: Int
         get() = (ring.size - height).coerceAtLeast(0)
 
     /**
      * Gets a line from scrollback history.
-     *
-     * @param index History index (0 = oldest in history)
-     * @return Line at that history index
-     * @throws IllegalArgumentException if index is out of bounds
      */
-    fun getHistoryLine(index: Int): Line {
+    private fun getHistoryLine(index: Int): Line {
         require(index in 0 until historySize) {
             "history index $index out of bounds (0..<$historySize)"
         }
@@ -325,7 +274,7 @@ class TerminalBuffer(
      * @param row Row (0-based)
      * @return Unicode codepoint, or null if out of bounds
      */
-    fun getCharAt(col: Int, row: Int): Int? {
+    override fun getCharAt(col: Int, row: Int): Int? {
         return try {
             screen.getLine(row).getCodepoint(col)
         } catch (_: IllegalArgumentException) {
@@ -340,9 +289,25 @@ class TerminalBuffer(
      * @param row Row (0-based)
      * @return Packed attribute value, or null if out of bounds
      */
-    fun getAttrAt(col: Int, row: Int): Int? {
+    override fun getAttrAt(col: Int, row: Int): Int? {
         return try {
             screen.getLine(row).getAttr(col)
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+    }
+
+    override fun getHistoryCharAt(index: Int, col: Int): Int? {
+        return try {
+            getHistoryLine(index).getCodepoint(col)
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+    }
+
+    override fun getHistoryAttrAt(index: Int, col: Int): Int? {
+        return try {
+            getHistoryLine(index).getAttr(col)
         } catch (_: IllegalArgumentException) {
             null
         }
@@ -355,7 +320,7 @@ class TerminalBuffer(
      * @return String content of the line (trimmed)
      * @throws IllegalArgumentException if row is out of bounds
      */
-    fun getLineAsString(row: Int): String {
+    override fun getLineAsString(row: Int): String {
         return screen.getLine(row).toTextTrimmed()
     }
 
@@ -366,7 +331,7 @@ class TerminalBuffer(
      * @return String content of the line (trimmed)
      * @throws IllegalArgumentException if index is out of bounds
      */
-    fun getHistoryLineAsString(index: Int): String {
+    override fun getHistoryLineAsString(index: Int): String {
         return getHistoryLine(index).toTextTrimmed()
     }
 
@@ -376,7 +341,7 @@ class TerminalBuffer(
      *
      * @return String representation of the visible screen
      */
-    fun getScreenAsString(): String {
+    override fun getScreenAsString(): String {
         return screen.toText()
     }
 
@@ -386,7 +351,7 @@ class TerminalBuffer(
      *
      * @return String representation of all content
      */
-    fun getAllAsString(): String {
+    override fun getAllAsString(): String {
         val sb = StringBuilder()
 
         // History lines
@@ -412,7 +377,7 @@ class TerminalBuffer(
      * - Resets cursor to origin
      * - Resets pen to defaults
      */
-    fun reset() {
+    override fun reset() {
         ring.clear()
         initializeScreen()
         cursor.reset()
@@ -424,6 +389,56 @@ class TerminalBuffer(
     private fun initializeScreen() {
         repeat(height) {
             ring.push().clear(pen.currentAttr)
+        }
+    }
+
+    private fun writeSingleChar(codepoint: Int) {
+        screen.write(cursor.row, cursor.col, codepoint, pen.currentAttr)
+        advanceCursorAfterWrite()
+    }
+
+    private fun insertSingleChar(codepoint: Int) {
+        val line = screen.getLine(cursor.row)
+        shiftLineRight(line, cursor.col, 1)
+        line.setCell(cursor.col, codepoint, pen.currentAttr)
+        advanceCursorAfterWrite()
+    }
+
+    private fun shiftLineRight(line: Line, startCol: Int, count: Int) {
+        if (count <= 0 || startCol !in 0 until width) return
+        val end = width - 1
+        var col = end
+        while (col - count >= startCol) {
+            line.codepoints[col] = line.codepoints[col - count]
+            line.attrs[col] = line.attrs[col - count]
+            col--
+        }
+        for (i in 0 until count) {
+            val idx = startCol + i
+            if (idx in 0 until width) {
+                line.codepoints[idx] = 0
+                line.attrs[idx] = pen.currentAttr
+            }
+        }
+    }
+
+    private fun forEachCodepoint(text: String, handle: (Int) -> Unit) {
+        var i = 0
+        while (i < text.length) {
+            val codepoint = text.codePointAt(i)
+            handle(codepoint)
+            i += Character.charCount(codepoint)
+        }
+    }
+
+    private fun advanceCursorAfterWrite() {
+        when (val result = cursor.advance()) {
+            is AdvanceResult.Normal -> Unit
+            is AdvanceResult.Wrapped -> screen.getLine(result.fromRow).wrapped = true
+            is AdvanceResult.ScrollNeeded -> {
+                screen.getLine(result.fromRow).wrapped = true
+                screen.scrollUp(pen.currentAttr)
+            }
         }
     }
 }
