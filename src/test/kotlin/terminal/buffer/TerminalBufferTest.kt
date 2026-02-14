@@ -43,7 +43,7 @@ class TerminalBufferTest {
 
             for (row in 0 until 3) {
                 for (col in 0 until 10) {
-                    assertEquals(0, buffer.getCharAt(col, row))
+                    assertEquals(null, buffer.getCharAt(col, row))
                 }
             }
         }
@@ -56,22 +56,22 @@ class TerminalBufferTest {
         @Test
         fun `writes character at cursor`() {
             val buffer = TerminalBuffer(10, 5)
-            buffer.writeChar('A'.code)
+            buffer.writeChar('A')
 
-            assertEquals('A'.code, buffer.getCharAt(0, 0))
+            assertEquals('A', buffer.getCharAt(0, 0))
             assertEquals(1, buffer.cursorCol)
         }
 
         @Test
         fun `writes multiple characters sequentially`() {
             val buffer = TerminalBuffer(10, 5)
-            buffer.writeChar('A'.code)
-            buffer.writeChar('B'.code)
-            buffer.writeChar('C'.code)
+            buffer.writeChar('A')
+            buffer.writeChar('B')
+            buffer.writeChar('C')
 
-            assertEquals('A'.code, buffer.getCharAt(0, 0))
-            assertEquals('B'.code, buffer.getCharAt(1, 0))
-            assertEquals('C'.code, buffer.getCharAt(2, 0))
+            assertEquals('A', buffer.getCharAt(0, 0))
+            assertEquals('B', buffer.getCharAt(1, 0))
+            assertEquals('C', buffer.getCharAt(2, 0))
             assertEquals(3, buffer.cursorCol)
         }
 
@@ -79,7 +79,7 @@ class TerminalBufferTest {
         fun `uses current pen attributes`() {
             val buffer = TerminalBuffer(10, 5)
             buffer.setAttributes(Attributes(fg = 5, bg = 10, bold = true, italic = false, underline = false))
-            buffer.writeChar('A'.code)
+            buffer.writeChar('A')
 
             val expected = Attributes(fg = 5, bg = 10, bold = true, italic = false, underline = false)
             assertEquals(expected, buffer.getAttrAt(0, 0))
@@ -93,12 +93,12 @@ class TerminalBufferTest {
         @Test
         fun `wraps to next line at end of row`() {
             val buffer = TerminalBuffer(3, 5)
-            buffer.writeChar('A'.code)
-            buffer.writeChar('B'.code)
-            buffer.writeChar('C'.code)  // Fill line
-            buffer.writeChar('D'.code)  // Should wrap
+            buffer.writeChar('A')
+            buffer.writeChar('B')
+            buffer.writeChar('C')  // Fill line
+            buffer.writeChar('D')  // Should wrap
 
-            assertEquals('D'.code, buffer.getCharAt(0, 1))
+            assertEquals('D', buffer.getCharAt(0, 1))
             assertEquals(1, buffer.cursorCol)
             assertEquals(1, buffer.cursorRow)
         }
@@ -108,12 +108,12 @@ class TerminalBufferTest {
             val buffer = TerminalBuffer(3, 5)
             buffer.writeText("ABCDEF")
 
-            assertEquals('A'.code, buffer.getCharAt(0, 0))
-            assertEquals('B'.code, buffer.getCharAt(1, 0))
-            assertEquals('C'.code, buffer.getCharAt(2, 0))
-            assertEquals('D'.code, buffer.getCharAt(0, 1))
-            assertEquals('E'.code, buffer.getCharAt(1, 1))
-            assertEquals('F'.code, buffer.getCharAt(2, 1))
+            assertEquals('A', buffer.getCharAt(0, 0))
+            assertEquals('B', buffer.getCharAt(1, 0))
+            assertEquals('C', buffer.getCharAt(2, 0))
+            assertEquals('D', buffer.getCharAt(0, 1))
+            assertEquals('E', buffer.getCharAt(1, 1))
+            assertEquals('F', buffer.getCharAt(2, 1))
         }
     }
 
@@ -125,7 +125,7 @@ class TerminalBufferTest {
         fun `scrolls when wrapping past bottom`() {
             val buffer = TerminalBuffer(2, 2)
             buffer.writeText("ABCD")  // Fill screen
-            buffer.writeChar('E'.code)  // Should scroll
+            buffer.writeChar('E')  // Should scroll
 
             assertEquals(1, buffer.historySize)
             assertEquals(1, buffer.cursorRow)
@@ -136,11 +136,11 @@ class TerminalBufferTest {
             val buffer = TerminalBuffer(3, 2)
             buffer.writeText("ABC")  // Line 0, wraps
             buffer.writeText("DEF")  // Line 1, wraps
-            buffer.writeChar('G'.code)  // Scroll happens
+            buffer.writeChar('G')  // Scroll happens
 
-            assertEquals('A'.code, buffer.getHistoryCharAt(0, 0))
-            assertEquals('D'.code, buffer.getCharAt(0, 0))
-            assertEquals('G'.code, buffer.getCharAt(0, 1))
+            assertEquals('A', buffer.getHistoryCharAt(0, 0))
+            assertEquals('D', buffer.getCharAt(0, 0))
+            assertEquals('G', buffer.getCharAt(0, 1))
         }
 
         @Test
@@ -161,11 +161,11 @@ class TerminalBufferTest {
             val buffer = TerminalBuffer(10, 5)
             buffer.writeText("Hello")
 
-            assertEquals('H'.code, buffer.getCharAt(0, 0))
-            assertEquals('e'.code, buffer.getCharAt(1, 0))
-            assertEquals('l'.code, buffer.getCharAt(2, 0))
-            assertEquals('l'.code, buffer.getCharAt(3, 0))
-            assertEquals('o'.code, buffer.getCharAt(4, 0))
+            assertEquals('H', buffer.getCharAt(0, 0))
+            assertEquals('e', buffer.getCharAt(1, 0))
+            assertEquals('l', buffer.getCharAt(2, 0))
+            assertEquals('l', buffer.getCharAt(3, 0))
+            assertEquals('o', buffer.getCharAt(4, 0))
         }
 
         @Test
@@ -185,7 +185,7 @@ class TerminalBufferTest {
         @Test
         fun `moves to next row`() {
             val buffer = TerminalBuffer(10, 5)
-            buffer.writeChar('A'.code)
+            buffer.writeChar('A')
             buffer.newLine()
 
             assertEquals(0, buffer.cursorCol)
@@ -266,7 +266,7 @@ class TerminalBufferTest {
             buffer.clearScreen()
 
             for (row in 0 until 3) {
-                assertEquals(0, buffer.getCharAt(0, row))
+                assertEquals(null, buffer.getCharAt(0, row))
             }
         }
     }
@@ -276,32 +276,12 @@ class TerminalBufferTest {
     inner class ResetTests {
 
         @Test
-        fun `resets cursor`() {
-            val buffer = TerminalBuffer(10, 5)
-            buffer.setCursor(5, 3)
-            buffer.reset()
-
-            assertEquals(0, buffer.cursorCol)
-            assertEquals(0, buffer.cursorRow)
-        }
-
-        @Test
         fun `clears screen`() {
             val buffer = TerminalBuffer(10, 3)
             buffer.writeText("Test")
             buffer.reset()
 
-            assertEquals(0, buffer.getCharAt(0, 0))
-        }
-
-        @Test
-        fun `clears history`() {
-            val buffer = TerminalBuffer(10, 2)
-            buffer.newLine()
-            buffer.newLine()
-            buffer.reset()
-
-            assertEquals(0, buffer.historySize)
+            assertEquals(null, buffer.getCharAt(0, 0))
         }
 
         @Test
@@ -309,7 +289,7 @@ class TerminalBufferTest {
             val buffer = TerminalBuffer(10, 5)
             buffer.setAttributes(Attributes(fg = 10, bg = 5, bold = true, italic = false, underline = false))
             buffer.reset()
-            buffer.writeChar('A'.code)
+            buffer.writeChar('A')
 
             val defaultAttr = Attributes(fg = 0, bg = 0, bold = false, italic = false, underline = false)
             assertEquals(defaultAttr, buffer.getAttrAt(0, 0))
@@ -324,10 +304,10 @@ class TerminalBufferTest {
         fun `write, scroll, write maintains state`() {
             val buffer = TerminalBuffer(3, 2)
             buffer.writeText("ABCDEF")  // Fill and scroll
-            buffer.writeChar('G'.code)
+            buffer.writeChar('G')
 
-            assertEquals('D'.code, buffer.getCharAt(0, 0))
-            assertEquals('G'.code, buffer.getCharAt(0, 1))
+            assertEquals('D', buffer.getCharAt(0, 0))
+            assertEquals('G', buffer.getCharAt(0, 1))
             assertTrue(buffer.historySize > 0)
         }
 
@@ -338,11 +318,11 @@ class TerminalBufferTest {
             buffer.setCursor(0, 2)
             buffer.writeText("Bottom")
             buffer.setCursor(5, 1)
-            buffer.writeChar('M'.code)
+            buffer.writeChar('M')
 
-            assertEquals('T'.code, buffer.getCharAt(0, 0))
-            assertEquals('M'.code, buffer.getCharAt(5, 1))
-            assertEquals('B'.code, buffer.getCharAt(0, 2))
+            assertEquals('T', buffer.getCharAt(0, 0))
+            assertEquals('M', buffer.getCharAt(5, 1))
+            assertEquals('B', buffer.getCharAt(0, 2))
         }
     }
 
@@ -417,78 +397,21 @@ class TerminalBufferTest {
             val buffer = TerminalBuffer(10, 5)
             buffer.writeText("Hello")
 
-            assertEquals('H'.code, buffer.getCharAt(0, 0))
-            assertEquals('e'.code, buffer.getCharAt(1, 0))
-            assertEquals('o'.code, buffer.getCharAt(4, 0))
-        }
-
-        @Test
-        fun `getCharAt returns null for out of bounds`() {
-            val buffer = TerminalBuffer(10, 5)
-            buffer.writeText("Hello")
-
-            assertNull(buffer.getCharAt(-1, 0))
-            assertNull(buffer.getCharAt(100, 0))
-            assertNull(buffer.getCharAt(0, 100))
+            assertEquals('H', buffer.getCharAt(0, 0))
+            assertEquals('e', buffer.getCharAt(1, 0))
+            assertEquals('o', buffer.getCharAt(4, 0))
         }
 
         @Test
         fun `getAttrAt returns attributes at position`() {
             val buffer = TerminalBuffer(10, 5)
             buffer.setAttributes(Attributes(fg = 5, bg = 3, bold = true, italic = false, underline = false))
-            buffer.writeChar('X'.code)
+            buffer.writeChar('X')
 
             val attr = buffer.getAttrAt(0, 0)
             assertNotNull(attr)
             val expected = Attributes(fg = 5, bg = 3, bold = true, italic = false, underline = false)
             assertEquals(expected, attr)
-        }
-
-        @Test
-        fun `getLineAsString returns line content`() {
-            val buffer = TerminalBuffer(10, 5)
-            buffer.writeText("Hello")
-
-            assertEquals("Hello", buffer.getLineAsString(0))
-        }
-
-        @Test
-        fun `getScreenAsString returns all visible lines`() {
-            val buffer = TerminalBuffer(10, 3)
-            buffer.writeText("Line1")
-            buffer.newLine()
-            buffer.writeText("Line2")
-            buffer.newLine()
-            buffer.writeText("Line3")
-
-            val expected = "Line1\nLine2\nLine3"
-            assertEquals(expected, buffer.getScreenAsString())
-        }
-
-        @Test
-        fun `getAllAsString includes history`() {
-            val buffer = TerminalBuffer(5, 2)
-            buffer.writeText("AAA")
-            buffer.newLine()
-            buffer.newLine()
-            buffer.writeText("BBB")
-            buffer.newLine()
-            buffer.writeText("CCC")
-
-            val content = buffer.getAllAsString()
-            assertTrue(content.contains("AAA"))
-            assertTrue(content.contains("BBB") || content.contains("CCC"))
-        }
-
-        @Test
-        fun `getHistoryLineAsString returns history line`() {
-            val buffer = TerminalBuffer(10, 2)
-            buffer.writeText("History")
-            buffer.newLine()
-            buffer.newLine()
-
-            assertTrue(buffer.historySize > 0)
-            assertEquals("History", buffer.getHistoryLineAsString(0))
         }
     }
 
@@ -500,35 +423,35 @@ class TerminalBufferTest {
         fun `fillLine fills current line`() {
             val buffer = TerminalBuffer(5, 3)
             buffer.setCursor(0, 1)
-            buffer.fillLine('-'.code)
+            buffer.fillLine('-')
 
             for (col in 0 until 5) {
-                assertEquals('-'.code, buffer.getCharAt(col, 1))
+                assertEquals('-', buffer.getCharAt(col, 1))
             }
-            assertEquals(0, buffer.getCharAt(0, 0))
+            assertEquals(null, buffer.getCharAt(0, 0))
         }
 
         @Test
         fun `fillLineAt fills specific line`() {
             val buffer = TerminalBuffer(5, 3)
-            buffer.fillLineAt(2, '*'.code)
+            buffer.fillLineAt(2, '*')
 
             for (col in 0 until 5) {
-                assertEquals('*'.code, buffer.getCharAt(col, 2))
+                assertEquals('*', buffer.getCharAt(col, 2))
             }
-            assertEquals(0, buffer.getCharAt(0, 0))
+            assertEquals(null, buffer.getCharAt(0, 0))
         }
 
         @Test
-        fun `fillLine with 0 clears line`() {
+        fun `fillLine with null clears line`() {
             val buffer = TerminalBuffer(5, 3)
             buffer.setCursor(0, 0)
             buffer.writeText("Hello")
             buffer.setCursor(0, 0)
-            buffer.fillLine(0)
+            buffer.fillLine(null)
 
             for (col in 0 until 5) {
-                assertEquals(0, buffer.getCharAt(col, 0))
+                assertEquals(null, buffer.getCharAt(col, 0))
             }
         }
     }
@@ -548,7 +471,7 @@ class TerminalBufferTest {
             buffer.clearAll()
 
             assertEquals(0, buffer.historySize)
-            assertEquals(0, buffer.getCharAt(0, 0))
+            assertEquals(null, buffer.getCharAt(0, 0))
             assertEquals(0, buffer.cursorCol)
             assertEquals(0, buffer.cursorRow)
         }

@@ -25,7 +25,7 @@ interface TerminalBufferApi {
     fun cursorRight(n: Int = 1)
     fun resetCursor()
 
-    fun writeChar(codepoint: Int)
+    fun writeChar(value: Char)
     fun writeText(text: String)
     fun insertText(text: String)
     fun newLine()
@@ -34,16 +34,12 @@ interface TerminalBufferApi {
     fun scrollUp()
     fun clearScreen()
     fun clearAll()
-    fun fillLine(codepoint: Int = 0)
-    fun fillLineAt(row: Int, codepoint: Int = 0)
+    fun fillLine(value: Char? = null)
+    fun fillLineAt(row: Int, value: Char? = null)
 
-    fun getCharAt(col: Int, row: Int): Int?
-    fun getCodepointAt(col: Int, row: Int): Int?
-    fun getCharAsStringAt(col: Int, row: Int): String?
+    fun getCharAt(col: Int, row: Int): Char?
     fun getAttrAt(col: Int, row: Int): Attributes?
-    fun getHistoryCharAt(index: Int, col: Int): Int?
-    fun getHistoryCodepointAt(index: Int, col: Int): Int?
-    fun getHistoryCharAsStringAt(index: Int, col: Int): String?
+    fun getHistoryCharAt(index: Int, col: Int): Char?
     fun getHistoryAttrAt(index: Int, col: Int): Attributes?
     fun getLineAsString(row: Int): String
     fun getHistoryLineAsString(index: Int): String

@@ -66,10 +66,10 @@ internal class TerminalBuffer(
      * Writes a single character at the current cursor position.
      * Uses current pen attributes and advances cursor with auto-wrap.
      *
-     * @param codepoint Unicode codepoint to write
+     * @param value Character to write
      */
-    override fun writeChar(codepoint: Int) {
-        writeSingleChar(codepoint)
+    override fun writeChar(value: Char) {
+        writeSingleChar(value)
     }
 
     /**
@@ -79,14 +79,14 @@ internal class TerminalBuffer(
      * @param text Text to write
      */
     override fun writeText(text: String) {
-        forEachCodepoint(text) { codepoint ->
-            writeSingleChar(codepoint)
+        for (ch in text) {
+            writeSingleChar(ch)
         }
     }
 
     override fun insertText(text: String) {
-        forEachCodepoint(text) { codepoint ->
-            insertSingleChar(codepoint)
+        for (ch in text) {
+            insertSingleChar(ch)
         }
     }
 
@@ -227,9 +227,10 @@ internal class TerminalBuffer(
      * Fills the current line with a character using current attributes.
      * Cursor position is not affected.
      *
-     * @param codepoint Unicode codepoint to fill with (0 for empty/space)
+     * @param value Character to fill with (null clears to empty)
      */
-    override fun fillLine(codepoint: Int) {
+    override fun fillLine(value: Char?) {
+        val codepoint = value?.code ?: 0
         screen.getLine(cursor.row).fill(codepoint, pen.currentAttr)
     }
 
@@ -237,9 +238,10 @@ internal class TerminalBuffer(
      * Fills a specific line with a character using current attributes.
      *
      * @param row Screen row (0-based)
-     * @param codepoint Unicode codepoint to fill with (0 for empty/space)
+     * @param value Character to fill with (null clears to empty)
      */
-    override fun fillLineAt(row: Int, codepoint: Int) {
+    override fun fillLineAt(row: Int, value: Char?) {
+        val codepoint = value?.code ?: 0
         screen.getLine(row).fill(codepoint, pen.currentAttr)
     }
 
@@ -268,19 +270,13 @@ internal class TerminalBuffer(
      * @param row Row (0-based)
      * @return Unicode codepoint, or null if out of bounds
      */
-    override fun getCharAt(col: Int, row: Int): Int? {
-        return try {
+    override fun getCharAt(col: Int, row: Int): Char? {
+        val cp = try {
             screen.getLine(row).getCodepoint(col)
         } catch (_: IllegalArgumentException) {
             null
         }
-    }
-
-    override fun getCodepointAt(col: Int, row: Int): Int? = getCharAt(col, row)
-
-    override fun getCharAsStringAt(col: Int, row: Int): String? {
-        val cp = getCharAt(col, row) ?: return null
-        return String(Character.toChars(cp))
+        return toCharOrNull(cp)
     }
 
     /**
@@ -308,20 +304,15 @@ internal class TerminalBuffer(
         return packed?.let { AttributeCodec.unpack(it) }
     }
 
-    override fun getHistoryCharAt(index: Int, col: Int): Int? {
-        return try {
+    override fun getHistoryCharAt(index: Int, col: Int): Char? {
+        val cp = try {
             getHistoryLine(index).getCodepoint(col)
         } catch (_: IllegalArgumentException) {
             null
         }
+        return toCharOrNull(cp)
     }
 
-    override fun getHistoryCodepointAt(index: Int, col: Int): Int? = getHistoryCharAt(index, col)
-
-    override fun getHistoryCharAsStringAt(index: Int, col: Int): String? {
-        val cp = getHistoryCharAt(index, col) ?: return null
-        return String(Character.toChars(cp))
-    }
 
     /**
      * Gets a screen line as a string.
@@ -402,15 +393,15 @@ internal class TerminalBuffer(
         }
     }
 
-    private fun writeSingleChar(codepoint: Int) {
-        screen.write(cursor.row, cursor.col, codepoint, pen.currentAttr)
+    private fun writeSingleChar(value: Char) {
+        screen.write(cursor.row, cursor.col, value.code, pen.currentAttr)
         advanceCursorAfterWrite()
     }
 
-    private fun insertSingleChar(codepoint: Int) {
+    private fun insertSingleChar(value: Char) {
         val line = screen.getLine(cursor.row)
         shiftLineRight(line, cursor.col)
-        line.setCell(cursor.col, codepoint, pen.currentAttr)
+        line.setCell(cursor.col, value.code, pen.currentAttr)
         advanceCursorAfterWrite()
     }
 
@@ -427,13 +418,10 @@ internal class TerminalBuffer(
         line.attrs[startCol] = pen.currentAttr
     }
 
-    private fun forEachCodepoint(text: String, handle: (Int) -> Unit) {
-        var i = 0
-        while (i < text.length) {
-            val codepoint = text.codePointAt(i)
-            handle(codepoint)
-            i += Character.charCount(codepoint)
-        }
+    private fun toCharOrNull(codepoint: Int?): Char? {
+        if (codepoint == null || codepoint == 0) return null
+        if (codepoint > Char.MAX_VALUE.code) return null
+        return codepoint.toChar()
     }
 
     private fun advanceCursorAfterWrite() {
