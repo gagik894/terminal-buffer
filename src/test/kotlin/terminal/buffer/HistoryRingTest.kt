@@ -1,6 +1,5 @@
-package terminal.buffer
+package com.gagik.terminal.buffer
 
-import com.gagik.terminal.buffer.HistoryRing
 import com.gagik.terminal.model.Line
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName

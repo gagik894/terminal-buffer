@@ -1,8 +1,7 @@
-package terminal.model
+package com.gagik.terminal.model
 
-import com.gagik.terminal.model.AdvanceResult
-import com.gagik.terminal.model.Cursor
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.assertThrows

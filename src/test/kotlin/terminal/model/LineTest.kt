@@ -1,6 +1,5 @@
-package terminal.model
+package com.gagik.terminal.model
 
-import com.gagik.terminal.model.Line
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested

@@ -1,6 +1,5 @@
-package terminal.codec
+package com.gagik.terminal.codec
 
-import com.gagik.terminal.codec.AttributeCodec
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
