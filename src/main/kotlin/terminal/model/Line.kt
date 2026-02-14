@@ -108,4 +108,41 @@ class Line(
         System.arraycopy(other.attrs, 0, attrs, 0, width)
         this.wrapped = other.wrapped
     }
+
+    /**
+     * Fills the entire line with the specified character and attribute.
+     *
+     * @param codepoint Unicode codepoint to fill with (0 for empty/space)
+     * @param attr The attribute to set for all cells
+     */
+    fun fill(codepoint: Int, attr: Int) {
+        codepoints.fill(codepoint)
+        attrs.fill(attr)
+    }
+
+    /**
+     * Converts the line content to a string.
+     * Empty cells (codepoint 0) are rendered as spaces.
+     * Trailing spaces are preserved.
+     *
+     * @return String representation of the line
+     */
+    fun toText(): String {
+        val sb = StringBuilder(width)
+        for (cp in codepoints) {
+            if (cp == 0) {
+                sb.append(' ')
+            } else {
+                sb.appendCodePoint(cp)
+            }
+        }
+        return sb.toString()
+    }
+
+    /**
+     * Converts the line content to a string, trimming trailing spaces.
+     *
+     * @return String representation of the line with trailing spaces removed
+     */
+    fun toTextTrimmed(): String = toText().trimEnd()
 }

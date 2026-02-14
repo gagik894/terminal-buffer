@@ -306,4 +306,95 @@ class LineTest {
             }
         }
     }
+
+    @Nested
+    @DisplayName("fill()")
+    inner class FillTests {
+
+        @Test
+        fun `fills entire line with character`() {
+            val line = Line(5)
+            line.fill('-'.code, 99)
+
+            for (col in 0 until 5) {
+                assertEquals('-'.code, line.getCodepoint(col))
+                assertEquals(99, line.getAttr(col))
+            }
+        }
+
+        @Test
+        fun `fill with 0 clears all codepoints`() {
+            val line = Line(5)
+            for (col in 0 until 5) {
+                line.setCell(col, 'A'.code + col, col)
+            }
+
+            line.fill(0, 42)
+
+            for (col in 0 until 5) {
+                assertEquals(0, line.getCodepoint(col))
+                assertEquals(42, line.getAttr(col))
+            }
+        }
+
+        @Test
+        fun `fill overwrites existing content`() {
+            val line = Line(5)
+            for (col in 0 until 5) {
+                line.setCell(col, 'X'.code, col)
+            }
+
+            line.fill('Y'.code, 100)
+
+            for (col in 0 until 5) {
+                assertEquals('Y'.code, line.getCodepoint(col))
+                assertEquals(100, line.getAttr(col))
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("toText()")
+    inner class ToTextTests {
+
+        @Test
+        fun `converts line to string`() {
+            val line = Line(5)
+            line.setCell(0, 'H'.code, 0)
+            line.setCell(1, 'e'.code, 0)
+            line.setCell(2, 'l'.code, 0)
+            line.setCell(3, 'l'.code, 0)
+            line.setCell(4, 'o'.code, 0)
+
+            assertEquals("Hello", line.toText())
+        }
+
+        @Test
+        fun `empty cells render as spaces`() {
+            val line = Line(5)
+            line.setCell(0, 'A'.code, 0)
+            // cells 1-3 are empty (0)
+            line.setCell(4, 'B'.code, 0)
+
+            assertEquals("A   B", line.toText())
+        }
+
+        @Test
+        fun `toTextTrimmed removes trailing spaces`() {
+            val line = Line(10)
+            line.setCell(0, 'H'.code, 0)
+            line.setCell(1, 'i'.code, 0)
+            // rest are empty
+
+            assertEquals("Hi        ", line.toText())
+            assertEquals("Hi", line.toTextTrimmed())
+        }
+
+        @Test
+        fun `empty line returns all spaces`() {
+            val line = Line(5)
+            assertEquals("     ", line.toText())
+            assertEquals("", line.toTextTrimmed())
+        }
+    }
 }
