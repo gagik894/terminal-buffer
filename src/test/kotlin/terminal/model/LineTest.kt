@@ -164,4 +164,146 @@ class LineTest {
             assertEquals(99, dest.getAttr(0))
         }
     }
+
+    @Nested
+    @DisplayName("clearFromColumn()")
+    inner class ClearFromColumnTests {
+
+        @Test
+        fun `clears from specified column to end`() {
+            val line = Line(10)
+            for (col in 0 until 10) {
+                line.setCell(col, 'A'.code + col, col)
+            }
+
+            line.clearFromColumn(5, 99)
+
+            // Columns 0-4 should be unchanged
+            for (col in 0 until 5) {
+                assertEquals('A'.code + col, line.getCodepoint(col))
+                assertEquals(col, line.getAttr(col))
+            }
+            // Columns 5-9 should be cleared
+            for (col in 5 until 10) {
+                assertEquals(0, line.getCodepoint(col))
+                assertEquals(99, line.getAttr(col))
+            }
+        }
+
+        @Test
+        fun `clears entire line when startCol is 0`() {
+            val line = Line(5)
+            for (col in 0 until 5) {
+                line.setCell(col, 'X'.code, col)
+            }
+
+            line.clearFromColumn(0, 42)
+
+            for (col in 0 until 5) {
+                assertEquals(0, line.getCodepoint(col))
+                assertEquals(42, line.getAttr(col))
+            }
+        }
+
+        @Test
+        fun `handles negative startCol by clamping to 0`() {
+            val line = Line(5)
+            for (col in 0 until 5) {
+                line.setCell(col, 'X'.code, col)
+            }
+
+            line.clearFromColumn(-5, 42)
+
+            for (col in 0 until 5) {
+                assertEquals(0, line.getCodepoint(col))
+                assertEquals(42, line.getAttr(col))
+            }
+        }
+
+        @Test
+        fun `handles startCol beyond width by doing nothing`() {
+            val line = Line(5)
+            for (col in 0 until 5) {
+                line.setCell(col, 'X'.code, col)
+            }
+
+            line.clearFromColumn(10, 42)
+
+            for (col in 0 until 5) {
+                assertEquals('X'.code, line.getCodepoint(col))
+                assertEquals(col, line.getAttr(col))
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("clearToColumn()")
+    inner class ClearToColumnTests {
+
+        @Test
+        fun `clears from beginning to specified column`() {
+            val line = Line(10)
+            for (col in 0 until 10) {
+                line.setCell(col, 'A'.code + col, col)
+            }
+
+            line.clearToColumn(4, 99)
+
+            // Columns 0-4 should be cleared
+            for (col in 0..4) {
+                assertEquals(0, line.getCodepoint(col))
+                assertEquals(99, line.getAttr(col))
+            }
+            // Columns 5-9 should be unchanged
+            for (col in 5 until 10) {
+                assertEquals('A'.code + col, line.getCodepoint(col))
+                assertEquals(col, line.getAttr(col))
+            }
+        }
+
+        @Test
+        fun `clears entire line when endCol is width-1`() {
+            val line = Line(5)
+            for (col in 0 until 5) {
+                line.setCell(col, 'X'.code, col)
+            }
+
+            line.clearToColumn(4, 42)
+
+            for (col in 0 until 5) {
+                assertEquals(0, line.getCodepoint(col))
+                assertEquals(42, line.getAttr(col))
+            }
+        }
+
+        @Test
+        fun `handles negative endCol by doing nothing`() {
+            val line = Line(5)
+            for (col in 0 until 5) {
+                line.setCell(col, 'X'.code, col)
+            }
+
+            line.clearToColumn(-1, 42)
+
+            for (col in 0 until 5) {
+                assertEquals('X'.code, line.getCodepoint(col))
+                assertEquals(col, line.getAttr(col))
+            }
+        }
+
+        @Test
+        fun `handles endCol beyond width by clearing entire line`() {
+            val line = Line(5)
+            for (col in 0 until 5) {
+                line.setCell(col, 'X'.code, col)
+            }
+
+            line.clearToColumn(100, 42)
+
+            for (col in 0 until 5) {
+                assertEquals(0, line.getCodepoint(col))
+                assertEquals(42, line.getAttr(col))
+            }
+        }
+    }
 }
