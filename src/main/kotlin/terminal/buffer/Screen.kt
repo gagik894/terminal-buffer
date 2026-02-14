@@ -1,6 +1,8 @@
 package com.gagik.terminal.buffer
 
 import com.gagik.terminal.model.Line
+import com.gagik.terminal.util.Validations.isInBounds
+import com.gagik.terminal.util.Validations.requirePositive
 
 /**
  * A lightweight viewport ("lens") over the HistoryRing.
@@ -23,8 +25,8 @@ class Screen(
     private val width: Int
 ) {
     init {
-        require(height > 0) { "height must be > 0" }
-        require(width > 0) { "width must be > 0" }
+        requirePositive(height, "height")
+        requirePositive(width, "width")
     }
 
     /**
@@ -36,7 +38,7 @@ class Screen(
      * @throws IllegalArgumentException if row is out of bounds
      */
     fun getLine(row: Int): Line {
-        require(row in 0 until height) { "row $row out of bounds (0..<$height)" }
+        require(isInBounds(row, height)) { "row $row out of bounds (0..<$height)" }
 
         // Screen is the last [height] lines of the ring
         val startIndex = (ring.size - height).coerceAtLeast(0)
@@ -53,7 +55,7 @@ class Screen(
      * @param attr Packed attribute value
      */
     fun write(row: Int, col: Int, codepoint: Int, attr: Int) {
-        if (row in 0 until height && col in 0 until width) {
+        if (isInBounds(row, height) && isInBounds(col, width)) {
             getLine(row).setCell(col, codepoint, attr)
         }
     }
@@ -82,5 +84,45 @@ class Screen(
         for (i in 0 until height.coerceAtMost(ring.size)) {
             ring[startIndex + i].clear(fillAttr)
         }
+    }
+
+    /**
+     * Clears from a specific position to the end of the screen.
+     * Clears from (row, col) to the bottom-right corner.
+     *
+     * @param row Starting row (inclusive)
+     * @param col Starting column (inclusive) on the starting row
+     * @param fillAttr Attribute to fill cleared cells with
+     */
+    fun clearFromPosition(row: Int, col: Int, fillAttr: Int) {
+        if (!isInBounds(row, height)) return
+
+        // Clear from cursor to end of current line
+        getLine(row).clearFromColumn(col, fillAttr)
+
+        // Clear all lines below
+        for (r in (row + 1) until height) {
+            getLine(r).clear(fillAttr)
+        }
+    }
+
+    /**
+     * Clears from the beginning of the screen to a specific position.
+     * Clears from the top-left corner to (row, col).
+     *
+     * @param row Ending row (inclusive)
+     * @param col Ending column (inclusive) on the ending row
+     * @param fillAttr Attribute to fill cleared cells with
+     */
+    fun clearToPosition(row: Int, col: Int, fillAttr: Int) {
+        if (!isInBounds(row, height)) return
+
+        // Clear all lines above
+        for (r in 0 until row) {
+            getLine(r).clear(fillAttr)
+        }
+
+        // Clear from beginning of current line to cursor
+        getLine(row).clearToColumn(col, fillAttr)
     }
 }

@@ -423,4 +423,112 @@ class ScreenTest {
             Assertions.assertEquals(2, screen.getLine(0).getAttr(0), "After clear and write, line B should have attr 2")
         }
     }
+
+    @Nested
+    @DisplayName("clearFromPosition()")
+    inner class ClearFromPositionTests {
+
+        @Test
+        fun `clears from cursor to end of screen`() {
+            val ring = HistoryRing(100) { Line(5) }
+            val screen = Screen(ring, height = 3, width = 5)
+
+            // Fill screen with content
+            repeat(3) { row ->
+                val line = ring.push()
+                for (col in 0 until 5) {
+                    line.setCell(col, 'A'.code + row, row)
+                }
+            }
+
+            // Clear from (1, 2) to end of screen
+            screen.clearFromPosition(1, 2, 99)
+
+            // Row 0 should be unchanged
+            for (col in 0 until 5) {
+                Assertions.assertEquals('A'.code, screen.getLine(0).getCodepoint(col))
+            }
+
+            // Row 1: columns 0-1 unchanged, columns 2-4 cleared
+            Assertions.assertEquals('B'.code, screen.getLine(1).getCodepoint(0))
+            Assertions.assertEquals('B'.code, screen.getLine(1).getCodepoint(1))
+            Assertions.assertEquals(0, screen.getLine(1).getCodepoint(2))
+            Assertions.assertEquals(99, screen.getLine(1).getAttr(2))
+
+            // Row 2 should be completely cleared
+            for (col in 0 until 5) {
+                Assertions.assertEquals(0, screen.getLine(2).getCodepoint(col))
+                Assertions.assertEquals(99, screen.getLine(2).getAttr(col))
+            }
+        }
+
+        @Test
+        fun `handles out of bounds row gracefully`() {
+            val ring = HistoryRing(100) { Line(5) }
+            val screen = Screen(ring, height = 3, width = 5)
+
+            repeat(3) { ring.push().setCell(0, 'X'.code, 0) }
+
+            Assertions.assertDoesNotThrow {
+                screen.clearFromPosition(10, 0, 99)
+            }
+
+            // Content should be unchanged
+            Assertions.assertEquals('X'.code, screen.getLine(0).getCodepoint(0))
+        }
+    }
+
+    @Nested
+    @DisplayName("clearToPosition()")
+    inner class ClearToPositionTests {
+
+        @Test
+        fun `clears from beginning of screen to cursor`() {
+            val ring = HistoryRing(100) { Line(5) }
+            val screen = Screen(ring, height = 3, width = 5)
+
+            // Fill screen with content
+            repeat(3) { row ->
+                val line = ring.push()
+                for (col in 0 until 5) {
+                    line.setCell(col, 'A'.code + row, row)
+                }
+            }
+
+            // Clear from beginning to (1, 2)
+            screen.clearToPosition(1, 2, 99)
+
+            // Row 0 should be completely cleared
+            for (col in 0 until 5) {
+                Assertions.assertEquals(0, screen.getLine(0).getCodepoint(col))
+                Assertions.assertEquals(99, screen.getLine(0).getAttr(col))
+            }
+
+            // Row 1: columns 0-2 cleared, columns 3-4 unchanged
+            Assertions.assertEquals(0, screen.getLine(1).getCodepoint(0))
+            Assertions.assertEquals(0, screen.getLine(1).getCodepoint(2))
+            Assertions.assertEquals('B'.code, screen.getLine(1).getCodepoint(3))
+            Assertions.assertEquals('B'.code, screen.getLine(1).getCodepoint(4))
+
+            // Row 2 should be unchanged
+            for (col in 0 until 5) {
+                Assertions.assertEquals('C'.code, screen.getLine(2).getCodepoint(col))
+            }
+        }
+
+        @Test
+        fun `handles out of bounds row gracefully`() {
+            val ring = HistoryRing(100) { Line(5) }
+            val screen = Screen(ring, height = 3, width = 5)
+
+            repeat(3) { ring.push().setCell(0, 'X'.code, 0) }
+
+            Assertions.assertDoesNotThrow {
+                screen.clearToPosition(-1, 0, 99)
+            }
+
+            // Content should be unchanged
+            Assertions.assertEquals('X'.code, screen.getLine(0).getCodepoint(0))
+        }
+    }
 }
