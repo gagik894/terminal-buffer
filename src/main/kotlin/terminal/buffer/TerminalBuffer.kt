@@ -96,11 +96,13 @@ class TerminalBuffer(
      * If at the bottom of the screen, scrolls up.
      */
     fun newLine() {
-        cursor.set(0, cursor.row + 1)
+        val nextRow = cursor.row + 1
 
-        if (cursor.row >= height) {
+        if (nextRow >= height) {
             screen.scrollUp(pen.currentAttr)
             cursor.set(0, height - 1)
+        } else {
+            cursor.set(0, nextRow)
         }
     }
 
