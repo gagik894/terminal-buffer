@@ -51,10 +51,51 @@ class Cursor(
     }
 
     /**
+     * Advances cursor by one position (for character writing).
+     * Handles automatic line wrapping.
+     *
+     * @return AdvanceResult indicating what happened
+     */
+    fun advance(): AdvanceResult {
+        val oldRow = row
+        col++
+
+        if (col >= width) {
+            // Wrap to next line
+            col = 0
+            row++
+
+            if (row >= height) {
+                // Wrapped past bottom - need to scroll
+                row = height - 1
+                return AdvanceResult.ScrollNeeded(oldRow)
+            }
+
+            return AdvanceResult.Wrapped(oldRow)
+        }
+
+        return AdvanceResult.Normal
+    }
+
+    /**
      * Resets the cursor position to the top-left corner (0, 0).
      */
     fun reset() {
         col = 0
         row = 0
     }
+}
+
+/**
+ * Result of cursor advance operation.
+ */
+sealed class AdvanceResult {
+    /** Normal advancement within a line */
+    object Normal : AdvanceResult()
+
+    /** Wrapped to next line */
+    data class Wrapped(val fromRow: Int) : AdvanceResult()
+
+    /** Wrapped past bottom edge - scroll needed */
+    data class ScrollNeeded(val fromRow: Int) : AdvanceResult()
 }

@@ -1,5 +1,6 @@
 package terminal.model
 
+import com.gagik.terminal.model.AdvanceResult
 import com.gagik.terminal.model.Cursor
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
@@ -147,6 +148,47 @@ class CursorTest {
             val second = cursor.col to cursor.row
 
             assertEquals(first, second, "Reset should be idempotent, multiple calls should yield the same result")
+        }
+    }
+
+    @Nested
+    @DisplayName("advance()")
+    inner class AdvanceTests {
+
+        @Test
+        fun `normal advance within line`() {
+            val cursor = Cursor(10, 5)
+            val result = cursor.advance()
+
+            assertTrue(result is AdvanceResult.Normal)
+            assertEquals(1, cursor.col)
+            assertEquals(0, cursor.row)
+        }
+
+        @Test
+        fun `wraps to next line at end`() {
+            val cursor = Cursor(3, 5)
+            cursor.set(2, 0)  // Last column
+
+            val result = cursor.advance()
+
+            assertTrue(result is AdvanceResult.Wrapped)
+            assertEquals(0, (result as AdvanceResult.Wrapped).fromRow)
+            assertEquals(0, cursor.col)
+            assertEquals(1, cursor.row)
+        }
+
+        @Test
+        fun `signals scroll when wrapping past bottom`() {
+            val cursor = Cursor(3, 2)
+            cursor.set(2, 1)  // Last column, last row
+
+            val result = cursor.advance()
+
+            assertTrue(result is AdvanceResult.ScrollNeeded)
+            assertEquals(1, (result as AdvanceResult.ScrollNeeded).fromRow)
+            assertEquals(0, cursor.col)
+            assertEquals(1, cursor.row)  // Stays at bottom
         }
     }
 }
