@@ -1,5 +1,8 @@
 package com.gagik.terminal.model
 
+import com.gagik.terminal.util.Validations.isInBounds
+import com.gagik.terminal.util.Validations.requirePositive
+
 /**
  * A single visual terminal line of fixed width.
  *
@@ -18,7 +21,7 @@ class Line(
     val width: Int
 ) {
     init {
-        require(width > 0) { "width must be > 0" }
+        requirePositive(width, "width")
     }
 
     // The codepoints for each cell in the line. 0 means empty cell.
@@ -47,7 +50,7 @@ class Line(
      * @param attr The packed attribute Int to set for the cell
      */
     fun setCell(col: Int, codepoint: Int, attr: Int) {
-        if (col !in 0 until width) return
+        if (!isInBounds(col, width)) return
         codepoints[col] = codepoint
         attrs[col] = attr
     }
@@ -57,14 +60,40 @@ class Line(
      * @param col The column index of the cell to query
      * @return The Unicode codepoint at the specified column, or null if col is out of bounds
      */
-    fun getCodepoint(col: Int): Int? = if (col in 0 until width) codepoints[col] else null
+    fun getCodepoint(col: Int): Int? = if (isInBounds(col, width)) codepoints[col] else null
 
     /**
      * Gets the attribute of the cell at the specified column.
      * @param col The column index of the cell to query
      * @return The packed attribute Int at the specified column, or null if col is out of bounds
      */
-    fun getAttr(col: Int): Int? = if (col in 0 until width) attrs[col] else null
+    fun getAttr(col: Int): Int? = if (isInBounds(col, width)) attrs[col] else null
+
+    /**
+     * Clears cells from the specified column to the end of the line.
+     * @param startCol The starting column (inclusive)
+     * @param attr The attribute to fill cleared cells with
+     */
+    fun clearFromColumn(startCol: Int, attr: Int) {
+        val start = startCol.coerceIn(0, width)
+        for (col in start until width) {
+            codepoints[col] = 0
+            attrs[col] = attr
+        }
+    }
+
+    /**
+     * Clears cells from the beginning of the line to the specified column.
+     * @param endCol The ending column (inclusive)
+     * @param attr The attribute to fill cleared cells with
+     */
+    fun clearToColumn(endCol: Int, attr: Int) {
+        val end = (endCol + 1).coerceIn(0, width)
+        for (col in 0 until end) {
+            codepoints[col] = 0
+            attrs[col] = attr
+        }
+    }
 
     /**
      * Copies the contents of another line into this line.
