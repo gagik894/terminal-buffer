@@ -9,12 +9,14 @@ import com.gagik.terminal.codec.AttributeCodec
  * - 1..16 = Specific ANSI Colors
  */
 class Pen {
+
     private val defaultAttr = AttributeCodec.pack(
         fg = 0, bg = 0,
         bold = false, italic = false, underline = false
     )
 
-    var currentAttr: Int = defaultAttr // Packed attributes for the current pen state
+    /** Current packed attributes for the pen state */
+    var currentAttr: Int = defaultAttr
         private set
 
     /**
@@ -32,8 +34,8 @@ class Pen {
         italic: Boolean = false,
         underline: Boolean = false
     ) {
-        val safeFg = fg.coerceIn(0, 16)
-        val safeBg = bg.coerceIn(0, 16)
+        val safeFg = fg.coerceIn(0, AttributeCodec.MAX_ANSI_COLOR)
+        val safeBg = bg.coerceIn(0, AttributeCodec.MAX_ANSI_COLOR)
 
         currentAttr = AttributeCodec.pack(safeFg, safeBg, bold, italic, underline)
     }
