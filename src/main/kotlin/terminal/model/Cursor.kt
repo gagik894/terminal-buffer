@@ -12,7 +12,7 @@ import com.gagik.terminal.util.Validations.requirePositive
  * @param height The height of the terminal in rows. Must be > 0.
  * @throws IllegalArgumentException if width or height are not greater than 0
  */
-class Cursor(
+internal class Cursor(
     private var width: Int,
     private var height: Int
 ) {
@@ -90,7 +90,7 @@ class Cursor(
 /**
  * Result of cursor advance operation.
  */
-sealed class AdvanceResult {
+internal sealed class AdvanceResult {
     /** Normal advancement within a line */
     object Normal : AdvanceResult()
 

@@ -19,7 +19,7 @@ import com.gagik.terminal.util.Validations.requirePositive
  * @param width The number of columns in each line. Must be > 0.
  * @throws IllegalArgumentException if height or width are not greater than 0
  */
-class Screen(
+internal class Screen(
     private val ring: HistoryRing,
     private val height: Int,
     private val width: Int

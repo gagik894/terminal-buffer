@@ -17,7 +17,7 @@ import com.gagik.terminal.util.Validations.requirePositive
  * @param width The fixed width of the line in cells. Must be > 0.
  * @throws IllegalArgumentException if width is not greater than 0
  */
-class Line(
+internal class Line(
     val width: Int
 ) {
     init {

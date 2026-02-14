@@ -8,7 +8,7 @@ import com.gagik.terminal.codec.AttributeCodec
  * - 0 = Logical DEFAULT (The terminal's base color)
  * - 1..16 = Specific ANSI Colors
  */
-class Pen {
+internal class Pen {
 
     private val defaultAttr = AttributeCodec.pack(
         fg = 0, bg = 0,

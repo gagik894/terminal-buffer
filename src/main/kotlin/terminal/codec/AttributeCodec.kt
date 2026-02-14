@@ -15,7 +15,7 @@ package com.gagik.terminal.codec
  * bit 11     italic
  * bit 12     underline
  */
-object AttributeCodec {
+internal object AttributeCodec {
 
     /** Maximum color value for standard ANSI colors (0 = default, 1-16 = ANSI) */
     const val MAX_ANSI_COLOR = 16

@@ -4,7 +4,7 @@ package com.gagik.terminal.util
  * Shared validation utilities for terminal components.
  * Centralizes common validation logic to ensure DRY and consistency.
  */
-object Validations {
+internal object Validations {
 
     /**
      * Requires that the given value is positive (> 0).
