@@ -1,5 +1,6 @@
 package com.gagik.terminal.model
 
+import com.gagik.terminal.util.Validations.requirePositive
 
 /**
  * Tracks the cursor position within the terminal grid.
@@ -16,8 +17,8 @@ class Cursor(
     private var height: Int
 ) {
     init {
-        require(height > 0) { "height ($height) must be > 0" }
-        require(width > 0) { "width ($width) must be > 0" }
+        requirePositive(height, "height")
+        requirePositive(width, "width")
     }
 
     var col: Int = 0 // column index, 0-based
