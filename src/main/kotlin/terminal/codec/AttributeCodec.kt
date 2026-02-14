@@ -3,6 +3,11 @@ package com.gagik.terminal.codec
 /**
  * Encodes terminal cell attributes into a compact Int.
  *
+ * Color range:
+ * - 0 = Default (terminal's base color)
+ * - 1-16 = Standard ANSI colors
+ * - 17-31 = Reserved for 256-color extension
+ *
  * Layout:
  * bits 0–4   foreground (0–31)
  * bits 5–9   background (0–31)
@@ -12,10 +17,16 @@ package com.gagik.terminal.codec
  */
 object AttributeCodec {
 
+    /** Maximum color value for standard ANSI colors (0 = default, 1-16 = ANSI) */
+    const val MAX_ANSI_COLOR = 16
+
+    /** Maximum color value supported by the codec (includes reserved range) */
+    const val MAX_COLOR = 31
+
     /**
      * Packs the given attributes into a single Int.
-     * @param fg Foreground color (0–31)
-     * @param bg Background color (0–31)
+     * @param fg Foreground color (0–31, see class docs for meaning)
+     * @param bg Background color (0–31, see class docs for meaning)
      * @param bold Whether the text is bold
      * @param italic Whether the text is italic
      * @param underline Whether the text is underlined
@@ -30,8 +41,8 @@ object AttributeCodec {
      * - The underline attribute is stored in bit 12.
      */
     fun pack(fg: Int, bg: Int, bold: Boolean, italic: Boolean, underline: Boolean): Int {
-        require(fg in 0..31)
-        require(bg in 0..31)
+        require(fg in 0..MAX_COLOR) { "fg must be in 0..$MAX_COLOR, was $fg" }
+        require(bg in 0..MAX_COLOR) { "bg must be in 0..$MAX_COLOR, was $bg" }
 
         var v = fg
         v = v or (bg shl 5)
