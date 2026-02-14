@@ -1,6 +1,6 @@
 package com.gagik.terminal.buffer
 
-import com.gagik.terminal.codec.AttributeCodec
+import com.gagik.terminal.model.Attributes
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -78,10 +78,10 @@ class TerminalBufferTest {
         @Test
         fun `uses current pen attributes`() {
             val buffer = TerminalBuffer(10, 5)
-            buffer.setAttributes(fg = 5, bg = 10, bold = true)
+            buffer.setAttributes(Attributes(fg = 5, bg = 10, bold = true, italic = false, underline = false))
             buffer.writeChar('A'.code)
 
-            val expected = AttributeCodec.pack(5, 10, bold = true, italic = false, underline = false)
+            val expected = Attributes(fg = 5, bg = 10, bold = true, italic = false, underline = false)
             assertEquals(expected, buffer.getAttrAt(0, 0))
         }
     }
@@ -307,11 +307,11 @@ class TerminalBufferTest {
         @Test
         fun `resets pen`() {
             val buffer = TerminalBuffer(10, 5)
-            buffer.setAttributes(10, 5, true)
+            buffer.setAttributes(Attributes(fg = 10, bg = 5, bold = true, italic = false, underline = false))
             buffer.reset()
             buffer.writeChar('A'.code)
 
-            val defaultAttr = AttributeCodec.pack(0, 0, false, false, false)
+            val defaultAttr = Attributes(fg = 0, bg = 0, bold = false, italic = false, underline = false)
             assertEquals(defaultAttr, buffer.getAttrAt(0, 0))
         }
     }
@@ -435,12 +435,12 @@ class TerminalBufferTest {
         @Test
         fun `getAttrAt returns attributes at position`() {
             val buffer = TerminalBuffer(10, 5)
-            buffer.setAttributes(5, 3, bold = true)
+            buffer.setAttributes(Attributes(fg = 5, bg = 3, bold = true, italic = false, underline = false))
             buffer.writeChar('X'.code)
 
             val attr = buffer.getAttrAt(0, 0)
             assertNotNull(attr)
-            val expected = AttributeCodec.pack(5, 3, bold = true, italic = false, underline = false)
+            val expected = Attributes(fg = 5, bg = 3, bold = true, italic = false, underline = false)
             assertEquals(expected, attr)
         }
 

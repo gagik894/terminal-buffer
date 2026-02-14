@@ -1,9 +1,7 @@
 package com.gagik.terminal.buffer
 
-import com.gagik.terminal.model.AdvanceResult
-import com.gagik.terminal.model.Cursor
-import com.gagik.terminal.model.Line
-import com.gagik.terminal.model.Pen
+import com.gagik.terminal.codec.AttributeCodec
+import com.gagik.terminal.model.*
 import com.gagik.terminal.util.Validations.requireNonNegative
 import com.gagik.terminal.util.Validations.requirePositive
 
@@ -182,20 +180,16 @@ internal class TerminalBuffer(
     /**
      * Sets pen attributes for subsequent write operations.
      *
-     * @param fg Foreground color (0 = default, 1-16 = ANSI colors)
-     * @param bg Background color (0 = default, 1-16 = ANSI colors)
-     * @param bold Bold style
-     * @param italic Italic style
-     * @param underline Underline style
+     * @param attributes Attributes to set on the pen
      */
-    override fun setAttributes(
-        fg: Int,
-        bg: Int,
-        bold: Boolean,
-        italic: Boolean,
-        underline: Boolean
-    ) {
-        pen.setAttributes(fg, bg, bold, italic, underline)
+    override fun setAttributes(attributes: Attributes) {
+        pen.setAttributes(
+            attributes.fg,
+            attributes.bg,
+            attributes.bold,
+            attributes.italic,
+            attributes.underline
+        )
     }
 
     /**
@@ -282,6 +276,13 @@ internal class TerminalBuffer(
         }
     }
 
+    override fun getCodepointAt(col: Int, row: Int): Int? = getCharAt(col, row)
+
+    override fun getCharAsStringAt(col: Int, row: Int): String? {
+        val cp = getCharAt(col, row) ?: return null
+        return String(Character.toChars(cp))
+    }
+
     /**
      * Gets the attributes at a screen position.
      *
@@ -289,12 +290,22 @@ internal class TerminalBuffer(
      * @param row Row (0-based)
      * @return Packed attribute value, or null if out of bounds
      */
-    override fun getAttrAt(col: Int, row: Int): Int? {
-        return try {
+    override fun getAttrAt(col: Int, row: Int): Attributes? {
+        val packed = try {
             screen.getLine(row).getAttr(col)
         } catch (_: IllegalArgumentException) {
             null
         }
+        return packed?.let { AttributeCodec.unpack(it) }
+    }
+
+    override fun getHistoryAttrAt(index: Int, col: Int): Attributes? {
+        val packed = try {
+            getHistoryLine(index).getAttr(col)
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+        return packed?.let { AttributeCodec.unpack(it) }
     }
 
     override fun getHistoryCharAt(index: Int, col: Int): Int? {
@@ -305,12 +316,11 @@ internal class TerminalBuffer(
         }
     }
 
-    override fun getHistoryAttrAt(index: Int, col: Int): Int? {
-        return try {
-            getHistoryLine(index).getAttr(col)
-        } catch (_: IllegalArgumentException) {
-            null
-        }
+    override fun getHistoryCodepointAt(index: Int, col: Int): Int? = getHistoryCharAt(index, col)
+
+    override fun getHistoryCharAsStringAt(index: Int, col: Int): String? {
+        val cp = getHistoryCharAt(index, col) ?: return null
+        return String(Character.toChars(cp))
     }
 
     /**
@@ -399,27 +409,22 @@ internal class TerminalBuffer(
 
     private fun insertSingleChar(codepoint: Int) {
         val line = screen.getLine(cursor.row)
-        shiftLineRight(line, cursor.col, 1)
+        shiftLineRight(line, cursor.col)
         line.setCell(cursor.col, codepoint, pen.currentAttr)
         advanceCursorAfterWrite()
     }
 
-    private fun shiftLineRight(line: Line, startCol: Int, count: Int) {
-        if (count <= 0 || startCol !in 0 until width) return
+    private fun shiftLineRight(line: Line, startCol: Int) {
+        if (startCol !in 0 until width) return
         val end = width - 1
         var col = end
-        while (col - count >= startCol) {
-            line.codepoints[col] = line.codepoints[col - count]
-            line.attrs[col] = line.attrs[col - count]
+        while (col - 1 >= startCol) {
+            line.codepoints[col] = line.codepoints[col - 1]
+            line.attrs[col] = line.attrs[col - 1]
             col--
         }
-        for (i in 0 until count) {
-            val idx = startCol + i
-            if (idx in 0 until width) {
-                line.codepoints[idx] = 0
-                line.attrs[idx] = pen.currentAttr
-            }
-        }
+        line.codepoints[startCol] = 0
+        line.attrs[startCol] = pen.currentAttr
     }
 
     private fun forEachCodepoint(text: String, handle: (Int) -> Unit) {

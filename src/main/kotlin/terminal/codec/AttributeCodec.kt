@@ -1,5 +1,7 @@
 package com.gagik.terminal.codec
 
+import com.gagik.terminal.model.Attributes
+
 /**
  * Encodes terminal cell attributes into a compact Int.
  *
@@ -86,4 +88,19 @@ internal object AttributeCodec {
      * @return True if underline is set, false otherwise
      */
     fun isUnderline(v: Int) = v and (1 shl 12) != 0
+
+    /**
+     * Unpacks a packed attribute Int into a structured Attributes instance.
+     * @param v Packed attribute value
+     * @return Unpacked Attributes
+     */
+    fun unpack(v: Int): Attributes {
+        return Attributes(
+            fg = foreground(v),
+            bg = background(v),
+            bold = isBold(v),
+            italic = isItalic(v),
+            underline = isUnderline(v)
+        )
+    }
 }
