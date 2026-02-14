@@ -4,6 +4,8 @@ import com.gagik.terminal.model.AdvanceResult
 import com.gagik.terminal.model.Cursor
 import com.gagik.terminal.model.Line
 import com.gagik.terminal.model.Pen
+import com.gagik.terminal.util.Validations.requireNonNegative
+import com.gagik.terminal.util.Validations.requirePositive
 
 /**
  * Terminal buffer coordinator.
@@ -24,9 +26,9 @@ class TerminalBuffer(
     maxHistory: Int = 1000
 ) {
     init {
-        require(width > 0) { "width must be > 0" }
-        require(height > 0) { "height must be > 0" }
-        require(maxHistory >= 0) { "maxHistory must be >= 0" }
+        requirePositive(width, "width")
+        requirePositive(height, "height")
+        requireNonNegative(maxHistory, "maxHistory")
     }
 
     private val cursor = Cursor(width, height)
@@ -201,46 +203,28 @@ class TerminalBuffer(
      * Clears from cursor position to end of the current line.
      */
     fun clearToEndOfLine() {
-        val line = screen.getLine(cursor.row)
-        for (col in cursor.col until width) {
-            line.setCell(col, 0, pen.currentAttr)
-        }
+        screen.getLine(cursor.row).clearFromColumn(cursor.col, pen.currentAttr)
     }
 
     /**
      * Clears from beginning of current line to cursor position.
      */
     fun clearToBeginningOfLine() {
-        val line = screen.getLine(cursor.row)
-        for (col in 0..cursor.col) {
-            line.setCell(col, 0, pen.currentAttr)
-        }
+        screen.getLine(cursor.row).clearToColumn(cursor.col, pen.currentAttr)
     }
 
     /**
      * Clears from cursor position to end of screen.
      */
     fun clearToEndOfScreen() {
-        // Clear from cursor to end of current line
-        clearToEndOfLine()
-
-        // Clear all lines below cursor
-        for (row in (cursor.row + 1) until height) {
-            screen.getLine(row).clear(pen.currentAttr)
-        }
+        screen.clearFromPosition(cursor.row, cursor.col, pen.currentAttr)
     }
 
     /**
      * Clears from beginning of screen to cursor position.
      */
     fun clearToBeginningOfScreen() {
-        // Clear all lines above cursor
-        for (row in 0 until cursor.row) {
-            screen.getLine(row).clear(pen.currentAttr)
-        }
-
-        // Clear from beginning of current line to cursor
-        clearToBeginningOfLine()
+        screen.clearToPosition(cursor.row, cursor.col, pen.currentAttr)
     }
 
     // Query Operations
