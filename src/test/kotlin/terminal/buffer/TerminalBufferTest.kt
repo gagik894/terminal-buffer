@@ -513,7 +513,7 @@ class TerminalBufferTest {
 
         @Test
         fun `getCharAt returns character at position`() {
-            val buffer = TerminalBuffer(10, 5)
+            val buffer = TerminalBuffer1(10, 5)
             buffer.writeText("Hello")
 
             assertEquals('H'.code, buffer.getCharAt(0, 0))
@@ -523,7 +523,7 @@ class TerminalBufferTest {
 
         @Test
         fun `getCharAt returns null for out of bounds`() {
-            val buffer = TerminalBuffer(10, 5)
+            val buffer = TerminalBuffer1(10, 5)
             buffer.writeText("Hello")
 
             assertNull(buffer.getCharAt(-1, 0))
@@ -533,7 +533,7 @@ class TerminalBufferTest {
 
         @Test
         fun `getAttrAt returns attributes at position`() {
-            val buffer = TerminalBuffer(10, 5)
+            val buffer = TerminalBuffer1(10, 5)
             buffer.setAttributes(5, 3, bold = true)
             buffer.writeChar('X'.code)
 
@@ -541,6 +541,115 @@ class TerminalBufferTest {
             assertNotNull(attr)
             val expected = AttributeCodec.pack(5, 3, bold = true, italic = false, underline = false)
             assertEquals(expected, attr)
+        }
+
+        @Test
+        fun `getLineAsString returns line content`() {
+            val buffer = TerminalBuffer1(10, 5)
+            buffer.writeText("Hello")
+
+            assertEquals("Hello", buffer.getLineAsString(0))
+        }
+
+        @Test
+        fun `getScreenAsString returns all visible lines`() {
+            val buffer = TerminalBuffer1(10, 3)
+            buffer.writeText("Line1")
+            buffer.newLine()
+            buffer.writeText("Line2")
+            buffer.newLine()
+            buffer.writeText("Line3")
+
+            val expected = "Line1\nLine2\nLine3"
+            assertEquals(expected, buffer.getScreenAsString())
+        }
+
+        @Test
+        fun `getAllAsString includes history`() {
+            val buffer = TerminalBuffer1(5, 2)
+            buffer.writeText("AAA")
+            buffer.newLine()
+            buffer.newLine()
+            buffer.writeText("BBB")
+            buffer.newLine()
+            buffer.writeText("CCC")
+
+            val content = buffer.getAllAsString()
+            assertTrue(content.contains("AAA"))
+            assertTrue(content.contains("BBB") || content.contains("CCC"))
+        }
+
+        @Test
+        fun `getHistoryLineAsString returns history line`() {
+            val buffer = TerminalBuffer1(10, 2)
+            buffer.writeText("History")
+            buffer.newLine()
+            buffer.newLine()
+
+            assertTrue(buffer.historySize > 0)
+            assertEquals("History", buffer.getHistoryLineAsString(0))
+        }
+    }
+
+    @Nested
+    @DisplayName("Fill Operations")
+    inner class FillTests {
+
+        @Test
+        fun `fillLine fills current line`() {
+            val buffer = TerminalBuffer1(5, 3)
+            buffer.setCursor(0, 1)
+            buffer.fillLine('-'.code)
+
+            for (col in 0 until 5) {
+                assertEquals('-'.code, buffer.getLine(1).getCodepoint(col))
+            }
+            assertEquals(0, buffer.getLine(0).getCodepoint(0))
+        }
+
+        @Test
+        fun `fillLineAt fills specific line`() {
+            val buffer = TerminalBuffer1(5, 3)
+            buffer.fillLineAt(2, '*'.code)
+
+            for (col in 0 until 5) {
+                assertEquals('*'.code, buffer.getLine(2).getCodepoint(col))
+            }
+            assertEquals(0, buffer.getLine(0).getCodepoint(0))
+        }
+
+        @Test
+        fun `fillLine with 0 clears line`() {
+            val buffer = TerminalBuffer1(5, 3)
+            buffer.setCursor(0, 0)
+            buffer.writeText("Hello")
+            buffer.setCursor(0, 0)
+            buffer.fillLine(0)
+
+            for (col in 0 until 5) {
+                assertEquals(0, buffer.getLine(0).getCodepoint(col))
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("Clear All")
+    inner class ClearAllTests {
+
+        @Test
+        fun `clearAll clears screen and history`() {
+            val buffer = TerminalBuffer1(10, 2)
+            buffer.writeText("Line1")
+            buffer.newLine()
+            buffer.newLine()
+            buffer.writeText("Line2")
+
+            buffer.clearAll()
+
+            assertEquals(0, buffer.historySize)
+            assertEquals(0, buffer.getLine(0).getCodepoint(0))
+            assertEquals(0, buffer.cursorCol)
+            assertEquals(0, buffer.cursorRow)
         }
     }
 }

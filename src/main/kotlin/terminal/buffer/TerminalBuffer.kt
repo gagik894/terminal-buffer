@@ -267,6 +267,26 @@ class TerminalBuffer(
         screen.clearToPosition(cursor.row, cursor.col, pen.currentAttr)
     }
 
+    /**
+     * Fills the current line with a character using current attributes.
+     * Cursor position is not affected.
+     *
+     * @param codepoint Unicode codepoint to fill with (0 for empty/space)
+     */
+    fun fillLine(codepoint: Int = 0) {
+        screen.getLine(cursor.row).fill(codepoint, pen.currentAttr)
+    }
+
+    /**
+     * Fills a specific line with a character using current attributes.
+     *
+     * @param row Screen row (0-based)
+     * @param codepoint Unicode codepoint to fill with (0 for empty/space)
+     */
+    fun fillLineAt(row: Int, codepoint: Int = 0) {
+        screen.getLine(row).fill(codepoint, pen.currentAttr)
+    }
+
     // Query Operations
 
     /**
@@ -326,6 +346,62 @@ class TerminalBuffer(
         } catch (_: IllegalArgumentException) {
             null
         }
+    }
+
+    /**
+     * Gets a screen line as a string.
+     *
+     * @param row Screen row (0-based)
+     * @return String content of the line (trimmed)
+     * @throws IllegalArgumentException if row is out of bounds
+     */
+    fun getLineAsString(row: Int): String {
+        return screen.getLine(row).toTextTrimmed()
+    }
+
+    /**
+     * Gets a history line as a string.
+     *
+     * @param index History index (0 = oldest)
+     * @return String content of the line (trimmed)
+     * @throws IllegalArgumentException if index is out of bounds
+     */
+    fun getHistoryLineAsString(index: Int): String {
+        return getHistoryLine(index).toTextTrimmed()
+    }
+
+    /**
+     * Gets the entire visible screen content as a string.
+     * Lines are separated by newlines. Trailing spaces on each line are trimmed.
+     *
+     * @return String representation of the visible screen
+     */
+    fun getScreenAsString(): String {
+        return screen.toText()
+    }
+
+    /**
+     * Gets all content (scrollback + screen) as a string.
+     * Lines are separated by newlines. Trailing spaces on each line are trimmed.
+     *
+     * @return String representation of all content
+     */
+    fun getAllAsString(): String {
+        val sb = StringBuilder()
+
+        // History lines
+        for (i in 0 until historySize) {
+            sb.append(ring[i].toTextTrimmed())
+            sb.append('\n')
+        }
+
+        // Screen lines
+        for (row in 0 until height) {
+            sb.append(screen.getLine(row).toTextTrimmed())
+            if (row < height - 1) sb.append('\n')
+        }
+
+        return sb.toString()
     }
 
     // Reset
