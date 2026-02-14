@@ -1,6 +1,6 @@
-package com.gagik.terminal.model
+package com.gagik.terminal.buffer
 
-import com.gagik.terminal.buffer.HistoryRing
+import com.gagik.terminal.model.Line
 
 /**
  * A lightweight viewport ("lens") over the HistoryRing.
