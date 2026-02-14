@@ -11,7 +11,7 @@ import com.gagik.terminal.model.Line
  * - size-1 is the newest logical line
  * - managing the circular index
  */
-class HistoryRing(
+internal class HistoryRing(
     val capacity: Int,
     private val lineFactory: () -> Line
 ) {
