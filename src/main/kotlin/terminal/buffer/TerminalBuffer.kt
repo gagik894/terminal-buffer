@@ -2,8 +2,6 @@ package com.gagik.terminal.buffer
 
 import com.gagik.terminal.codec.AttributeCodec
 import com.gagik.terminal.model.*
-import com.gagik.terminal.util.Validations.requireNonNegative
-import com.gagik.terminal.util.Validations.requirePositive
 
 /**
  * Terminal buffer coordinator.
@@ -13,45 +11,34 @@ import com.gagik.terminal.util.Validations.requirePositive
  * - Screen: Viewport over history ring
  * - HistoryRing: Scrollback storage
  *
- * @param width Width of the terminal in columns. Must be > 0.
- * @param height Height of the visible screen in rows. Must be > 0.
+ * @param initialWidth Width of the terminal in columns. Must be > 0.
+ * @param initialHeight Height of the visible screen in rows. Must be > 0.
  * @param maxHistory Maximum number of scrollback lines. Must be >= 0.
  * @throws IllegalArgumentException if width, height, or maxHistory are invalid
  */
 internal class TerminalBuffer(
-    width: Int,
-    height: Int,
+    initialWidth: Int,
+    initialHeight: Int,
     private val maxHistory: Int = 1000
 ) : TerminalBufferApi {
-    init {
-        requirePositive(width, "width")
-        requirePositive(height, "height")
-        requireNonNegative(maxHistory, "maxHistory")
-    }
 
-    /** Current width of the terminal in columns */
-    override var width: Int = width
-        private set
-
-    /** Current height of the terminal in rows */
-    override var height: Int = height
-        private set
-
-    private val cursor = Cursor(width, height)
+    private val dimensions = GridDimensions(initialWidth, initialHeight)
+    private val ring = HistoryRing(maxHistory + dimensions.height) { Line(dimensions.width) }
+    private val screen = Screen(ring, dimensions)
+    private val cursor = Cursor(dimensions)
     private val pen = Pen()
-    private val ring = HistoryRing(maxHistory + height) { Line(width) }
-    private val screen = Screen(ring, height, width)
+
+    override val width: Int get() = dimensions.width
+    override val height: Int get() = dimensions.height
+    override val cursorCol: Int get() = cursor.col
+    override val cursorRow: Int get() = cursor.row
+    override val historySize: Int get() = ring.size - dimensions.height
 
     init {
         // Pre-populate ring so screen has lines to view
         initializeScreen()
     }
 
-    override val cursorCol: Int
-        get() = cursor.col
-
-    override val cursorRow: Int
-        get() = cursor.row
 
     override fun writeChar(value: Char) {
         writeSingleChar(value)
@@ -150,8 +137,6 @@ internal class TerminalBuffer(
         screen.getLine(row).fill(codepoint, pen.currentAttr)
     }
 
-    override val historySize: Int
-        get() = (ring.size - height).coerceAtLeast(0)
 
     /**
      * Retrieves a line from scrollback history.

@@ -1,8 +1,7 @@
 package com.gagik.terminal.buffer
 
+import com.gagik.terminal.model.GridDimensions
 import com.gagik.terminal.model.Line
-import com.gagik.terminal.util.Validations.isInBounds
-import com.gagik.terminal.util.Validations.requirePositive
 
 /**
  * A lightweight viewport ("lens") over the HistoryRing.
@@ -15,19 +14,13 @@ import com.gagik.terminal.util.Validations.requirePositive
  * - Handles scrolling via ring.push()
  *
  * @param ring The HistoryRing that stores all lines (history + visible)
- * @param height The number of visible rows on the screen. Must be > 0.
- * @param width The number of columns in each line. Must be > 0.
+ * @param dimensions The dimensions of the screen (height, width)
  * @throws IllegalArgumentException if height or width are not greater than 0
  */
 internal class Screen(
     private val ring: HistoryRing,
-    private val height: Int,
-    private val width: Int
+    private val dimensions: GridDimensions
 ) {
-    init {
-        requirePositive(height, "height")
-        requirePositive(width, "width")
-    }
 
     /**
      * Gets the Line at the specified screen row.
@@ -38,10 +31,10 @@ internal class Screen(
      * @throws IllegalArgumentException if row is out of bounds
      */
     fun getLine(row: Int): Line {
-        require(isInBounds(row, height)) { "row $row out of bounds (0..<$height)" }
+        dimensions.requireValidRow(row)
 
         // Screen is the last [height] lines of the ring
-        val startIndex = (ring.size - height).coerceAtLeast(0)
+        val startIndex = (ring.size - dimensions.height).coerceAtLeast(0)
         return ring[startIndex + row]
     }
 
@@ -55,7 +48,7 @@ internal class Screen(
      * @param attr Packed attribute value
      */
     fun write(row: Int, col: Int, codepoint: Int, attr: Int) {
-        if (isInBounds(row, height) && isInBounds(col, width)) {
+        if (dimensions.isValidRow(row) && dimensions.isValidCol(col)) {
             getLine(row).setCell(col, codepoint, attr)
         }
     }
@@ -80,8 +73,8 @@ internal class Screen(
      * @param fillAttr Attribute to fill cleared cells with
      */
     fun clear(fillAttr: Int) {
-        val startIndex = (ring.size - height).coerceAtLeast(0)
-        for (i in 0 until height.coerceAtMost(ring.size)) {
+        val startIndex = (ring.size - dimensions.height).coerceAtLeast(0)
+        for (i in 0 until dimensions.height.coerceAtMost(ring.size)) {
             ring[startIndex + i].clear(fillAttr)
         }
     }
@@ -95,13 +88,11 @@ internal class Screen(
      * @param fillAttr Attribute to fill cleared cells with
      */
     fun clearFromPosition(row: Int, col: Int, fillAttr: Int) {
-        if (!isInBounds(row, height)) return
+        if (!dimensions.isValidRow(row)) return
 
-        // Clear from cursor to end of current line
         getLine(row).clearFromColumn(col, fillAttr)
 
-        // Clear all lines below
-        for (r in (row + 1) until height) {
+        for (r in (row + 1) until dimensions.height) {
             getLine(r).clear(fillAttr)
         }
     }
@@ -115,14 +106,12 @@ internal class Screen(
      * @param fillAttr Attribute to fill cleared cells with
      */
     fun clearToPosition(row: Int, col: Int, fillAttr: Int) {
-        if (!isInBounds(row, height)) return
+        if (!dimensions.isValidRow(row)) return
 
-        // Clear all lines above
         for (r in 0 until row) {
             getLine(r).clear(fillAttr)
         }
 
-        // Clear from beginning of current line to cursor
         getLine(row).clearToColumn(col, fillAttr)
     }
 
@@ -135,7 +124,7 @@ internal class Screen(
      */
     fun toText(): String {
         val sb = StringBuilder()
-        val lineCount = height.coerceAtMost(ring.size)
+        val lineCount = dimensions.height.coerceAtMost(ring.size)
         for (row in 0 until lineCount) {
             if (row > 0) sb.append('\n')
             sb.append(getLine(row).toTextTrimmed())

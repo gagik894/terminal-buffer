@@ -1,6 +1,5 @@
 package com.gagik.terminal.model
 
-import com.gagik.terminal.util.Validations.requirePositive
 
 /**
  * Tracks the cursor position within the terminal grid.
@@ -8,19 +7,10 @@ import com.gagik.terminal.util.Validations.requirePositive
  * The cursor can be moved absolutely (set) or relatively (move).
  * All movements are clamped to the bounds of the terminal dimensions.
  *
- * @param width The width of the terminal in columns. Must be > 0.
- * @param height The height of the terminal in rows. Must be > 0.
+ * @param dimensions The dimensions of the terminal grid
  * @throws IllegalArgumentException if width or height are not greater than 0
  */
-internal class Cursor(
-    private var width: Int,
-    private var height: Int
-) {
-    init {
-        requirePositive(height, "height")
-        requirePositive(width, "width")
-    }
-
+internal class Cursor(private val dimensions: GridDimensions) {
     var col: Int = 0 // column index, 0-based
         private set
     var row: Int = 0 // row index, 0-based
@@ -33,8 +23,8 @@ internal class Cursor(
      * @param row The target row index (0-based)
      */
     fun set(col: Int, row: Int) {
-        this.col = col.coerceIn(0, width - 1)
-        this.row = row.coerceIn(0, height - 1)
+        this.col = dimensions.clampCol(col)
+        this.row = dimensions.clampRow(row)
     }
 
     /**
@@ -45,8 +35,8 @@ internal class Cursor(
      */
     fun move(dx: Int, dy: Int) {
         // Long to prevent integer overflow during addition
-        val newCol = (col.toLong() + dx).coerceIn(0L, (width - 1).toLong()).toInt()
-        val newRow = (row.toLong() + dy).coerceIn(0L, (height - 1).toLong()).toInt()
+        val newCol = (col.toLong() + dx).coerceIn(0L, (dimensions.width - 1).toLong()).toInt()
+        val newRow = (row.toLong() + dy).coerceIn(0L, (dimensions.height - 1).toLong()).toInt()
 
         set(newCol, newRow)
     }
@@ -61,14 +51,14 @@ internal class Cursor(
         val oldRow = row
         col++
 
-        if (col >= width) {
+        if (col >= dimensions.width) {
             // Wrap to next line
             col = 0
             row++
 
-            if (row >= height) {
+            if (row >= dimensions.height) {
                 // Wrapped past bottom - need to scroll
-                row = height - 1
+                row = dimensions.height - 1
                 return AdvanceResult.ScrollNeeded(oldRow)
             }
 
