@@ -47,37 +47,16 @@ internal class TerminalBuffer(
         initializeScreen()
     }
 
-    // Cursor Accessors
-    /**
-     * Current cursor column (0-based).
-     */
     override val cursorCol: Int
         get() = cursor.col
 
-    /**
-     * Current cursor row (0-based).
-     */
     override val cursorRow: Int
         get() = cursor.row
 
-    // Writing Operations
-
-    /**
-     * Writes a single character at the current cursor position.
-     * Uses current pen attributes and advances cursor with auto-wrap.
-     *
-     * @param value Character to write
-     */
     override fun writeChar(value: Char) {
         writeSingleChar(value)
     }
 
-    /**
-     * Writes a string at the current cursor position.
-     * Each character is written sequentially with auto-wrap.
-     *
-     * @param text Text to write
-     */
     override fun writeText(text: String) {
         for (ch in text) {
             writeSingleChar(ch)
@@ -90,10 +69,6 @@ internal class TerminalBuffer(
         }
     }
 
-    /**
-     * Inserts a line break, moving cursor to the beginning of the next line.
-     * If at the bottom of the screen, scrolls up.
-     */
     override fun newLine() {
         val nextRow = cursor.row + 1
 
@@ -105,83 +80,38 @@ internal class TerminalBuffer(
         }
     }
 
-    /**
-     * Moves cursor to the beginning of the current line.
-     */
     override fun carriageReturn() {
         cursor.set(0, cursor.row)
     }
 
-    // Cursor Operations
-
-    /**
-     * Sets cursor to an absolute position.
-     * Position is clamped to screen bounds.
-     *
-     * @param col Target column (0-based)
-     * @param row Target row (0-based)
-     */
     override fun setCursor(col: Int, row: Int) {
         cursor.set(col, row)
     }
 
-    /**
-     * Moves cursor relatively.
-     * Movement is clamped to screen bounds.
-     *
-     * @param dx Column delta (positive = right, negative = left)
-     * @param dy Row delta (positive = down, negative = up)
-     */
     override fun moveCursor(dx: Int, dy: Int) {
         cursor.move(dx, dy)
     }
 
-    /**
-     * Moves cursor up by N rows.
-     * @param n Number of rows to move (default 1)
-     */
     override fun cursorUp(n: Int) {
         cursor.move(0, -n)
     }
 
-    /**
-     * Moves cursor down by N rows.
-     * @param n Number of rows to move (default 1)
-     */
     override fun cursorDown(n: Int) {
         cursor.move(0, n)
     }
 
-    /**
-     * Moves cursor left by N columns.
-     * @param n Number of columns to move (default 1)
-     */
     override fun cursorLeft(n: Int) {
         cursor.move(-n, 0)
     }
 
-    /**
-     * Moves cursor right by N columns.
-     * @param n Number of columns to move (default 1)
-     */
     override fun cursorRight(n: Int) {
         cursor.move(n, 0)
     }
 
-    /**
-     * Resets cursor to origin (0, 0).
-     */
     override fun resetCursor() {
         cursor.reset()
     }
 
-    // Pen Operations
-
-    /**
-     * Sets pen attributes for subsequent write operations.
-     *
-     * @param attributes Attributes to set on the pen
-     */
     override fun setAttributes(attributes: Attributes) {
         pen.setAttributes(
             attributes.fg,
@@ -192,27 +122,14 @@ internal class TerminalBuffer(
         )
     }
 
-    /**
-     * Resets pen to default attributes.
-     */
     override fun resetPen() {
         pen.reset()
     }
 
-    // Screen Operations
-
-    /**
-     * Scrolls the screen up by one line.
-     * Top line moves to history, new blank line appears at bottom.
-     */
     override fun scrollUp() {
         screen.scrollUp(pen.currentAttr)
     }
 
-    /**
-     * Clears the entire visible screen.
-     * History is not affected.
-     */
     override fun clearScreen() {
         screen.clear(pen.currentAttr)
     }
@@ -223,38 +140,22 @@ internal class TerminalBuffer(
         cursor.reset()
     }
 
-    /**
-     * Fills the current line with a character using current attributes.
-     * Cursor position is not affected.
-     *
-     * @param value Character to fill with (null clears to empty)
-     */
     override fun fillLine(value: Char?) {
         val codepoint = value?.code ?: 0
         screen.getLine(cursor.row).fill(codepoint, pen.currentAttr)
     }
 
-    /**
-     * Fills a specific line with a character using current attributes.
-     *
-     * @param row Screen row (0-based)
-     * @param value Character to fill with (null clears to empty)
-     */
     override fun fillLineAt(row: Int, value: Char?) {
         val codepoint = value?.code ?: 0
         screen.getLine(row).fill(codepoint, pen.currentAttr)
     }
 
-    // Query Operations
-
-    /**
-     * Number of lines currently in scrollback history.
-     */
     override val historySize: Int
         get() = (ring.size - height).coerceAtLeast(0)
 
     /**
-     * Gets a line from scrollback history.
+     * Retrieves a line from scrollback history.
+     * Implementation validates index bounds.
      */
     private fun getHistoryLine(index: Int): Line {
         require(index in 0 until historySize) {
@@ -263,13 +164,6 @@ internal class TerminalBuffer(
         return ring[index]
     }
 
-    /**
-     * Gets the character at a screen position.
-     *
-     * @param col Column (0-based)
-     * @param row Row (0-based)
-     * @return Unicode codepoint, or null if out of bounds
-     */
     override fun getCharAt(col: Int, row: Int): Char? {
         val cp = try {
             screen.getLine(row).getCodepoint(col)
@@ -279,13 +173,6 @@ internal class TerminalBuffer(
         return toCharOrNull(cp)
     }
 
-    /**
-     * Gets the attributes at a screen position.
-     *
-     * @param col Column (0-based)
-     * @param row Row (0-based)
-     * @return Packed attribute value, or null if out of bounds
-     */
     override fun getAttrAt(col: Int, row: Int): Attributes? {
         val packed = try {
             screen.getLine(row).getAttr(col)
@@ -313,45 +200,18 @@ internal class TerminalBuffer(
         return toCharOrNull(cp)
     }
 
-
-    /**
-     * Gets a screen line as a string.
-     *
-     * @param row Screen row (0-based)
-     * @return String content of the line (trimmed)
-     * @throws IllegalArgumentException if row is out of bounds
-     */
     override fun getLineAsString(row: Int): String {
         return screen.getLine(row).toTextTrimmed()
     }
 
-    /**
-     * Gets a history line as a string.
-     *
-     * @param index History index (0 = oldest)
-     * @return String content of the line (trimmed)
-     * @throws IllegalArgumentException if index is out of bounds
-     */
     override fun getHistoryLineAsString(index: Int): String {
         return getHistoryLine(index).toTextTrimmed()
     }
 
-    /**
-     * Gets the entire visible screen content as a string.
-     * Lines are separated by newlines. Trailing spaces on each line are trimmed.
-     *
-     * @return String representation of the visible screen
-     */
     override fun getScreenAsString(): String {
         return screen.toText()
     }
 
-    /**
-     * Gets all content (scrollback + screen) as a string.
-     * Lines are separated by newlines. Trailing spaces on each line are trimmed.
-     *
-     * @return String representation of all content
-     */
     override fun getAllAsString(): String {
         val sb = StringBuilder()
 
@@ -370,14 +230,6 @@ internal class TerminalBuffer(
         return sb.toString()
     }
 
-    // Reset
-
-    /**
-     * Completely resets the terminal to initial state:
-     * - Clears screen and history
-     * - Resets cursor to origin
-     * - Resets pen to defaults
-     */
     override fun reset() {
         ring.clear()
         initializeScreen()
