@@ -34,11 +34,7 @@ internal class Cursor(private val dimensions: GridDimensions) {
      * @param dy The change in row index (positive moves down, negative moves up)
      */
     fun move(dx: Int, dy: Int) {
-        // Long to prevent integer overflow during addition
-        val newCol = (col.toLong() + dx).coerceIn(0L, (dimensions.width - 1).toLong()).toInt()
-        val newRow = (row.toLong() + dy).coerceIn(0L, (dimensions.height - 1).toLong()).toInt()
-
-        set(newCol, newRow)
+        set((col.toLong() + dx).toInt(), (row.toLong() + dy).toInt())
     }
 
     /**

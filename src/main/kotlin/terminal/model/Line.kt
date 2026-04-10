@@ -25,9 +25,9 @@ internal class Line(
     }
 
     // The codepoints for each cell in the line. 0 means empty cell.
-    val codepoints: IntArray = IntArray(width) { 0 }
+    private val codepoints: IntArray = IntArray(width) { 0 }
     // The attributes for each cell in the line, packed into ints.
-    val attrs: IntArray = IntArray(width)
+    private val attrs: IntArray = IntArray(width)
     // Whether this line is a soft-wrapped continuation of the previous line.
     var wrapped: Boolean = false
 
@@ -44,30 +44,57 @@ internal class Line(
 
     /**
      * Sets the cell at the specified column to the given codepoint and attribute.
-     * If col is out of bounds, the method does nothing.
+     *
      * @param col The column index of the cell to set
      * @param codepoint The Unicode codepoint to set in the cell
      * @param attr The packed attribute Int to set for the cell
+     * @throws IndexOutOfBoundsException if col is out of bounds
      */
     fun setCell(col: Int, codepoint: Int, attr: Int) {
-        if (!isInBounds(col, width)) return
+        if (!isInBounds(col, width)) {
+            throw IndexOutOfBoundsException("Column $col out of bounds (width=$width)")
+        }
         codepoints[col] = codepoint
         attrs[col] = attr
     }
 
     /**
      * Gets the codepoint of the cell at the specified column.
+     *
      * @param col The column index of the cell to query
-     * @return The Unicode codepoint at the specified column, or null if col is out of bounds
+     * @return The Unicode codepoint at the specified column
+     * @throws IndexOutOfBoundsException if col is out of bounds
      */
-    fun getCodepoint(col: Int): Int? = if (isInBounds(col, width)) codepoints[col] else null
+    fun getCodepoint(col: Int): Int {
+        if (!isInBounds(col, width)) {
+            throw IndexOutOfBoundsException("Column $col out of bounds (width=$width)")
+        }
+        return codepoints[col]
+    }
+
+    /**
+     * Safe version of [getCodepoint] that returns null instead of throwing.
+     */
+    fun getCodepointOrNull(col: Int): Int? = if (isInBounds(col, width)) codepoints[col] else null
 
     /**
      * Gets the attribute of the cell at the specified column.
+     *
      * @param col The column index of the cell to query
-     * @return The packed attribute Int at the specified column, or null if col is out of bounds
+     * @return The packed attribute Int at the specified column
+     * @throws IndexOutOfBoundsException if col is out of bounds
      */
-    fun getAttr(col: Int): Int? = if (isInBounds(col, width)) attrs[col] else null
+    fun getAttr(col: Int): Int {
+        if (!isInBounds(col, width)) {
+            throw IndexOutOfBoundsException("Column $col out of bounds (width=$width)")
+        }
+        return attrs[col]
+    }
+
+    /**
+     * Safe version of [getAttr] that returns null instead of throwing.
+     */
+    fun getAttrOrNull(col: Int): Int? = if (isInBounds(col, width)) attrs[col] else null
 
     /**
      * Clears cells from the specified column to the end of the line.
@@ -118,6 +145,25 @@ internal class Line(
     fun fill(codepoint: Int, attr: Int) {
         codepoints.fill(codepoint)
         attrs.fill(attr)
+    }
+
+    /**
+     * Shifts the content of the line to the right starting from the specified column.
+     * The last cell is discarded. The cell at [startCol] is cleared (codepoint 0)
+     * and set to the specified attribute.
+     *
+     * @param startCol Starting column (inclusive)
+     * @param fillAttr Attribute to set for the new empty cell at [startCol]
+     */
+    fun shiftRight(startCol: Int, fillAttr: Int) {
+        if (!isInBounds(startCol, width)) return
+        val end = width - 1
+        for (col in end downTo startCol + 1) {
+            codepoints[col] = codepoints[col - 1]
+            attrs[col] = attrs[col - 1]
+        }
+        codepoints[startCol] = 0
+        attrs[startCol] = fillAttr
     }
 
     /**

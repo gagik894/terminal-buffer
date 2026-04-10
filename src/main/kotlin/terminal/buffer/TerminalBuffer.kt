@@ -2,6 +2,8 @@ package com.gagik.terminal.buffer
 
 import com.gagik.terminal.codec.AttributeCodec
 import com.gagik.terminal.model.*
+import com.gagik.terminal.util.Validations.requireNonNegative
+import com.gagik.terminal.util.Validations.requirePositive
 
 /**
  * Terminal buffer coordinator.
@@ -21,6 +23,12 @@ internal class TerminalBuffer(
     initialHeight: Int,
     private val maxHistory: Int = 1000
 ) : TerminalBufferApi {
+
+    init {
+        requirePositive(initialWidth, "initialWidth")
+        requirePositive(initialHeight, "initialHeight")
+        requireNonNegative(maxHistory, "maxHistory")
+    }
 
     private val dimensions = GridDimensions(initialWidth, initialHeight)
     private val ring = HistoryRing(maxHistory + dimensions.height) { Line(dimensions.width) }
@@ -128,8 +136,7 @@ internal class TerminalBuffer(
     }
 
     override fun fillLine(value: Char?) {
-        val codepoint = value?.code ?: 0
-        screen.getLine(cursor.row).fill(codepoint, pen.currentAttr)
+        fillLineAt(cursor.row, value)
     }
 
     override fun fillLineAt(row: Int, value: Char?) {
@@ -139,50 +146,31 @@ internal class TerminalBuffer(
 
 
     /**
-     * Retrieves a line from scrollback history.
-     * Implementation validates index bounds.
+     * Retrieves a line from scrollback history, or null if out of bounds.
      */
-    private fun getHistoryLine(index: Int): Line {
-        require(index in 0 until historySize) {
-            "history index $index out of bounds (0..<$historySize)"
-        }
+    private fun getHistoryLineOrNull(index: Int): Line? {
+        if (index !in 0 until historySize) return null
         return ring[index]
     }
 
+    private fun getHistoryLine(index: Int): Line {
+        return getHistoryLineOrNull(index) ?: throw IllegalArgumentException("history index $index out of bounds (0..<$historySize)")
+    }
+
     override fun getCharAt(col: Int, row: Int): Char? {
-        val cp = try {
-            screen.getLine(row).getCodepoint(col)
-        } catch (_: IllegalArgumentException) {
-            null
-        }
-        return toCharOrNull(cp)
+        return toCharOrNull(screen.getLineOrNull(row)?.getCodepointOrNull(col))
     }
 
     override fun getAttrAt(col: Int, row: Int): Attributes? {
-        val packed = try {
-            screen.getLine(row).getAttr(col)
-        } catch (_: IllegalArgumentException) {
-            null
-        }
-        return packed?.let { AttributeCodec.unpack(it) }
+        return screen.getLineOrNull(row)?.getAttrOrNull(col)?.let { AttributeCodec.unpack(it) }
     }
 
     override fun getHistoryAttrAt(index: Int, col: Int): Attributes? {
-        val packed = try {
-            getHistoryLine(index).getAttr(col)
-        } catch (_: IllegalArgumentException) {
-            null
-        }
-        return packed?.let { AttributeCodec.unpack(it) }
+        return getHistoryLineOrNull(index)?.getAttrOrNull(col)?.let { AttributeCodec.unpack(it) }
     }
 
     override fun getHistoryCharAt(index: Int, col: Int): Char? {
-        val cp = try {
-            getHistoryLine(index).getCodepoint(col)
-        } catch (_: IllegalArgumentException) {
-            null
-        }
-        return toCharOrNull(cp)
+        return toCharOrNull(getHistoryLineOrNull(index)?.getCodepointOrNull(col))
     }
 
     override fun getLineAsString(row: Int): String {
@@ -206,11 +194,7 @@ internal class TerminalBuffer(
             sb.append('\n')
         }
 
-        // Screen lines
-        for (row in 0 until height) {
-            sb.append(screen.getLine(row).toTextTrimmed())
-            if (row < height - 1) sb.append('\n')
-        }
+        sb.append(screen.toText())
 
         return sb.toString()
     }
@@ -237,22 +221,9 @@ internal class TerminalBuffer(
 
     private fun insertSingleChar(value: Char) {
         val line = screen.getLine(cursor.row)
-        shiftLineRight(line, cursor.col)
+        line.shiftRight(cursor.col, pen.currentAttr)
         line.setCell(cursor.col, value.code, pen.currentAttr)
         advanceCursorAfterWrite()
-    }
-
-    private fun shiftLineRight(line: Line, startCol: Int) {
-        if (startCol !in 0 until width) return
-        val end = width - 1
-        var col = end
-        while (col - 1 >= startCol) {
-            line.codepoints[col] = line.codepoints[col - 1]
-            line.attrs[col] = line.attrs[col - 1]
-            col--
-        }
-        line.codepoints[startCol] = 0
-        line.attrs[startCol] = pen.currentAttr
     }
 
     private fun toCharOrNull(codepoint: Int?): Char? {

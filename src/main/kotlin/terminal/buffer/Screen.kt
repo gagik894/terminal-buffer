@@ -21,6 +21,10 @@ internal class Screen(
     private val ring: HistoryRing,
     private val dimensions: GridDimensions
 ) {
+    /**
+     * Convenience constructor that creates [GridDimensions] internally.
+     */
+    constructor(ring: HistoryRing, height: Int, width: Int) : this(ring, GridDimensions(width, height))
 
     /**
      * Gets the Line at the specified screen row.
@@ -32,7 +36,21 @@ internal class Screen(
      */
     fun getLine(row: Int): Line {
         dimensions.requireValidRow(row)
+        return getLineUnsafe(row)
+    }
 
+    /**
+     * Gets the Line at the specified screen row, or null if out of bounds.
+     *
+     * @param row Visual row
+     * @return The Line at that screen position, or null
+     */
+    fun getLineOrNull(row: Int): Line? {
+        if (!dimensions.isValidRow(row)) return null
+        return getLineUnsafe(row)
+    }
+
+    private fun getLineUnsafe(row: Int): Line {
         // Screen is the last [height] lines of the ring
         val startIndex = (ring.size - dimensions.height).coerceAtLeast(0)
         return ring[startIndex + row]

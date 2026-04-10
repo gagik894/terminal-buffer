@@ -1,11 +1,17 @@
 package com.gagik.terminal.model
 
+import com.gagik.terminal.util.Validations.requirePositive
+
 /**
  * Manages the dimensions and boundary logic for the terminal grid.
  * * Separates soft boundary enforcement (clamping for cursor movement)
  * from hard boundary enforcement (validating internal memory access).
  */
 class GridDimensions(var width: Int, var height: Int) {
+    init {
+        requirePositive(width, "width")
+        requirePositive(height, "height")
+    }
 
     /**
      * Clamps the column index to the visible grid bounds.

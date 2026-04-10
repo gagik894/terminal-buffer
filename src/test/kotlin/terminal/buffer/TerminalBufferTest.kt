@@ -476,4 +476,147 @@ class TerminalBufferTest {
             assertEquals(0, buffer.cursorRow)
         }
     }
+
+    @Nested
+    @DisplayName("Insert Operations")
+    inner class InsertTextTests {
+
+        @Test
+        fun `insertText shifts content to the right`() {
+            val buffer = TerminalBuffer(5, 2)
+            buffer.writeText("ABCD")
+            buffer.setCursor(1, 0)
+
+            buffer.insertText("XY")
+
+            assertEquals("AXYBC", buffer.getLineAsString(0))
+            assertEquals(3, buffer.cursorCol)
+            assertEquals(0, buffer.cursorRow)
+        }
+
+        @Test
+        fun `insertText at last column replaces last visible cell`() {
+            val buffer = TerminalBuffer(5, 2)
+            buffer.writeText("ABCD")
+            buffer.setCursor(4, 0)
+
+            buffer.insertText("Z")
+
+            assertEquals("ABCDZ", buffer.getLineAsString(0))
+        }
+
+        @Test
+        fun `insertText with empty string keeps content and cursor`() {
+            val buffer = TerminalBuffer(5, 2)
+            buffer.writeText("AB")
+            buffer.setCursor(1, 0)
+
+            buffer.insertText("")
+
+            assertEquals("AB", buffer.getLineAsString(0))
+            assertEquals(1, buffer.cursorCol)
+            assertEquals(0, buffer.cursorRow)
+        }
+    }
+
+    @Nested
+    @DisplayName("String Views")
+    inner class StringViewTests {
+
+        @Test
+        fun `getScreenAsString returns trimmed lines with newline separators`() {
+            val buffer = TerminalBuffer(5, 2)
+            buffer.writeText("Hi")
+            buffer.newLine()
+            buffer.writeText("X")
+
+            assertEquals("Hi\nX", buffer.getScreenAsString())
+        }
+
+        @Test
+        fun `getAllAsString returns history followed by visible screen`() {
+            val buffer = TerminalBuffer(3, 2)
+            buffer.writeText("ABCDEF")
+            buffer.writeChar('G')
+
+            assertEquals("ABC\nDEF\nG", buffer.getAllAsString())
+        }
+
+        @Test
+        fun `getLineAsString throws on invalid row`() {
+            val buffer = TerminalBuffer(3, 2)
+
+            assertThrows<IllegalArgumentException> { buffer.getLineAsString(-1) }
+            assertThrows<IllegalArgumentException> { buffer.getLineAsString(2) }
+        }
+
+        @Test
+        fun `getHistoryLineAsString throws on invalid index`() {
+            val buffer = TerminalBuffer(3, 2)
+
+            assertThrows<IllegalArgumentException> { buffer.getHistoryLineAsString(0) }
+        }
+    }
+
+    @Nested
+    @DisplayName("History Attributes")
+    inner class HistoryAttrTests {
+
+        @Test
+        fun `getHistoryAttrAt returns attribute from scrolled line`() {
+            val buffer = TerminalBuffer(2, 1)
+            val styled = Attributes(fg = 7, bg = 1, bold = true, italic = false, underline = false)
+            buffer.setAttributes(styled)
+            buffer.writeText("AB")
+
+            assertEquals(styled, buffer.getHistoryAttrAt(0, 0))
+            assertNull(buffer.getHistoryAttrAt(1, 0))
+            assertNull(buffer.getHistoryAttrAt(0, 2))
+        }
+    }
+
+    @Nested
+    @DisplayName("Explicit Scroll")
+    inner class ScrollUpTests {
+
+        @Test
+        fun `scrollUp moves top line to history and clears bottom with current attr`() {
+            val buffer = TerminalBuffer(3, 2)
+            buffer.fillLineAt(0, 'A')
+            buffer.fillLineAt(1, 'B')
+            buffer.setCursor(1, 1)
+
+            val fillAttr = Attributes(fg = 9, bg = 2, bold = false, italic = true, underline = false)
+            buffer.setAttributes(fillAttr)
+            buffer.scrollUp()
+
+            assertEquals(1, buffer.historySize)
+            assertEquals("AAA", buffer.getHistoryLineAsString(0))
+            assertEquals("BBB", buffer.getLineAsString(0))
+            assertEquals("", buffer.getLineAsString(1))
+            assertEquals(fillAttr, buffer.getAttrAt(0, 1))
+            assertEquals(1, buffer.cursorCol)
+            assertEquals(1, buffer.cursorRow)
+        }
+    }
+
+    @Nested
+    @DisplayName("Pen Reset")
+    inner class ResetPenTests {
+
+        @Test
+        fun `resetPen affects subsequent writes only`() {
+            val buffer = TerminalBuffer(4, 2)
+            val styled = Attributes(fg = 4, bg = 3, bold = true, italic = false, underline = true)
+            val defaults = Attributes(fg = 0, bg = 0, bold = false, italic = false, underline = false)
+
+            buffer.setAttributes(styled)
+            buffer.writeChar('X')
+            buffer.resetPen()
+            buffer.writeChar('Y')
+
+            assertEquals(styled, buffer.getAttrAt(0, 0))
+            assertEquals(defaults, buffer.getAttrAt(1, 0))
+        }
+    }
 }

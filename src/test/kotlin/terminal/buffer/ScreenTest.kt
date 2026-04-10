@@ -1,5 +1,6 @@
 package com.gagik.terminal.buffer
 
+import com.gagik.terminal.model.GridDimensions
 import com.gagik.terminal.model.Line
 import org.junit.jupiter.api.*
 
@@ -13,21 +14,21 @@ class ScreenTest {
         @Test
         fun `throws on invalid height`() {
             val ring = HistoryRing(100) { Line(80) }
-            assertThrows<IllegalArgumentException> { Screen(ring, 0, 80) }
-            assertThrows<IllegalArgumentException> { Screen(ring, -1, 80) }
+            assertThrows<IllegalArgumentException> { Screen(ring, GridDimensions(80, 0)) }
+            assertThrows<IllegalArgumentException> { Screen(ring, GridDimensions(80, -1)) }
         }
 
         @Test
         fun `throws on invalid width`() {
             val ring = HistoryRing(100) { Line(80) }
-            assertThrows<IllegalArgumentException> { Screen(ring, 24, 0) }
-            assertThrows<IllegalArgumentException> { Screen(ring, 24, -1) }
+            assertThrows<IllegalArgumentException> { Screen(ring, GridDimensions(0, 24)) }
+            assertThrows<IllegalArgumentException> { Screen(ring, GridDimensions(-1, 24)) }
         }
 
         @Test
         fun `accepts valid dimensions`() {
             val ring = HistoryRing(100) { Line(80) }
-            Assertions.assertDoesNotThrow { Screen(ring, 24, 80) }
+            Assertions.assertDoesNotThrow { Screen(ring, GridDimensions(80, 24)) }
         }
     }
 

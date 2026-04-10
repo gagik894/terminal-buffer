@@ -24,8 +24,6 @@ class LineTest {
 
             assertAll(
                 { assertEquals(width, line.width, "Width mismatch") },
-                { assertEquals(width, line.codepoints.size, "Codepoints array size mismatch") },
-                { assertEquals(width, line.attrs.size, "Attributes array size mismatch") },
                 { assertFalse(line.wrapped, "New line should not be wrapped") }
             )
         }
@@ -36,8 +34,8 @@ class LineTest {
             val line = Line(5)
             // Verify all cells start as 0
             for (i in 0 until 5) {
-                assertEquals(0, line.codepoints[i], "Codepoint at $i should be 0")
-                assertEquals(0, line.attrs[i], "Attribute at $i should be 0")
+                assertEquals(0, line.getCodepoint(i), "Codepoint at $i should be 0")
+                assertEquals(0, line.getAttr(i), "Attribute at $i should be 0")
             }
         }
 
@@ -74,21 +72,14 @@ class LineTest {
             )
         }
 
-        @ParameterizedTest(name = "Ignore out-of-bounds index {0} (Width 10)")
+        @ParameterizedTest(name = "Fail fast on out-of-bounds index {0} (Width 10)")
         @ValueSource(ints = [-1, -50, 10, 11, 100])
         fun testOutOfBoundsAccess(invalidIndex: Int) {
             val line = Line(10)
 
-            // Ensure setting doesn't throw or change state
-            assertDoesNotThrow {
-                line.setCell(invalidIndex, 65, 123)
-            }
-
-            // Ensure getting returns null
-            assertAll(
-                { assertNull(line.getCodepoint(invalidIndex), "Should return null for invalid codepoint index") },
-                { assertNull(line.getAttr(invalidIndex), "Should return null for invalid attr index") }
-            )
+            assertThrows<IndexOutOfBoundsException> { line.setCell(invalidIndex, 65, 123) }
+            assertThrows<IndexOutOfBoundsException> { line.getCodepoint(invalidIndex) }
+            assertThrows<IndexOutOfBoundsException> { line.getAttr(invalidIndex) }
         }
     }
 
