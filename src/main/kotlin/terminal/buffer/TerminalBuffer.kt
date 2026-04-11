@@ -1,134 +1,196 @@
 package com.gagik.terminal.buffer
 
+import com.gagik.terminal.codec.AttributeCodec
 import com.gagik.terminal.engine.InputHandler
+import com.gagik.terminal.model.Attributes
+import com.gagik.terminal.model.Line
 import com.gagik.terminal.state.TerminalState
 
 /**
- * Terminal buffer coordinator.
- * Components:
- * - TerminalState: Manages terminal dimensions, cursor position, and scrollback history.
- * - InputHandler: Handles user input and updates the terminal state accordingly.
- * - AttributeCodec: Encodes terminal cell attributes into a compact Int.
- *
- * @param initialWidth Width of the terminal in columns. Must be > 0.
- * @param initialHeight Height of the visible screen in rows. Must be > 0.
- * @param maxHistory Maximum number of scrollback lines. Must be >= 0.
- * @throws IllegalArgumentException if width, height, or maxHistory are invalid
+ * The primary entry point and public API for the terminal emulator.
+ * Implements [TerminalBufferApi] to provide a strict, zero-allocation contract.
+ * * Architecturally, this class contains NO physics and NO memory.
+ * It coordinates the [InputHandler] and reads from the [TerminalState].
  */
-class TerminalBuffer(
+internal class TerminalBuffer(
     initialWidth: Int,
     initialHeight: Int,
     maxHistory: Int = 1000
-) {
+) : TerminalBufferApi {
+
     internal val state = TerminalState(initialWidth, initialHeight, maxHistory)
+
     private val inputHandler = InputHandler(state)
+
+    // --- Viewport Math Helpers ---
+
+    /** Safely retrieves the active line at the cursor.
+     * If the screen was just cleared, it lazily provisions new lines.
+     */
+    private fun getActiveLine(): Line {
+        while (state.ring.size <= cursorRow) {
+            state.ring.push().clear(state.pen.currentAttr)
+        }
+        val startIndex = (state.ring.size - height).coerceAtLeast(0)
+        return state.ring[startIndex + cursorRow]
+    }
+
+    private fun getVisibleLine(row: Int): Line? {
+        if (!state.dimensions.isValidRow(row)) return null
+        val startIndex = (state.ring.size - height).coerceAtLeast(0)
+
+        // If the ring hasn't filled this row yet, return null
+        if (startIndex + row >= state.ring.size) return null
+
+        return state.ring[startIndex + row]
+    }
 
     // --- Public Properties ---
 
-    val width: Int get() = state.dimensions.width
-    val height: Int get() = state.dimensions.height
-    val cursorCol: Int get() = state.cursor.col
-    val cursorRow: Int get() = state.cursor.row
+    override val width: Int get() = state.dimensions.width
+    override val height: Int get() = state.dimensions.height
+    override val cursorCol: Int get() = state.cursor.col
+    override val cursorRow: Int get() = state.cursor.row
 
-    // --- Core Writing API ---
+    override val historySize: Int
+        get() = (state.ring.size - height).coerceAtLeast(0)
 
-    /**
-     * Prints a single character and advances the cursor using the physics engine.
-     */
-    fun writeChar(value: Char) {
-        inputHandler.print(value.code)
+    // --- Styling API ---
+
+    override fun setPenAttributes(fg: Int, bg: Int, bold: Boolean, italic: Boolean, underline: Boolean) {
+        state.pen.setAttributes(fg, bg, bold, italic, underline)
     }
 
-    /**
-     * Prints a string to the terminal.
-     * Uses codePoints() to safely handle Unicode surrogate pairs (e.g., Emojis)
-     * without breaking them across cell boundaries.
-     */
-    fun writeText(text: String) {
+    override fun resetPen() {
+        state.pen.reset()
+    }
+
+    // --- Cursor API ---
+
+    override fun setCursor(col: Int, row: Int) {
+        state.cursor.col = state.dimensions.clampCol(col)
+        state.cursor.row = state.dimensions.clampRow(row)
+    }
+
+    override fun moveCursor(dx: Int, dy: Int) {
+        setCursor(cursorCol + dx, cursorRow + dy)
+    }
+
+    override fun cursorUp(n: Int) = moveCursor(0, -n)
+    override fun cursorDown(n: Int) = moveCursor(0, n)
+    override fun cursorLeft(n: Int) = moveCursor(-n, 0)
+    override fun cursorRight(n: Int) = moveCursor(n, 0)
+
+    override fun resetCursor() {
+        setCursor(0, 0)
+    }
+
+    // --- Writing API ---
+
+    override fun writeCodepoint(codepoint: Int) {
+        inputHandler.print(codepoint)
+    }
+
+    override fun writeText(text: String) {
         text.codePoints().forEach { cp ->
             inputHandler.print(cp)
         }
     }
 
-    /**
-     * Executes a Line Feed (\n). Moves the cursor down, triggering a scroll if necessary.
-     */
-    fun newLine() {
+    override fun insertBlankCharacters(count: Int) {
+        getActiveLine().insertCells(cursorCol, count, state.pen.currentAttr)
+    }
+
+    override fun newLine() {
         inputHandler.newLine()
     }
 
-    /**
-     * Executes a Carriage Return (\r). Moves the cursor to column 0.
-     */
-    fun carriageReturn() {
+    override fun carriageReturn() {
         inputHandler.carriageReturn()
     }
 
-    // --- Styling API ---
+    // --- Viewport API ---
 
-    /**
-     * Updates the active pen attributes for subsequent writes.
-     */
-    fun setPenAttributes(
-        fg: Int,
-        bg: Int,
-        bold: Boolean = false,
-        italic: Boolean = false,
-        underline: Boolean = false
-    ) {
-        state.pen.setAttributes(fg, bg, bold, italic, underline)
+    override fun scrollUp() {
+        val newLine = state.ring.push()
+        newLine.clear(state.pen.currentAttr)
     }
 
-    /**
-     * Resets the active pen to the terminal's default style.
-     */
-    fun resetPen() {
-        state.pen.reset()
-    }
-
-    // --- Viewport / Rendering API ---
-
-    /**
-     * Gets the text of a specific visible row.
-     * Useful for UI frameworks rendering the screen line-by-line.
-     * * @param row Visual row (0 is top of screen, height-1 is bottom)
-     */
-    fun getVisibleLineText(row: Int): String {
-        if (!state.dimensions.isValidRow(row)) return ""
-
-        val startIndex = (state.ring.size - state.dimensions.height).coerceAtLeast(0)
-        return state.ring[startIndex + row].toTextTrimmed()
-    }
-
-    /**
-     * Retrieves the entire visible screen text as a single string.
-     */
-    fun getVisibleText(): String {
-        val sb = StringBuilder()
-        val lineCount = state.dimensions.height.coerceAtMost(state.ring.size)
-        val startIndex = (state.ring.size - state.dimensions.height).coerceAtLeast(0)
-
-        for (i in 0 until lineCount) {
-            if (i > 0) sb.append('\n')
-            sb.append(state.ring[startIndex + i].toTextTrimmed())
-        }
-        return sb.toString()
-    }
-
-    // --- Utility API ---
-
-    /**
-     * Clears only the visible portion of the screen and resets the cursor to home (0,0).
-     */
-    fun clearScreen() {
-        val lineCount = state.dimensions.height.coerceAtMost(state.ring.size)
-        val startIndex = (state.ring.size - state.dimensions.height).coerceAtLeast(0)
+    override fun clearScreen() {
+        val lineCount = height.coerceAtMost(state.ring.size)
+        val startIndex = (state.ring.size - height).coerceAtLeast(0)
 
         for (i in 0 until lineCount) {
             state.ring[startIndex + i].clear(state.pen.currentAttr)
         }
+        resetCursor()
+    }
 
-        state.cursor.col = 0
-        state.cursor.row = 0
+    override fun clearAll() {
+        state.ring.clear()
+        resetCursor()
+        resetPen()
+    }
+
+    override fun eraseLineToEnd() {
+        getActiveLine().clearFromColumn(cursorCol, state.pen.currentAttr)
+    }
+
+    override fun eraseLineToCursor() {
+        getActiveLine().clearToColumn(cursorCol, state.pen.currentAttr)
+    }
+
+    override fun eraseCurrentLine() {
+        getActiveLine().clear(state.pen.currentAttr)
+    }
+
+    // --- Rendering API (Zero Allocation - Critical Path) ---
+
+    override fun getCodepointAt(col: Int, row: Int): Int {
+        if (!state.dimensions.isValidCol(col)) return 0
+        val line = getVisibleLine(row) ?: return 0
+        return line.getCodepoint(col)
+    }
+
+    override fun getPackedAttrAt(col: Int, row: Int): Int {
+        if (!state.dimensions.isValidCol(col)) return state.pen.currentAttr
+        val line = getVisibleLine(row) ?: return state.pen.currentAttr
+        return line.getAttr(col)
+    }
+
+    // --- Testing & Debugging API ---
+
+    override fun getAttrAt(col: Int, row: Int): Attributes? {
+        if (!state.dimensions.isValidCol(col) || !state.dimensions.isValidRow(row)) return null
+        return AttributeCodec.unpack(getPackedAttrAt(col, row))
+    }
+
+    override fun getLineAsString(row: Int): String {
+        return getVisibleLine(row)?.toTextTrimmed() ?: ""
+    }
+
+    override fun getScreenAsString(): String {
+        val sb = StringBuilder()
+        val lineCount = height.coerceAtMost(state.ring.size)
+        for (i in 0 until lineCount) {
+            if (i > 0) sb.append('\n')
+            sb.append(getLineAsString(i))
+        }
+        return sb.toString()
+    }
+
+    override fun getAllAsString(): String {
+        val sb = StringBuilder()
+        for (i in 0 until state.ring.size) {
+            if (i > 0) sb.append('\n')
+            sb.append(state.ring[i].toTextTrimmed())
+        }
+        return sb.toString()
+    }
+
+    override fun reset() {
+        clearAll()
+        resetPen()
+        resetCursor()
     }
 }

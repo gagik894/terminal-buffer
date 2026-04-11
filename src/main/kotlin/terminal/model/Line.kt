@@ -133,28 +133,6 @@ internal class Line(
         attrs.fill(attr)
     }
 
-    /**
-     * Shifts the content of the line to the right starting from the specified column.
-     * The last cell is discarded. The cell at [startCol] is cleared (codepoint 0)
-     * and set to the specified attribute.
-     *
-     * @param startCol Starting column (inclusive)
-     * @param fillAttr Attribute to set for the new empty cell at [startCol]
-     *
-     * @throws IndexOutOfBoundsException if startCol is out of bounds
-     */
-    fun shiftRight(startCol: Int, fillAttr: Int) {
-        if (startCol < 0 || startCol >= width - 1) return
-
-        val shiftCount = width - startCol - 1
-
-        // Native block shift
-        System.arraycopy(codepoints, startCol, codepoints, startCol + 1, shiftCount)
-        System.arraycopy(attrs, startCol, attrs, startCol + 1, shiftCount)
-
-        codepoints[startCol] = 0
-        attrs[startCol] = fillAttr
-    }
 
     /**
      * Converts the line content to a string.
@@ -201,5 +179,27 @@ internal class Line(
             }
         }
         return sb.toString()
+    }
+
+
+    /**
+     * Inserts [count] blank cells at [col], shifting the remaining cells to the right.
+     * Cells shifted beyond the line width are discarded.
+     * Uses native block memory operations for zero-allocation performance.
+     */
+    fun insertCells(col: Int, count: Int, defaultAttr: Int) {
+        if (col !in 0..<width || count <= 0) return
+
+        val shiftCount = width - col - count
+        if (shiftCount > 0) {
+            // Native block shift to the right
+            System.arraycopy(codepoints, col, codepoints, col + count, shiftCount)
+            System.arraycopy(attrs, col, attrs, col + count, shiftCount)
+        }
+
+        // Fill the newly opened space with blanks
+        val endFill = (col + count).coerceAtMost(width)
+        codepoints.fill(0, col, endFill)
+        attrs.fill(defaultAttr, col, endFill)
     }
 }

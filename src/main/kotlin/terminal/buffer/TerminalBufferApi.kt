@@ -7,221 +7,175 @@ import com.gagik.terminal.model.Attributes
  * Exposes only the operations needed by consumers.
  */
 interface TerminalBufferApi {
+
+    /** Width of the terminal grid. */
     val width: Int
+
+    /** Height of the terminal grid. */
     val height: Int
 
-    /** Current cursor column (0-based). */
+    /** The current column index of the cursor (0-based). */
     val cursorCol: Int
 
-    /** Current cursor row (0-based). */
+    /** The current row index of the cursor (0-based). */
     val cursorRow: Int
 
-    /**
-     * Number of lines currently in scrollback history.
-     */
+    /** The number of lines currently held in the scrollback history. */
     val historySize: Int
 
-    /**
-     * Sets pen attributes for subsequent write operations.
-     *
-     * @param attributes Attributes to set on the pen
-     */
-    fun setAttributes(attributes: Attributes)
+    // --- Styling API ---
 
     /**
-     * Resets pen to default attributes.
+     * Sets the active pen attributes for subsequent write operations.
+     * Uses packed primitives to prevent memory allocation during ANSI parsing.
+     *
+     * @param fg Foreground color index (0-31)
+     * @param bg Background color index (0-31)
+     * @param bold True to enable bold text
+     * @param italic True to enable italic text
+     * @param underline True to enable underlined text
+     */
+    fun setPenAttributes(fg: Int, bg: Int, bold: Boolean = false, italic: Boolean = false, underline: Boolean = false)
+
+    /**
+     * Resets the active pen to the terminal's default style.
      */
     fun resetPen()
 
+    // --- Cursor API ---
+
     /**
-     * Sets cursor to an absolute position.
-     * Position is clamped to screen bounds.
+     * Sets the cursor to an absolute position, safely clamping to grid bounds.
      *
-     * @param col Target column (0-based)
-     * @param row Target row (0-based)
+     * @param col Column index (0-based)
+     * @param row Row index (0-based)
      */
     fun setCursor(col: Int, row: Int)
 
     /**
-     * Moves cursor relatively.
-     * Movement is clamped to screen bounds.
+     * Moves the cursor relatively, safely clamping to grid bounds.
      *
-     * @param dx Column delta (positive = right, negative = left)
-     * @param dy Row delta (positive = down, negative = up)
+     * @param dx Horizontal offset (can be negative)
+     * @param dy Vertical offset (can be negative)
      */
     fun moveCursor(dx: Int, dy: Int)
 
     /**
-     * Moves cursor up by N rows.
-     * @param n Number of rows to move (default 1)
+     * Moves cursor up by N rows, clamping to top boundary.
+     *
+     * @param n Number of rows to move up (default: 1)
+     * @throws IndexOutOfBoundsException if attempting to move beyond top boundary
      */
     fun cursorUp(n: Int = 1)
 
     /**
-     * Moves cursor down by N rows.
-     * @param n Number of rows to move (default 1)
+     * Moves cursor down by N rows, clamping to bottom boundary.
+     *
+     * @param n Number of rows to move down (default: 1)
+     * @throws IndexOutOfBoundsException if attempting to move beyond bottom boundary
      */
     fun cursorDown(n: Int = 1)
 
     /**
-     * Moves cursor left by N columns.
-     * @param n Number of columns to move (default 1)
+     * Moves cursor left by N columns, clamping to left boundary.
+     *
+     * @param n Number of columns to move left (default: 1)
+     * @throws IndexOutOfBoundsException if attempting to move beyond left boundary
      */
     fun cursorLeft(n: Int = 1)
 
     /**
-     * Moves cursor right by N columns.
-     * @param n Number of columns to move (default 1)
+     * Moves cursor right by N columns, clamping to right boundary.
+     *
+     * @param n Number of columns to move right (default: 1)
+     * @throws IndexOutOfBoundsException if attempting to move beyond right boundary
      */
     fun cursorRight(n: Int = 1)
 
-    /**
-     * Resets cursor to origin (0, 0).
-     */
+    /**Resets the cursor to the home position (0, 0). */
     fun resetCursor()
 
-    /**
-     * Writes a single character at the current cursor position.
-     * Uses current pen attributes and advances cursor with auto-wrap.
-     *
-     * @param value Character to write
-     */
-    fun writeChar(value: Char)
+    // --- Writing API ---
 
-    /**
-     * Writes a string at the current cursor position.
-     * Each character is written sequentially with auto-wrap.
-     *
-     * @param text Text to write
+    /** Writes a single Unicode codepoint using current pen attributes
+     * and advances the cursor, handling line wrapping automatically.
+     */
+    fun writeCodepoint(codepoint: Int)
+
+    /** Writes a string, safely iterating over Unicode code points to preserve
+     * surrogate pairs (e.g., emojis) without breaking them across cell boundaries.
      */
     fun writeText(text: String)
 
-    /**
-     * Inserts text at the current cursor position, shifting existing content to the right.
-     *
-     * @param text Text to insert
+    /** Inserts N blank characters at the cursor, shifting the remainder of the
+     * line's contents to the right (Corresponds to ANSI ICH).
      */
-    fun insertText(text: String)
+    fun insertBlankCharacters(count: Int)
 
-    /**
-     * Inserts a line break, moving cursor to the beginning of the next line.
-     * If at the bottom of the screen, scrolls up.
-     */
+    /** Executes a Line Feed (\n), scrolling the screen if at the bottom. */
     fun newLine()
 
-    /**
-     * Moves cursor to the beginning of the current line.
-     */
+    /** Executes a Carriage Return (\r), moving the cursor to column 0. */
     fun carriageReturn()
 
-    /**
-     * Scrolls the screen up by one line.
-     * Top line moves to history, new blank line appears at bottom.
-     */
+    // --- Viewport API ---
+
+    /** Pushes a new line to the buffer, moving the top visible line into history. */
     fun scrollUp()
 
-    /**
-     * Clears the entire visible screen.
-     * History is not affected.
-     */
+    /** Clears the visible screen and resets the cursor to home. History is preserved. */
     fun clearScreen()
 
-    /**
-     * Clears the entire screen and history.
-     */
+    /** Hard resets the terminal, destroying all visible text and history. */
     fun clearAll()
 
-    /**
-     * Fills the current line with a character using current attributes.
-     * Cursor position is not affected.
-     *
-     * @param value Character to fill with (null clears to empty)
-     */
-    fun fillLine(value: Char? = null)
+    /** Erases from the cursor to the end of the current line (ANSI EL 0). */
+    fun eraseLineToEnd()
+
+    /** Erases from the beginning of the current line to the cursor (ANSI EL 1). */
+    fun eraseLineToCursor()
+
+    /** Erases the entire current line (ANSI EL 2). */
+    fun eraseCurrentLine()
+
+    // --- Rendering API (Zero Allocation - Critical Path) ---
 
     /**
-     * Fills a specific line with a character using current attributes.
-     *
-     * @param row Screen row (0-based)
-     * @param value Character to fill with (null clears to empty)
+     * Gets the raw Unicode codepoint at a screen position.
+     * @return The codepoint integer, or 0 if empty/out of bounds.
      */
-    fun fillLineAt(row: Int, value: Char? = null)
+    fun getCodepointAt(col: Int, row: Int): Int
 
     /**
-     * Gets the character at a screen position.
+     * Gets the packed attribute integer at a screen position.
+     * Production Renderers MUST use this method and decode it manually.
+     * @return The packed attribute integer, or default attributes if out of bounds.
+     */
+    fun getPackedAttrAt(col: Int, row: Int): Int
+
+    // --- Testing & Debugging API (Allocating) ---
+
+    /**
+     * Gets the attributes at a screen position as an allocated [Attributes] object.
+     *
+     * **WARNING: DO NOT USE IN PRODUCTION RENDERING LOOPS.**
+     * use [getPackedAttrAt] instead.
      *
      * @param col Column (0-based)
      * @param row Row (0-based)
-     * @return Unicode character, or null if out of bounds
-     */
-    fun getCharAt(col: Int, row: Int): Char?
-
-    /**
-     * Gets the attributes at a screen position.
-     *
-     * @param col Column (0-based)
-     * @param row Row (0-based)
-     * @return Attributes, or null if out of bounds
+     * @return Unpacked Attributes object, or null if out of bounds.
      */
     fun getAttrAt(col: Int, row: Int): Attributes?
 
-    /**
-     * Gets the character at a history position.
-     *
-     * @param index History index (0 = oldest)
-     * @param col Column (0-based)
-     * @return Unicode character, or null if out of bounds
-     */
-    fun getHistoryCharAt(index: Int, col: Int): Char?
-
-    /**
-     * Gets the attributes at a history position.
-     *
-     * @param index History index (0 = oldest)
-     * @param col Column (0-based)
-     * @return Attributes, or null if out of bounds
-     */
-    fun getHistoryAttrAt(index: Int, col: Int): Attributes?
-
-    /**
-     * Gets a screen line as a string.
-     *
-     * @param row Screen row (0-based)
-     * @return String content of the line (trimmed)
-     * @throws IllegalArgumentException if row is out of bounds
-     */
+    /** Gets the text of a specific visual row, trimming trailing spaces. */
     fun getLineAsString(row: Int): String
 
-    /**
-     * Gets a history line as a string.
-     *
-     * @param index History index (0 = oldest)
-     * @return String content of the line (trimmed)
-     * @throws IllegalArgumentException if index is out of bounds
-     */
-    fun getHistoryLineAsString(index: Int): String
-
-    /**
-     * Gets the entire visible screen content as a string.
-     * Lines are separated by newlines. Trailing spaces on each line are trimmed.
-     *
-     * @return String representation of the visible screen
-     */
+    /** Gets the entire visible screen content as a single string. */
     fun getScreenAsString(): String
 
-    /**
-     * Gets all content (scrollback + screen) as a string.
-     * Lines are separated by newlines. Trailing spaces on each line are trimmed.
-     *
-     * @return String representation of all content
-     */
+    /** Gets all buffer content (scrollback + screen) as a single string. */
     fun getAllAsString(): String
 
-    /**
-     * Completely resets the terminal to initial state:
-     * - Clears screen and history
-     * - Resets cursor to origin
-     * - Resets pen to defaults
-     */
+    /** Resets cursor, pen, and screen to initial states. */
     fun reset()
 }
