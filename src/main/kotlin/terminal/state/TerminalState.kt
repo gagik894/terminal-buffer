@@ -27,4 +27,10 @@ internal class TerminalState(
     val pen = Pen()
 
     val ring = HistoryRing(maxHistory + initialHeight) { Line(initialWidth) }
+
+    init {
+        repeat(initialHeight) {
+            ring.push().clear(pen.currentAttr)
+        }
+    }
 }

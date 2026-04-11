@@ -22,26 +22,21 @@ internal class TerminalBuffer(
 
     private val inputHandler = InputHandler(state)
 
+
     // --- Viewport Math Helpers ---
 
     /** Safely retrieves the active line at the cursor.
      * If the screen was just cleared, it lazily provisions new lines.
      */
     private fun getActiveLine(): Line {
-        while (state.ring.size <= cursorRow) {
-            state.ring.push().clear(state.pen.currentAttr)
-        }
-        val startIndex = (state.ring.size - height).coerceAtLeast(0)
+        val startIndex = state.ring.size - height
         return state.ring[startIndex + cursorRow]
     }
 
     private fun getVisibleLine(row: Int): Line? {
         if (!state.dimensions.isValidRow(row)) return null
-        val startIndex = (state.ring.size - height).coerceAtLeast(0)
 
-        // If the ring hasn't filled this row yet, return null
-        if (startIndex + row >= state.ring.size) return null
-
+        val startIndex = state.ring.size - height
         return state.ring[startIndex + row]
     }
 
@@ -128,8 +123,11 @@ internal class TerminalBuffer(
 
     override fun clearAll() {
         state.ring.clear()
-        resetCursor()
         resetPen()
+        repeat(height) {
+            state.ring.push().clear(state.pen.currentAttr)
+        }
+        resetCursor()
     }
 
     override fun eraseLineToEnd() {

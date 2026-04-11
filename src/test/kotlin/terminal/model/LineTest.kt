@@ -388,4 +388,39 @@ class LineTest {
             assertEquals("", line.toTextTrimmed())
         }
     }
+
+    @Nested
+    @DisplayName("insertCells()")
+    inner class InsertCellsTests {
+
+        @Test
+        fun `inserts blanks and shifts content right`() {
+            val line = Line(5)
+            line.setCell(0, 'A'.code, 1)
+            line.setCell(1, 'B'.code, 2)
+            line.setCell(2, 'C'.code, 3)
+
+            line.insertCells(col = 1, count = 2, defaultAttr = 99)
+
+            assertEquals('A'.code, line.getCodepoint(0))
+            assertEquals(0, line.getCodepoint(1))
+            assertEquals(0, line.getCodepoint(2))
+            assertEquals('B'.code, line.getCodepoint(3))
+            assertEquals('C'.code, line.getCodepoint(4))
+            assertEquals(99, line.getAttr(1))
+            assertEquals(99, line.getAttr(2))
+        }
+
+        @Test
+        fun `insertCells no-ops for invalid column or non-positive count`() {
+            val line = Line(3)
+            line.setCell(0, 'X'.code, 7)
+
+            line.insertCells(col = -1, count = 1, defaultAttr = 9)
+            line.insertCells(col = 1, count = 0, defaultAttr = 9)
+
+            assertEquals('X'.code, line.getCodepoint(0))
+            assertEquals(7, line.getAttr(0))
+        }
+    }
 }

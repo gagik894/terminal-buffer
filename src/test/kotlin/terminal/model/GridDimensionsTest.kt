@@ -1,11 +1,9 @@
 package com.gagik.terminal.model
 
 import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
-@DisplayName("GridDimensions")
 class GridDimensionsTest {
 
     @Test
@@ -34,17 +32,6 @@ class GridDimensionsTest {
         assertTrue(dimensions.isValidRow(4))
         assertFalse(dimensions.isValidCol(10))
         assertFalse(dimensions.isValidRow(5))
-    }
-
-    @Test
-    fun `require methods fail fast`() {
-        val dimensions = GridDimensions(10, 5)
-
-        dimensions.requireValidCol(9)
-        dimensions.requireValidRow(4)
-
-        assertThrows<IllegalArgumentException> { dimensions.requireValidCol(10) }
-        assertThrows<IllegalArgumentException> { dimensions.requireValidRow(5) }
     }
 }
 

@@ -11,6 +11,12 @@ import org.junit.jupiter.params.provider.ValueSource
 @DisplayName("AttributeCodec Test Suite")
 class AttributeCodecTest {
 
+    @Test
+    fun `exports expected color constants`() {
+        assertEquals(16, AttributeCodec.MAX_ANSI_COLOR)
+        assertEquals(31, AttributeCodec.MAX_COLOR)
+    }
+
     @Nested
     @DisplayName("Round-Trip & Logic Consistency")
     inner class RoundTripTests {
@@ -131,6 +137,20 @@ class AttributeCodecTest {
                 { assertEquals(31, AttributeCodec.foreground(allOnes)) },
                 { assertEquals(31, AttributeCodec.background(allOnes)) },
                 { assertTrue(AttributeCodec.isBold(allOnes)) }
+            )
+        }
+
+        @Test
+        fun `unpack returns structured attributes`() {
+            val packed = AttributeCodec.pack(9, 4, bold = true, italic = true, underline = false)
+            val unpacked = AttributeCodec.unpack(packed)
+
+            assertAll(
+                { assertEquals(9, unpacked.fg) },
+                { assertEquals(4, unpacked.bg) },
+                { assertTrue(unpacked.bold) },
+                { assertTrue(unpacked.italic) },
+                { assertFalse(unpacked.underline) }
             )
         }
     }
