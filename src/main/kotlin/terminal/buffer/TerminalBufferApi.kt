@@ -29,8 +29,8 @@ interface TerminalBufferApi {
      * Sets the active pen attributes for subsequent write operations.
      * Uses packed primitives to prevent memory allocation during ANSI parsing.
      *
-     * @param fg Foreground color index (0-31)
-     * @param bg Background color index (0-31)
+     * @param fg Foreground color index (0-16, 0 is default). Out-of-range values are clamped.
+     * @param bg Background color index (0-16, 0 is default). Out-of-range values are clamped.
      * @param bold True to enable bold text
      * @param italic True to enable italic text
      * @param underline True to enable underlined text
@@ -61,34 +61,30 @@ interface TerminalBufferApi {
     fun moveCursor(dx: Int, dy: Int)
 
     /**
-     * Moves cursor up by N rows, clamping to top boundary.
+     * Moves cursor up by N rows, safely clamping to the top boundary.
      *
      * @param n Number of rows to move up (default: 1)
-     * @throws IndexOutOfBoundsException if attempting to move beyond top boundary
      */
     fun cursorUp(n: Int = 1)
 
     /**
-     * Moves cursor down by N rows, clamping to bottom boundary.
+     * Moves cursor down by N rows, safely clamping to the bottom boundary.
      *
      * @param n Number of rows to move down (default: 1)
-     * @throws IndexOutOfBoundsException if attempting to move beyond bottom boundary
      */
     fun cursorDown(n: Int = 1)
 
     /**
-     * Moves cursor left by N columns, clamping to left boundary.
+     * Moves cursor left by N columns, safely clamping to the left boundary.
      *
      * @param n Number of columns to move left (default: 1)
-     * @throws IndexOutOfBoundsException if attempting to move beyond left boundary
      */
     fun cursorLeft(n: Int = 1)
 
     /**
-     * Moves cursor right by N columns, clamping to right boundary.
+     * Moves cursor right by N columns, safely clamping to the right boundary.
      *
      * @param n Number of columns to move right (default: 1)
-     * @throws IndexOutOfBoundsException if attempting to move beyond right boundary
      */
     fun cursorRight(n: Int = 1)
 
@@ -120,7 +116,11 @@ interface TerminalBufferApi {
 
     // --- Viewport API ---
 
-    /** Pushes a new line to the buffer, moving the top visible line into history. */
+    /**
+     * Pushes a new blank line to the bottom of the buffer using the current pen attributes.
+     * Existing lines are shifted up, and the top visible line is moved into history.
+     * The cursor position is preserved.
+     */
     fun scrollUp()
 
     /** Clears the visible screen and resets the cursor to home. History is preserved. */
@@ -149,7 +149,7 @@ interface TerminalBufferApi {
     /**
      * Gets the packed attribute integer at a screen position.
      * Production Renderers MUST use this method and decode it manually.
-     * @return The packed attribute integer, or default attributes if out of bounds.
+     * @return The packed attribute integer, or the active pen's attributes if out of bounds.
      */
     fun getPackedAttrAt(col: Int, row: Int): Int
 
