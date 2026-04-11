@@ -1,6 +1,5 @@
 package com.gagik.terminal.model
 
-import com.gagik.terminal.util.Validations.isInBounds
 import com.gagik.terminal.util.Validations.requirePositive
 
 /**
@@ -48,12 +47,10 @@ internal class Line(
      * @param col The column index of the cell to set
      * @param codepoint The Unicode codepoint to set in the cell
      * @param attr The packed attribute Int to set for the cell
+     *
      * @throws IndexOutOfBoundsException if col is out of bounds
      */
     fun setCell(col: Int, codepoint: Int, attr: Int) {
-        if (!isInBounds(col, width)) {
-            throw IndexOutOfBoundsException("Column $col out of bounds (width=$width)")
-        }
         codepoints[col] = codepoint
         attrs[col] = attr
     }
@@ -63,63 +60,52 @@ internal class Line(
      *
      * @param col The column index of the cell to query
      * @return The Unicode codepoint at the specified column
+     *
      * @throws IndexOutOfBoundsException if col is out of bounds
      */
-    fun getCodepoint(col: Int): Int {
-        if (!isInBounds(col, width)) {
-            throw IndexOutOfBoundsException("Column $col out of bounds (width=$width)")
-        }
-        return codepoints[col]
-    }
+    fun getCodepoint(col: Int): Int = codepoints[col]
 
-    /**
-     * Safe version of [getCodepoint] that returns null instead of throwing.
-     */
-    fun getCodepointOrNull(col: Int): Int? = if (isInBounds(col, width)) codepoints[col] else null
 
     /**
      * Gets the attribute of the cell at the specified column.
      *
      * @param col The column index of the cell to query
      * @return The packed attribute Int at the specified column
+     *
      * @throws IndexOutOfBoundsException if col is out of bounds
      */
-    fun getAttr(col: Int): Int {
-        if (!isInBounds(col, width)) {
-            throw IndexOutOfBoundsException("Column $col out of bounds (width=$width)")
-        }
-        return attrs[col]
-    }
-
-    /**
-     * Safe version of [getAttr] that returns null instead of throwing.
-     */
-    fun getAttrOrNull(col: Int): Int? = if (isInBounds(col, width)) attrs[col] else null
+    fun getAttr(col: Int): Int = attrs[col]
 
     /**
      * Clears cells from the specified column to the end of the line.
      * @param startCol The starting column (inclusive)
      * @param attr The attribute to fill cleared cells with
+     *
+     * @throws IndexOutOfBoundsException if startCol is out of bounds
      */
     fun clearFromColumn(startCol: Int, attr: Int) {
-        val start = startCol.coerceIn(0, width)
-        for (col in start until width) {
-            codepoints[col] = 0
-            attrs[col] = attr
-        }
+        val start = startCol.coerceAtLeast(0)
+        if (start >= width) return
+
+        // Native block zeroing
+        codepoints.fill(0, start, width)
+        attrs.fill(attr, start, width)
     }
 
     /**
      * Clears cells from the beginning of the line to the specified column.
      * @param endCol The ending column (inclusive)
      * @param attr The attribute to fill cleared cells with
+     *
+     * @throws IndexOutOfBoundsException if endCol is out of bounds
      */
     fun clearToColumn(endCol: Int, attr: Int) {
-        val end = (endCol + 1).coerceIn(0, width)
-        for (col in 0 until end) {
-            codepoints[col] = 0
-            attrs[col] = attr
-        }
+        val end = (endCol + 1).coerceAtMost(width)
+        if (end <= 0) return
+
+        // Native block zeroing
+        codepoints.fill(0, 0, end)
+        attrs.fill(attr, 0, end)
     }
 
     /**
@@ -154,14 +140,18 @@ internal class Line(
      *
      * @param startCol Starting column (inclusive)
      * @param fillAttr Attribute to set for the new empty cell at [startCol]
+     *
+     * @throws IndexOutOfBoundsException if startCol is out of bounds
      */
     fun shiftRight(startCol: Int, fillAttr: Int) {
-        if (!isInBounds(startCol, width)) return
-        val end = width - 1
-        for (col in end downTo startCol + 1) {
-            codepoints[col] = codepoints[col - 1]
-            attrs[col] = attrs[col - 1]
-        }
+        if (startCol < 0 || startCol >= width - 1) return
+
+        val shiftCount = width - startCol - 1
+
+        // Native block shift
+        System.arraycopy(codepoints, startCol, codepoints, startCol + 1, shiftCount)
+        System.arraycopy(attrs, startCol, attrs, startCol + 1, shiftCount)
+
         codepoints[startCol] = 0
         attrs[startCol] = fillAttr
     }
@@ -190,5 +180,26 @@ internal class Line(
      *
      * @return String representation of the line with trailing spaces removed
      */
-    fun toTextTrimmed(): String = toText().trimEnd()
+    fun toTextTrimmed(): String {
+        var lastValidCol = width - 1
+
+        // Scan backwards to find the last non-empty cell
+        while (lastValidCol >= 0 && codepoints[lastValidCol] == 0) {
+            lastValidCol--
+        }
+
+        // If the line is completely empty, return instantly without allocating
+        if (lastValidCol < 0) return ""
+
+        val sb = StringBuilder(lastValidCol + 1)
+        for (col in 0..lastValidCol) {
+            val cp = codepoints[col]
+            if (cp == 0) {
+                sb.append(' ')
+            } else {
+                sb.appendCodePoint(cp)
+            }
+        }
+        return sb.toString()
+    }
 }

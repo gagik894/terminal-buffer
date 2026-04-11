@@ -1,45 +1,43 @@
 package com.gagik.terminal.model
 
-import com.gagik.terminal.util.Validations.requirePositive
-
 /**
- * Manages the dimensions and boundary logic for the terminal grid.
- * * Separates soft boundary enforcement (clamping for cursor movement)
- * from hard boundary enforcement (validating internal memory access).
+ * The strict mathematical boundary of the terminal.
+ * Provides pure validation and clamping logic for the Engine.
  */
-class GridDimensions(var width: Int, var height: Int) {
+internal class GridDimensions(var width: Int, var height: Int) {
+
     init {
-        requirePositive(width, "width")
-        requirePositive(height, "height")
+        require(width > 0) { "Terminal width must be strictly positive, got $width" }
+        require(height > 0) { "Terminal height must be strictly positive, got $height" }
     }
 
     /**
-     * Clamps the column index to the visible grid bounds.
-     * Used for safely positioning the cursor even if external commands overflow.
+     * Checks if a column index is within the terminal's strict bounds.
+     * @param col The column index to check
+     * @return true if the column index is within the terminal's bounds, false otherwise
+     */
+    fun isValidCol(col: Int): Boolean = col in 0 until width
+
+
+    /**
+     * Checks if a row index is within the terminal's strict bounds.
+     * @param row The row index to check
+     * @return true if the row index is within the terminal's bounds, false otherwise
+     */
+    fun isValidRow(row: Int): Boolean = row in 0 until height
+
+
+    /**
+     * Safely restricts a column index to the terminal's bounds.
+     * @param col The column index to clamp
+     * @return The clamped column index within the terminal's bounds
      */
     fun clampCol(col: Int): Int = col.coerceIn(0, width - 1)
 
     /**
-     * Clamps the row index to the visible grid bounds.
+     * Safely restricts a row index to the terminal's bounds.
+     * @param row The row index to clamp
+     * @return The clamped row index within the terminal's bounds
      */
     fun clampRow(row: Int): Int = row.coerceIn(0, height - 1)
-
-    fun isValidCol(col: Int): Boolean = col in 0 until width
-    fun isValidRow(row: Int): Boolean = row in 0 until height
-
-    /**
-     * Asserts that a column index is strictly within memory bounds.
-     * @throws IllegalArgumentException if out of bounds.
-     */
-    fun requireValidCol(col: Int) {
-        require(col in 0 until width) { "Column $col is out of bounds (0 until $width)" }
-    }
-
-    /**
-     * Asserts that a row index is strictly within memory bounds.
-     * @throws IllegalArgumentException if out of bounds.
-     */
-    fun requireValidRow(row: Int) {
-        require(row in 0 until height) { "Row $row is out of bounds (0 until $height)" }
-    }
 }
