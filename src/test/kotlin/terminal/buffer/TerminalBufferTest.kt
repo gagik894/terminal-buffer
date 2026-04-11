@@ -470,6 +470,19 @@ class TerminalBufferTest {
 	inner class ViewportTests {
 
 		@Test
+		fun `scrollUp with zero maxHistory still works but history remains zero`() {
+			val buffer = TerminalBuffer(2, 2, maxHistory = 0)
+			buffer.writeText("AB")
+			buffer.scrollUp()
+
+			assertAll(
+				{ assertEquals(0, buffer.historySize) },
+				{ assertEquals("\n", buffer.getScreenAsString()) },
+				{ assertEquals("\n", buffer.getAllAsString()) }
+			)
+		}
+
+		@Test
 		fun `scrollUp adds a blank line and moves the old top line into history`() {
 			val buffer = newBuffer(width = 2, height = 2, maxHistory = 4)
 
@@ -589,6 +602,20 @@ class TerminalBufferTest {
 				{ assertEquals("", buffer.getLineAsString(-1)) },
 				{ assertEquals("", buffer.getLineAsString(99)) }
 			)
+		}
+
+		@Test
+		fun `getLineAsString does not trim leading spaces`() {
+			val buffer = newBuffer(width = 5, height = 1)
+			buffer.writeText("   ")
+			assertEquals("   ", buffer.getLineAsString(0))
+		}
+
+		@Test
+		fun `getLineAsString returns an empty string for a line containing only empty cells`() {
+			val buffer = newBuffer(width = 5, height = 1)
+			// A fresh buffer has only codepoint 0.
+			assertEquals("", buffer.getLineAsString(0))
 		}
 
 		@Test
