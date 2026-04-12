@@ -98,8 +98,12 @@ interface TerminalBufferApi {
      */
     fun writeCodepoint(codepoint: Int)
 
-    /** Writes a string, safely iterating over Unicode code points to preserve
-     * surrogate pairs (e.g., emojis) without breaking them across cell boundaries.
+    /**
+     * Writes a string literally to the buffer.
+     *
+     * Note: This method does NOT interpret control characters (like \n, \r, \t).
+     * They are written into cells as literal codepoints. Use [newLine] or
+     * [carriageReturn] for terminal behavior.
      */
     fun writeText(text: String)
 
