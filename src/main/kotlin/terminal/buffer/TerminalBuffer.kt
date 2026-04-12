@@ -85,8 +85,11 @@ internal class TerminalBuffer(
     }
 
     override fun writeText(text: String) {
-        text.codePoints().forEach { cp ->
+        var i = 0
+        while (i < text.length) {
+            val cp = text.codePointAt(i)
             inputHandler.print(cp)
+            i += Character.charCount(cp)
         }
     }
 
