@@ -207,3 +207,10 @@ internal class Line(
         attrs.fill(defaultAttr, col, endFill)
     }
 }
+
+
+internal object VoidLine : TerminalLineApi {
+    override val width: Int = 0
+    override fun getCodepoint(col: Int): Int = 0
+    override fun getPackedAttr(col: Int): Int = 0
+}

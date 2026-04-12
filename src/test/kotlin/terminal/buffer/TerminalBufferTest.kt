@@ -661,22 +661,30 @@ class TerminalBufferTest {
 			buffer.setPenAttributes(fg = 1, bg = 2, bold = true)
 
 			val line = buffer.getLine(0)
-			assertNotNull(line)
-			assertEquals(5, line?.width)
-			assertEquals('H'.code, line?.getCodepoint(0))
-			assertEquals('O'.code, line?.getCodepoint(4))
+			// No longer null-safe check needed as it returns VoidLine instead of null
+			assertEquals(5, line.width)
+			assertEquals('H'.code, line.getCodepoint(0))
+			assertEquals('O'.code, line.getCodepoint(4))
 
 			val line2 = buffer.getLine(1)
-			assertNotNull(line2)
-			assertEquals(0, line2?.getCodepoint(0))
+			assertEquals(0, line2.getCodepoint(0))
 		}
 
 		@Test
-		fun `getLine returns null for out of bounds rows`() {
+		fun `getLine returns a VoidLine for out of bounds rows`() {
 			val buffer = newBuffer(width = 5, height = 2)
-			assertNull(buffer.getLine(-1))
-			assertNull(buffer.getLine(2))
-			assertNull(buffer.getLine(99))
+
+			// VoidLine has width 0 and returns 0 for all queries
+			val outOfBounds1 = buffer.getLine(-1)
+			assertEquals(0, outOfBounds1.width)
+			assertEquals(0, outOfBounds1.getCodepoint(0))
+			assertEquals(0, outOfBounds1.getPackedAttr(0))
+
+			val outOfBounds2 = buffer.getLine(2)
+			assertEquals(0, outOfBounds2.width)
+
+			val outOfBounds3 = buffer.getLine(99)
+			assertEquals(0, outOfBounds3.width)
 		}
 
 		@Test

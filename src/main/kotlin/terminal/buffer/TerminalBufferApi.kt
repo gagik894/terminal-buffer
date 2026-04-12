@@ -149,7 +149,7 @@ interface TerminalBufferApi {
      * @param row The visual row (0 is the top of the screen).
      * @return A read-only line, or null if the row is out of bounds.
      */
-    fun getLine(row: Int): TerminalLineApi?
+    fun getLine(row: Int): TerminalLineApi
 
     /**
      * Gets the raw Unicode codepoint at a screen position.
