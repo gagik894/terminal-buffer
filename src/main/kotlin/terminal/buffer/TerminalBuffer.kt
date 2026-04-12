@@ -25,9 +25,7 @@ internal class TerminalBuffer(
 
     // --- Viewport Math Helpers ---
 
-    /** Safely retrieves the active line at the cursor.
-     * If the screen was just cleared, it lazily provisions new lines.
-     */
+    /** Safely retrieves the active line at the cursor. */
     private fun getActiveLine(): Line {
         val startIndex = state.ring.size - height
         return state.ring[startIndex + cursorRow]

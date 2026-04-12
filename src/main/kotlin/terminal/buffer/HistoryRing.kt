@@ -10,6 +10,9 @@ import com.gagik.terminal.model.Line
  * - 0 is the oldest logical line
  * - size-1 is the newest logical line
  * - managing the circular index
+ *
+ * @param capacity The maximum number of lines the ring can hold. Must be > 0.
+ * @param lineFactory Factory function to create new Line instances for initialization.
  */
 internal class HistoryRing(
     val capacity: Int,

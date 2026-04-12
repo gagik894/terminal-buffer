@@ -154,9 +154,9 @@ internal class Line(
     }
 
     /**
-     * Converts the line content to a string, trimming trailing spaces.
+     * Converts the line content to a string, trimming trailing empty cells (codepoint 0).
      *
-     * @return String representation of the line with trailing spaces removed
+     * @return String representation of the line with trailing empty cells removed
      */
     fun toTextTrimmed(): String {
         var lastValidCol = width - 1

@@ -88,7 +88,7 @@ interface TerminalBufferApi {
      */
     fun cursorRight(n: Int = 1)
 
-    /**Resets the cursor to the home position (0, 0). */
+    /** Resets the cursor to the home position (0, 0). */
     fun resetCursor()
 
     // --- Writing API ---
