@@ -2,6 +2,7 @@ package com.gagik.terminal.buffer
 
 import com.gagik.terminal.codec.AttributeCodec
 import com.gagik.terminal.engine.InputHandler
+import com.gagik.terminal.engine.TerminalResizer
 import com.gagik.terminal.model.Attributes
 import com.gagik.terminal.model.Line
 import com.gagik.terminal.model.VoidLine
@@ -77,6 +78,13 @@ internal class TerminalBuffer(
 
     override fun resetCursor() {
         setCursor(0, 0)
+    }
+
+    override fun resize(newWidth: Int, newHeight: Int) {
+        require(newWidth > 0) { "newWidth must be > 0, was $newWidth" }
+        require(newHeight > 0) { "newHeight must be > 0, was $newHeight" }
+
+        TerminalResizer.resize(state, newWidth, newHeight)
     }
 
     // --- Writing API ---

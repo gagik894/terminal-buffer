@@ -91,6 +91,9 @@ interface TerminalBufferApi {
     /** Resets the cursor to the home position (0, 0). */
     fun resetCursor()
 
+    /** Resizes the terminal grid, preserving scrollback when possible. */
+    fun resize(newWidth: Int, newHeight: Int)
+
     // --- Writing API ---
 
     /** Writes a single Unicode codepoint using current pen attributes

@@ -1,5 +1,6 @@
 package com.gagik.terminal.buffer
 
+import com.gagik.terminal.TerminalBuffers
 import com.gagik.terminal.model.Attributes
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
@@ -15,6 +16,10 @@ class TerminalBufferTest {
 
 	private fun newBuffer(width: Int = 4, height: Int = 3, maxHistory: Int = 5): TerminalBuffer {
 		return TerminalBuffer(width, height, maxHistory)
+	}
+
+	private fun newApiBuffer(width: Int = 4, height: Int = 3, maxHistory: Int = 5): TerminalBufferApi {
+		return TerminalBuffers.create(width, height, maxHistory)
 	}
 
 	private fun blankScreen(height: Int): String = List(height) { "" }.joinToString("\n")
@@ -647,6 +652,36 @@ class TerminalBufferTest {
 				{ assertEquals(blankScreen(2), dirty.getAllAsString()) },
 				{ assertEquals(defaultAttributes(), dirty.getAttrAt(0, 0)) }
 			)
+		}
+	}
+
+	@Nested
+	@DisplayName("Resize")
+	inner class ResizeTests {
+
+		@Test
+		fun `resize is exposed through the public API`() {
+			val buffer = newApiBuffer(width = 4, height = 2, maxHistory = 3)
+			buffer.writeText("ABCD")
+
+			buffer.resize(newWidth = 2, newHeight = 3)
+
+			assertAll(
+				{ assertEquals(2, buffer.width) },
+				{ assertEquals(3, buffer.height) },
+				{ assertTrue(buffer.cursorCol in 0 until buffer.width) },
+				{ assertTrue(buffer.cursorRow in 0 until buffer.height) }
+			)
+		}
+
+		@Test
+		fun `resize rejects non-positive dimensions through the public API`() {
+			val buffer = newApiBuffer()
+
+			assertThrows<IllegalArgumentException> { buffer.resize(0, 2) }
+			assertThrows<IllegalArgumentException> { buffer.resize(2, 0) }
+			assertThrows<IllegalArgumentException> { buffer.resize(-1, 2) }
+			assertThrows<IllegalArgumentException> { buffer.resize(2, -1) }
 		}
 	}
 
