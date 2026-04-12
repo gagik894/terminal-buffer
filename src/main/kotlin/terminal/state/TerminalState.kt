@@ -20,13 +20,13 @@ import com.gagik.terminal.model.Pen
 internal class TerminalState(
     initialWidth: Int,
     initialHeight: Int,
-    maxHistory: Int
+    val maxHistory: Int
 ) {
     val dimensions = GridDimensions(initialWidth, initialHeight)
     val cursor = Cursor()
     val pen = Pen()
 
-    val ring = HistoryRing(maxHistory + initialHeight) { Line(initialWidth) }
+    var ring = HistoryRing(maxHistory + initialHeight) { Line(initialWidth) }
 
     init {
         repeat(initialHeight) {
