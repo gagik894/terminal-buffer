@@ -1,4 +1,7 @@
-package com.gagik.terminal.buffer
+package com.gagik.terminal
+
+import com.gagik.terminal.buffer.TerminalBuffer
+import com.gagik.terminal.buffer.TerminalBufferApi
 
 /**
  * Factory for creating terminal buffer instances.
@@ -8,4 +11,3 @@ object TerminalBuffers {
         return TerminalBuffer(width, height, maxHistory)
     }
 }
-
