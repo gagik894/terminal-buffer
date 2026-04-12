@@ -35,7 +35,7 @@ class LineTest {
             // Verify all cells start as 0
             for (i in 0 until 5) {
                 assertEquals(0, line.getCodepoint(i), "Codepoint at $i should be 0")
-                assertEquals(0, line.getAttr(i), "Attribute at $i should be 0")
+                assertEquals(0, line.getPackedAttr(i), "Attribute at $i should be 0")
             }
         }
 
@@ -68,7 +68,7 @@ class LineTest {
 
             assertAll(
                 { assertEquals(testCodepoint, line.getCodepoint(index), "Codepoint mismatch") },
-                { assertEquals(testAttr, line.getAttr(index), "Attribute mismatch") }
+                { assertEquals(testAttr, line.getPackedAttr(index), "Attribute mismatch") }
             )
         }
 
@@ -79,7 +79,7 @@ class LineTest {
 
             assertThrows<IndexOutOfBoundsException> { line.setCell(invalidIndex, 65, 123) }
             assertThrows<IndexOutOfBoundsException> { line.getCodepoint(invalidIndex) }
-            assertThrows<IndexOutOfBoundsException> { line.getAttr(invalidIndex) }
+            assertThrows<IndexOutOfBoundsException> { line.getPackedAttr(invalidIndex) }
         }
     }
 
@@ -106,7 +106,7 @@ class LineTest {
                 "Verify line was fully reset",
                 { assertFalse(line.wrapped, "Wrapped flag should be reset to false") },
                 { assertEquals(0, line.getCodepoint(0), "Codepoints should be reset to 0") },
-                { assertEquals(defaultAttr, line.getAttr(0), "Attrs should be reset to default ($defaultAttr)") }
+                { assertEquals(defaultAttr, line.getPackedAttr(0), "Attrs should be reset to default ($defaultAttr)") }
             )
         }
     }
@@ -126,9 +126,9 @@ class LineTest {
             dest.copyFrom(source)
 
             assertEquals('A'.code, dest.getCodepoint(0))
-            assertEquals(1, dest.getAttr(0))
+            assertEquals(1, dest.getPackedAttr(0))
             assertEquals('B'.code, dest.getCodepoint(5))
-            assertEquals(2, dest.getAttr(5))
+            assertEquals(2, dest.getPackedAttr(5))
             assertTrue(dest.wrapped)
         }
 
@@ -152,7 +152,7 @@ class LineTest {
             dest.copyFrom(source)
 
             assertEquals('X'.code, dest.getCodepoint(0))
-            assertEquals(99, dest.getAttr(0))
+            assertEquals(99, dest.getPackedAttr(0))
         }
     }
 
@@ -172,12 +172,12 @@ class LineTest {
             // Columns 0-4 should be unchanged
             for (col in 0 until 5) {
                 assertEquals('A'.code + col, line.getCodepoint(col))
-                assertEquals(col, line.getAttr(col))
+                assertEquals(col, line.getPackedAttr(col))
             }
             // Columns 5-9 should be cleared
             for (col in 5 until 10) {
                 assertEquals(0, line.getCodepoint(col))
-                assertEquals(99, line.getAttr(col))
+                assertEquals(99, line.getPackedAttr(col))
             }
         }
 
@@ -192,7 +192,7 @@ class LineTest {
 
             for (col in 0 until 5) {
                 assertEquals(0, line.getCodepoint(col))
-                assertEquals(42, line.getAttr(col))
+                assertEquals(42, line.getPackedAttr(col))
             }
         }
 
@@ -207,7 +207,7 @@ class LineTest {
 
             for (col in 0 until 5) {
                 assertEquals(0, line.getCodepoint(col))
-                assertEquals(42, line.getAttr(col))
+                assertEquals(42, line.getPackedAttr(col))
             }
         }
 
@@ -222,7 +222,7 @@ class LineTest {
 
             for (col in 0 until 5) {
                 assertEquals('X'.code, line.getCodepoint(col))
-                assertEquals(col, line.getAttr(col))
+                assertEquals(col, line.getPackedAttr(col))
             }
         }
     }
@@ -243,12 +243,12 @@ class LineTest {
             // Columns 0-4 should be cleared
             for (col in 0..4) {
                 assertEquals(0, line.getCodepoint(col))
-                assertEquals(99, line.getAttr(col))
+                assertEquals(99, line.getPackedAttr(col))
             }
             // Columns 5-9 should be unchanged
             for (col in 5 until 10) {
                 assertEquals('A'.code + col, line.getCodepoint(col))
-                assertEquals(col, line.getAttr(col))
+                assertEquals(col, line.getPackedAttr(col))
             }
         }
 
@@ -263,7 +263,7 @@ class LineTest {
 
             for (col in 0 until 5) {
                 assertEquals(0, line.getCodepoint(col))
-                assertEquals(42, line.getAttr(col))
+                assertEquals(42, line.getPackedAttr(col))
             }
         }
 
@@ -278,7 +278,7 @@ class LineTest {
 
             for (col in 0 until 5) {
                 assertEquals('X'.code, line.getCodepoint(col))
-                assertEquals(col, line.getAttr(col))
+                assertEquals(col, line.getPackedAttr(col))
             }
         }
 
@@ -293,7 +293,7 @@ class LineTest {
 
             for (col in 0 until 5) {
                 assertEquals(0, line.getCodepoint(col))
-                assertEquals(42, line.getAttr(col))
+                assertEquals(42, line.getPackedAttr(col))
             }
         }
     }
@@ -309,7 +309,7 @@ class LineTest {
 
             for (col in 0 until 5) {
                 assertEquals('-'.code, line.getCodepoint(col))
-                assertEquals(99, line.getAttr(col))
+                assertEquals(99, line.getPackedAttr(col))
             }
         }
 
@@ -324,7 +324,7 @@ class LineTest {
 
             for (col in 0 until 5) {
                 assertEquals(0, line.getCodepoint(col))
-                assertEquals(42, line.getAttr(col))
+                assertEquals(42, line.getPackedAttr(col))
             }
         }
 
@@ -339,7 +339,7 @@ class LineTest {
 
             for (col in 0 until 5) {
                 assertEquals('Y'.code, line.getCodepoint(col))
-                assertEquals(100, line.getAttr(col))
+                assertEquals(100, line.getPackedAttr(col))
             }
         }
     }
@@ -407,8 +407,8 @@ class LineTest {
             assertEquals(0, line.getCodepoint(2))
             assertEquals('B'.code, line.getCodepoint(3))
             assertEquals('C'.code, line.getCodepoint(4))
-            assertEquals(99, line.getAttr(1))
-            assertEquals(99, line.getAttr(2))
+            assertEquals(99, line.getPackedAttr(1))
+            assertEquals(99, line.getPackedAttr(2))
         }
 
         @Test
@@ -420,7 +420,7 @@ class LineTest {
             line.insertCells(col = 1, count = 0, defaultAttr = 9)
 
             assertEquals('X'.code, line.getCodepoint(0))
-            assertEquals(7, line.getAttr(0))
+            assertEquals(7, line.getPackedAttr(0))
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.gagik.terminal.model
 
+import com.gagik.terminal.buffer.TerminalLineApi
 import com.gagik.terminal.util.Validations.requirePositive
 
 /**
@@ -17,8 +18,8 @@ import com.gagik.terminal.util.Validations.requirePositive
  * @throws IllegalArgumentException if width is not greater than 0
  */
 internal class Line(
-    val width: Int
-) {
+    override val width: Int
+) : TerminalLineApi {
     init {
         requirePositive(width, "width")
     }
@@ -63,7 +64,7 @@ internal class Line(
      *
      * @throws IndexOutOfBoundsException if col is out of bounds
      */
-    fun getCodepoint(col: Int): Int = codepoints[col]
+    override fun getCodepoint(col: Int): Int = codepoints[col]
 
 
     /**
@@ -74,7 +75,7 @@ internal class Line(
      *
      * @throws IndexOutOfBoundsException if col is out of bounds
      */
-    fun getAttr(col: Int): Int = attrs[col]
+    override fun getPackedAttr(col: Int): Int = attrs[col]
 
     /**
      * Clears cells from the specified column to the end of the line.

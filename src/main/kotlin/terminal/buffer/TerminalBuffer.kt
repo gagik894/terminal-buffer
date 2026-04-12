@@ -145,6 +145,10 @@ internal class TerminalBuffer(
 
     // --- Rendering API (Zero Allocation - Critical Path) ---
 
+    override fun getLine(row: Int): TerminalLineApi? {
+        return getVisibleLine(row)
+    }
+
     override fun getCodepointAt(col: Int, row: Int): Int {
         if (!state.dimensions.isValidCol(col)) return 0
         val line = getVisibleLine(row) ?: return 0
@@ -154,7 +158,7 @@ internal class TerminalBuffer(
     override fun getPackedAttrAt(col: Int, row: Int): Int {
         if (!state.dimensions.isValidCol(col)) return state.pen.currentAttr
         val line = getVisibleLine(row) ?: return state.pen.currentAttr
-        return line.getAttr(col)
+        return line.getPackedAttr(col)
     }
 
     // --- Testing & Debugging API ---

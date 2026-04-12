@@ -145,6 +145,13 @@ interface TerminalBufferApi {
     // --- Rendering API (Zero Allocation - Critical Path) ---
 
     /**
+     * Retrieves a read-only view of a specific visual row.
+     * @param row The visual row (0 is the top of the screen).
+     * @return A read-only line, or null if the row is out of bounds.
+     */
+    fun getLine(row: Int): TerminalLineApi?
+
+    /**
      * Gets the raw Unicode codepoint at a screen position.
      * @return The codepoint integer, or 0 if empty/out of bounds.
      */

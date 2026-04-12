@@ -19,7 +19,7 @@ class TerminalBufferTest {
 
 	private fun blankScreen(height: Int): String = List(height) { "" }.joinToString("\n")
 
-	private fun defaultAttributes(): Attributes = Attributes(0, 0, false, false, false)
+	private fun defaultAttributes(): Attributes = Attributes(0, 0, bold = false, italic = false, underline = false)
 
 	private fun assertCursor(buffer: TerminalBuffer, col: Int, row: Int) {
 		assertAll(
@@ -180,7 +180,7 @@ class TerminalBufferTest {
 
 			assertAll(
 				{ assertEquals('A'.code, buffer.getCodepointAt(0, 0)) },
-				{ assertEquals(Attributes(3, 7, true, true, true), buffer.getAttrAt(0, 0)) }
+				{ assertEquals(Attributes(3, 7, bold = true, italic = true, underline = true), buffer.getAttrAt(0, 0)) }
 			)
 		}
 
@@ -191,7 +191,7 @@ class TerminalBufferTest {
 			buffer.setPenAttributes(99, -4, bold = false, italic = true, underline = true)
 			buffer.writeCodepoint('B'.code)
 
-			assertEquals(Attributes(16, 0, false, true, true), buffer.getAttrAt(0, 0))
+			assertEquals(Attributes(16, 0, bold = false, italic = true, underline = true), buffer.getAttrAt(0, 0))
 		}
 
 		@Test
@@ -214,6 +214,43 @@ class TerminalBufferTest {
 	@DisplayName("Writing & Line Feed")
 	inner class WritingTests {
 
+        @Test
+        fun `writeCodepoint with non-printable characters`() {
+            val buffer = newBuffer(width = 5, height = 1)
+            // Writing a control character directly - it should be stored as-is in the cell
+            buffer.writeCodepoint(7) // BEL
+            assertEquals(7, buffer.getCodepointAt(0, 0))
+            assertCursor(buffer, 1, 0)
+        }
+
+        @Test
+        fun `writeText with carriage return and newline characters written literally`() {
+            val buffer = newBuffer(width = 5, height = 2)
+            // writeText documentation says it does NOT interpret \n or \r
+            buffer.writeText("A\nB")
+
+            // It should occupy 3 cells on the same line (if it doesn't wrap)
+            assertEquals('A'.code, buffer.getCodepointAt(0, 0))
+            assertEquals('\n'.code, buffer.getCodepointAt(1, 0))
+            assertEquals('B'.code, buffer.getCodepointAt(2, 0))
+            assertCursor(buffer, 3, 0)
+        }
+
+        @Test
+        fun `newLine at the bottom with specific attributes fills new line with those attributes`() {
+            val buffer = newBuffer(width = 4, height = 2, maxHistory = 1)
+            buffer.setPenAttributes(fg = 2, bg = 3, bold = true)
+            buffer.writeText("LINE1") // This will wrap, so cursor is at (1, 1)
+
+            // Now we are at the bottom row (row 1). Call newLine()
+            buffer.setPenAttributes(fg = 4, bg = 5, bold = false)
+            buffer.newLine()
+
+            // History should have the first line
+            // Screen row 1 should be new and filled with current pen (4, 5, false)
+            assertEquals(Attributes(4, 5, false, false, false), buffer.getAttrAt(0, 1))
+        }
+
 		@Test
 		fun `writeCodepoint writes at the cursor and advances it`() {
 			val buffer = newBuffer(width = 5, height = 3)
@@ -224,7 +261,7 @@ class TerminalBufferTest {
 
 			assertAll(
 				{ assertEquals('X'.code, buffer.getCodepointAt(2, 1)) },
-				{ assertEquals(Attributes(2, 4, true, false, false), buffer.getAttrAt(2, 1)) },
+				{ assertEquals(Attributes(2, 4, bold = true, italic = false, underline = false), buffer.getAttrAt(2, 1)) },
 				{ assertCursor(buffer, 3, 1) }
 			)
 		}
@@ -358,6 +395,21 @@ class TerminalBufferTest {
 				{ assertEquals("CD\n", buffer.getAllAsString()) }
 			)
 		}
+
+        @Test
+        fun `long string write triggers multiple wraps and scrolls`() {
+            val buffer = newBuffer(width = 2, height = 2, maxHistory = 10)
+            buffer.writeText("ABCDEFG")
+            // AB (row 0) -> CD (row 1, scroll 1) -> EF (row 0, scroll 2) -> G (row 1)
+            // Final screen: EF, G
+            // History: AB, CD
+            assertAll(
+                { assertEquals(2, buffer.historySize) },
+                { assertEquals("EF", buffer.getLineAsString(0)) },
+                { assertEquals("G", buffer.getLineAsString(1)) },
+                { assertCursor(buffer, 1, 1) }
+            )
+        }
 	}
 
 	@Nested
@@ -403,6 +455,38 @@ class TerminalBufferTest {
 				{ assertCursor(buffer, 1, 0) }
 			)
 		}
+
+		@Test
+		fun `insertBlankCharacters at the very end of line`() {
+			val buffer = newBuffer(width = 5, height = 1)
+			buffer.writeText("ABCD")
+			buffer.setCursor(4, 0)
+			buffer.insertBlankCharacters(1)
+			// "ABCD" + 1 space = "ABCD ".
+			// But getLineAsString() trims trailing spaces if they are codepoint 0.
+			// insertBlankCharacters inserts codepoint 0.
+			assertEquals("ABCD", buffer.getLineAsString(0))
+			assertCursor(buffer, 4, 0)
+		}
+
+        @Test
+        fun `insertBlankCharacters more than remaining width`() {
+            val buffer = newBuffer(width = 5, height = 2) // Increase height to be safe
+            buffer.setCursor(0, 0)
+            buffer.writeText("ABCDE")
+            // width=5, writeText("ABCDE") fills row 0, cursor wraps to (0, 1)
+
+            buffer.setCursor(2, 0)
+            buffer.insertBlankCharacters(10) // should shift remaining 3 cells (C,D,E) out
+
+            // Expected row 0: A B 0 0 0
+            assertEquals("AB", buffer.getLineAsString(0))
+            assertEquals('A'.code, buffer.getCodepointAt(0, 0))
+            assertEquals('B'.code, buffer.getCodepointAt(1, 0))
+            assertEquals(0, buffer.getCodepointAt(2, 0))
+            assertEquals(0, buffer.getCodepointAt(3, 0))
+            assertEquals(0, buffer.getCodepointAt(4, 0))
+        }
 
 		@Test
 		fun `carriageReturn resets only the column`() {
@@ -459,8 +543,8 @@ class TerminalBufferTest {
 
 			assertAll(
 				{ assertEquals("", buffer.getLineAsString(0)) },
-				{ assertEquals(Attributes(4, 5, true, false, true), buffer.getAttrAt(0, 0)) },
-				{ assertEquals(Attributes(4, 5, true, false, true), buffer.getAttrAt(4, 0)) }
+				{ assertEquals(Attributes(4, 5, bold = true, italic = false, underline = true), buffer.getAttrAt(0, 0)) },
+				{ assertEquals(Attributes(4, 5, bold = true, italic = false, underline = true), buffer.getAttrAt(4, 0)) }
 			)
 		}
 	}
@@ -571,6 +655,31 @@ class TerminalBufferTest {
 	inner class RenderingTests {
 
 		@Test
+		fun `getLine provides a read-only view of a row`() {
+			val buffer = newBuffer(width = 5, height = 2)
+			buffer.writeText("HELLO")
+			buffer.setPenAttributes(fg = 1, bg = 2, bold = true)
+
+			val line = buffer.getLine(0)
+			assertNotNull(line)
+			assertEquals(5, line?.width)
+			assertEquals('H'.code, line?.getCodepoint(0))
+			assertEquals('O'.code, line?.getCodepoint(4))
+
+			val line2 = buffer.getLine(1)
+			assertNotNull(line2)
+			assertEquals(0, line2?.getCodepoint(0))
+		}
+
+		@Test
+		fun `getLine returns null for out of bounds rows`() {
+			val buffer = newBuffer(width = 5, height = 2)
+			assertNull(buffer.getLine(-1))
+			assertNull(buffer.getLine(2))
+			assertNull(buffer.getLine(99))
+		}
+
+		@Test
 		fun `getCodepointAt getPackedAttrAt and getAttrAt honor valid and invalid coordinates`() {
 			val buffer = newBuffer(width = 4, height = 2)
 
@@ -592,30 +701,36 @@ class TerminalBufferTest {
 		}
 
 		@Test
-		fun `getLineAsString trims trailing spaces and invalid rows return empty strings`() {
-			val buffer = newBuffer(width = 5, height = 3)
+		fun `getLineAsString trims trailing empty cells but preserves leading and internal spaces`() {
+			val buffer = newBuffer(width = 10, height = 1)
+			// ' ' (32) is a space, 0 is an empty cell.
+			// writeText("  A  ") will write Codepoint 32, 32, 65, 32, 32.
+			// Remaining 5 cells are 0.
+			buffer.writeText("  A  ")
 
-			buffer.writeText("Hi")
+			// toTextTrimmed() should find the last non-0 cell at index 4 (the last space from "  A  ")
+			// and return "  A  ".
+			assertEquals("  A  ", buffer.getLineAsString(0))
 
-			assertAll(
-				{ assertEquals("Hi", buffer.getLineAsString(0)) },
-				{ assertEquals("", buffer.getLineAsString(-1)) },
-				{ assertEquals("", buffer.getLineAsString(99)) }
-			)
+			buffer.clearScreen()
+			buffer.writeText("ABC")
+			// Line is [65, 66, 67, 0, 0, 0, 0, 0, 0, 0]
+			assertEquals("ABC", buffer.getLineAsString(0))
 		}
 
 		@Test
-		fun `getLineAsString does not trim leading spaces`() {
+		fun `getLineAsString with only empty cells returns empty string`() {
+			val buffer = newBuffer(width = 5, height = 1)
+			// All cells are 0.
+			assertEquals("", buffer.getLineAsString(0))
+		}
+
+		@Test
+		fun `getLineAsString with only spaces returns spaces`() {
 			val buffer = newBuffer(width = 5, height = 1)
 			buffer.writeText("   ")
+			// Line is [32, 32, 32, 0, 0]
 			assertEquals("   ", buffer.getLineAsString(0))
-		}
-
-		@Test
-		fun `getLineAsString returns an empty string for a line containing only empty cells`() {
-			val buffer = newBuffer(width = 5, height = 1)
-			// A fresh buffer has only codepoint 0.
-			assertEquals("", buffer.getLineAsString(0))
 		}
 
 		@Test
