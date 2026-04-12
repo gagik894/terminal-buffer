@@ -190,15 +190,18 @@ internal class Line(
     fun insertCells(col: Int, count: Int, defaultAttr: Int) {
         if (col !in 0..<width || count <= 0) return
 
-        val shiftCount = width - col - count
+        // Use long for calculation to prevent overflow before clamping
+        val safeCount = count.coerceAtMost(width - col)
+        val shiftCount = width - col - safeCount
+
         if (shiftCount > 0) {
             // Native block shift to the right
-            System.arraycopy(codepoints, col, codepoints, col + count, shiftCount)
-            System.arraycopy(attrs, col, attrs, col + count, shiftCount)
+            System.arraycopy(codepoints, col, codepoints, col + safeCount, shiftCount)
+            System.arraycopy(attrs, col, attrs, col + safeCount, shiftCount)
         }
 
         // Fill the newly opened space with blanks
-        val endFill = (col + count).coerceAtMost(width)
+        val endFill = col + safeCount
         codepoints.fill(0, col, endFill)
         attrs.fill(defaultAttr, col, endFill)
     }
