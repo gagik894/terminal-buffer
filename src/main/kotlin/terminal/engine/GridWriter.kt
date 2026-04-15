@@ -14,6 +14,7 @@ import com.gagik.terminal.state.TerminalState
 internal class GridWriter(
     private val state: TerminalState
 ) {
+    // width and height are cached for performance
     private val width: Int get() = state.dimensions.width
     private val height: Int get() = state.dimensions.height
 
