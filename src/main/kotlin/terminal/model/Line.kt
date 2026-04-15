@@ -147,6 +147,9 @@ internal class Line(
         for (cp in codepoints) {
             if (cp == TerminalConstants.EMPTY) {
                 sb.append(' ')
+            } else if (cp == TerminalConstants.WIDE_CHAR_SPACER) {
+                // Spacer is a physical ghost cell and has no standalone glyph.
+                continue
             } else {
                 sb.appendCodePoint(cp)
             }
@@ -175,6 +178,9 @@ internal class Line(
             val cp = codepoints[col]
             if (cp == TerminalConstants.EMPTY) {
                 sb.append(' ')
+            } else if (cp == TerminalConstants.WIDE_CHAR_SPACER) {
+                // Spacer is consumed by the wide leader on the previous cell.
+                continue
             } else {
                 sb.appendCodePoint(cp)
             }

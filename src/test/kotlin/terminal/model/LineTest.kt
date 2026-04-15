@@ -387,6 +387,34 @@ class LineTest {
             assertEquals("     ", line.toText())
             assertEquals("", line.toTextTrimmed())
         }
+
+        @Test
+        fun `wide spacer is not rendered as standalone glyph`() {
+            val line = Line(4)
+            line.setCell(0, '你'.code, 0)
+            line.setCell(1, TerminalConstants.WIDE_CHAR_SPACER, 0)
+            line.setCell(2, 'X'.code, 0)
+
+            assertAll(
+                { assertEquals(TerminalConstants.WIDE_CHAR_SPACER, line.getCodepoint(1)) },
+                { assertEquals("你X ", line.toText()) },
+                { assertEquals("你X", line.toTextTrimmed()) }
+            )
+        }
+
+        @Test
+        fun `orphan wide spacer is skipped and not treated as visible trailing content`() {
+            val line = Line(4)
+            line.setCell(0, 'A'.code, 0)
+            line.setCell(1, '你'.code, 0)
+            line.setCell(2, TerminalConstants.WIDE_CHAR_SPACER, 0)
+
+            assertAll(
+                { assertEquals(TerminalConstants.WIDE_CHAR_SPACER, line.getCodepoint(2)) },
+                { assertEquals("A你 ", line.toText()) },
+                { assertEquals("A你", line.toTextTrimmed()) }
+            )
+        }
     }
 
     @Nested
