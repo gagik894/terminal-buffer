@@ -2,6 +2,7 @@ package com.gagik.terminal.engine
 
 import com.gagik.terminal.buffer.HistoryRing
 import com.gagik.terminal.model.Line
+import com.gagik.terminal.model.TerminalConstants
 import com.gagik.terminal.state.TerminalState
 
 internal object TerminalResizer {
@@ -120,7 +121,7 @@ internal object TerminalResizer {
 
     private fun getLogicalLength(line: Line): Int {
         var len = line.width
-        while (len > 0 && line.getCodepoint(len - 1) == 0) len--
+        while (len > 0 && line.getCodepoint(len - 1) == TerminalConstants.EMPTY) len--
         return len
     }
 }

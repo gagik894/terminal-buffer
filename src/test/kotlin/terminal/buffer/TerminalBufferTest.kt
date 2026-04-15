@@ -2,6 +2,7 @@ package com.gagik.terminal.buffer
 
 import com.gagik.terminal.TerminalBuffers
 import com.gagik.terminal.model.Attributes
+import com.gagik.terminal.model.TerminalConstants
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -488,9 +489,9 @@ class TerminalBufferTest {
             assertEquals("AB", buffer.getLineAsString(0))
             assertEquals('A'.code, buffer.getCodepointAt(0, 0))
             assertEquals('B'.code, buffer.getCodepointAt(1, 0))
-            assertEquals(0, buffer.getCodepointAt(2, 0))
-            assertEquals(0, buffer.getCodepointAt(3, 0))
-            assertEquals(0, buffer.getCodepointAt(4, 0))
+			assertEquals(TerminalConstants.EMPTY, buffer.getCodepointAt(2, 0))
+			assertEquals(TerminalConstants.EMPTY, buffer.getCodepointAt(3, 0))
+			assertEquals(TerminalConstants.EMPTY, buffer.getCodepointAt(4, 0))
         }
 
 		@Test
@@ -712,7 +713,7 @@ class TerminalBufferTest {
 			// VoidLine has width 0 and returns 0 for all queries
 			val outOfBounds1 = buffer.getLine(-1)
 			assertEquals(0, outOfBounds1.width)
-			assertEquals(0, outOfBounds1.getCodepoint(0))
+			assertEquals(TerminalConstants.EMPTY, outOfBounds1.getCodepoint(0))
 			assertEquals(0, outOfBounds1.getPackedAttr(0))
 
 			val outOfBounds2 = buffer.getLine(2)
@@ -734,8 +735,8 @@ class TerminalBufferTest {
 				{ assertEquals('Q'.code, buffer.getCodepointAt(0, 0)) },
 				{ assertEquals(expectedAttr, buffer.getPackedAttrAt(0, 0)) },
 				{ assertEquals(Attributes(2, 3, true, false, true), buffer.getAttrAt(0, 0)) },
-				{ assertEquals(0, buffer.getCodepointAt(-1, 0)) },
-				{ assertEquals(0, buffer.getCodepointAt(0, -1)) },
+				{ assertEquals(TerminalConstants.EMPTY, buffer.getCodepointAt(-1, 0)) },
+				{ assertEquals(TerminalConstants.EMPTY, buffer.getCodepointAt(0, -1)) },
 				{ assertEquals(expectedAttr, buffer.getPackedAttrAt(-1, 0)) },
 				{ assertEquals(expectedAttr, buffer.getPackedAttrAt(0, 99)) },
 				{ assertNull(buffer.getAttrAt(-1, 0)) },

@@ -8,8 +8,8 @@ import com.gagik.terminal.util.Validations.requirePositive
  *
  * Storage is "packed":
  * Each `i` in the range [0, width-1] corresponds to a cell on the line.
- * - codepoints[i] == 0 means empty cell (renders as space)
- * - attrs[i] is a packed Int produced by AttributeCodec
+ * - codepoints`[i]` == TerminalConstants.EMPTY means empty cell (renders as space)
+ * - attrs`[i]` is a packed Int produced by AttributeCodec
  *
  * wrapped=true means this line is a soft continuation of the previous line
  * caused by wrapping at the terminal width.
@@ -24,8 +24,8 @@ internal class Line(
         requirePositive(width, "width")
     }
 
-    // The codepoints for each cell in the line. 0 means empty cell.
-    private val codepoints: IntArray = IntArray(width) { 0 }
+    // The codepoints for each cell in the line.
+    private val codepoints: IntArray = IntArray(width) { TerminalConstants.EMPTY }
     // The attributes for each cell in the line, packed into ints.
     private val attrs: IntArray = IntArray(width)
     // Whether this line is a soft-wrapped continuation of the previous line.
@@ -37,7 +37,7 @@ internal class Line(
      * @param defaultCellAttr The attribute to set for all cells after clearing.
      */
     fun clear(defaultCellAttr: Int) {
-        codepoints.fill(0)
+        codepoints.fill(TerminalConstants.EMPTY)
         attrs.fill(defaultCellAttr)
         wrapped = false
     }
@@ -89,7 +89,7 @@ internal class Line(
         if (start >= width) return
 
         // Native block zeroing
-        codepoints.fill(0, start, width)
+        codepoints.fill(TerminalConstants.EMPTY, start, width)
         attrs.fill(attr, start, width)
     }
 
@@ -105,7 +105,7 @@ internal class Line(
         if (end <= 0) return
 
         // Native block zeroing
-        codepoints.fill(0, 0, end)
+        codepoints.fill(TerminalConstants.EMPTY, 0, end)
         attrs.fill(attr, 0, end)
     }
 
@@ -126,7 +126,7 @@ internal class Line(
     /**
      * Fills the entire line with the specified character and attribute.
      *
-     * @param codepoint Unicode codepoint to fill with (0 for empty/space)
+     * @param codepoint Unicode codepoint to fill with (TerminalConstants.EMPTY for empty/space)
      * @param attr The attribute to set for all cells
      */
     fun fill(codepoint: Int, attr: Int) {
@@ -145,7 +145,7 @@ internal class Line(
     fun toText(): String {
         val sb = StringBuilder(width)
         for (cp in codepoints) {
-            if (cp == 0) {
+            if (cp == TerminalConstants.EMPTY) {
                 sb.append(' ')
             } else {
                 sb.appendCodePoint(cp)
@@ -163,7 +163,7 @@ internal class Line(
         var lastValidCol = width - 1
 
         // Scan backwards to find the last non-empty cell
-        while (lastValidCol >= 0 && codepoints[lastValidCol] == 0) {
+        while (lastValidCol >= 0 && codepoints[lastValidCol] == TerminalConstants.EMPTY) {
             lastValidCol--
         }
 
@@ -173,7 +173,7 @@ internal class Line(
         val sb = StringBuilder(lastValidCol + 1)
         for (col in 0..lastValidCol) {
             val cp = codepoints[col]
-            if (cp == 0) {
+            if (cp == TerminalConstants.EMPTY) {
                 sb.append(' ')
             } else {
                 sb.appendCodePoint(cp)
@@ -203,7 +203,7 @@ internal class Line(
 
         // Fill the newly opened space with blanks
         val endFill = col + safeCount
-        codepoints.fill(0, col, endFill)
+        codepoints.fill(TerminalConstants.EMPTY, col, endFill)
         attrs.fill(defaultAttr, col, endFill)
     }
 }
@@ -211,6 +211,6 @@ internal class Line(
 
 internal object VoidLine : TerminalLineApi {
     override val width: Int = 0
-    override fun getCodepoint(col: Int): Int = 0
+    override fun getCodepoint(col: Int): Int = TerminalConstants.EMPTY
     override fun getPackedAttr(col: Int): Int = 0
 }

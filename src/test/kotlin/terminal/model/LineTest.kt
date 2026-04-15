@@ -34,7 +34,7 @@ class LineTest {
             val line = Line(5)
             // Verify all cells start as 0
             for (i in 0 until 5) {
-                assertEquals(0, line.getCodepoint(i), "Codepoint at $i should be 0")
+                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(i), "Codepoint at $i should be EMPTY")
                 assertEquals(0, line.getPackedAttr(i), "Attribute at $i should be 0")
             }
         }
@@ -105,7 +105,7 @@ class LineTest {
             assertAll(
                 "Verify line was fully reset",
                 { assertFalse(line.wrapped, "Wrapped flag should be reset to false") },
-                { assertEquals(0, line.getCodepoint(0), "Codepoints should be reset to 0") },
+                { assertEquals(TerminalConstants.EMPTY, line.getCodepoint(0), "Codepoints should be reset to EMPTY") },
                 { assertEquals(defaultAttr, line.getPackedAttr(0), "Attrs should be reset to default ($defaultAttr)") }
             )
         }
@@ -176,7 +176,7 @@ class LineTest {
             }
             // Columns 5-9 should be cleared
             for (col in 5 until 10) {
-                assertEquals(0, line.getCodepoint(col))
+                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(col))
                 assertEquals(99, line.getPackedAttr(col))
             }
         }
@@ -191,7 +191,7 @@ class LineTest {
             line.clearFromColumn(0, 42)
 
             for (col in 0 until 5) {
-                assertEquals(0, line.getCodepoint(col))
+                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(col))
                 assertEquals(42, line.getPackedAttr(col))
             }
         }
@@ -206,7 +206,7 @@ class LineTest {
             line.clearFromColumn(-5, 42)
 
             for (col in 0 until 5) {
-                assertEquals(0, line.getCodepoint(col))
+                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(col))
                 assertEquals(42, line.getPackedAttr(col))
             }
         }
@@ -242,7 +242,7 @@ class LineTest {
 
             // Columns 0-4 should be cleared
             for (col in 0..4) {
-                assertEquals(0, line.getCodepoint(col))
+                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(col))
                 assertEquals(99, line.getPackedAttr(col))
             }
             // Columns 5-9 should be unchanged
@@ -262,7 +262,7 @@ class LineTest {
             line.clearToColumn(4, 42)
 
             for (col in 0 until 5) {
-                assertEquals(0, line.getCodepoint(col))
+                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(col))
                 assertEquals(42, line.getPackedAttr(col))
             }
         }
@@ -292,7 +292,7 @@ class LineTest {
             line.clearToColumn(100, 42)
 
             for (col in 0 until 5) {
-                assertEquals(0, line.getCodepoint(col))
+                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(col))
                 assertEquals(42, line.getPackedAttr(col))
             }
         }
@@ -320,10 +320,10 @@ class LineTest {
                 line.setCell(col, 'A'.code + col, col)
             }
 
-            line.fill(0, 42)
+            line.fill(TerminalConstants.EMPTY, 42)
 
             for (col in 0 until 5) {
-                assertEquals(0, line.getCodepoint(col))
+                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(col))
                 assertEquals(42, line.getPackedAttr(col))
             }
         }
@@ -403,8 +403,8 @@ class LineTest {
             line.insertCells(col = 1, count = 2, defaultAttr = 99)
 
             assertEquals('A'.code, line.getCodepoint(0))
-            assertEquals(0, line.getCodepoint(1))
-            assertEquals(0, line.getCodepoint(2))
+            assertEquals(TerminalConstants.EMPTY, line.getCodepoint(1))
+            assertEquals(TerminalConstants.EMPTY, line.getCodepoint(2))
             assertEquals('B'.code, line.getCodepoint(3))
             assertEquals('C'.code, line.getCodepoint(4))
             assertEquals(99, line.getPackedAttr(1))
