@@ -8,6 +8,7 @@ import com.gagik.terminal.model.Line
 import com.gagik.terminal.model.TerminalConstants
 import com.gagik.terminal.model.VoidLine
 import com.gagik.terminal.state.TerminalState
+import com.gagik.terminal.util.UnicodeWidth
 
 /**
  * The primary entry point and public API for the terminal emulator.
@@ -81,7 +82,7 @@ internal class TerminalBuffer(
     // --- Writing API ---
 
     override fun writeCodepoint(codepoint: Int) {
-        val charWidth = 1 // TODO: Calculate real display width of codepoint.
+        val charWidth = UnicodeWidth.calculate(codepoint, state.treatAmbiguousAsWide)
         gridWriter.printCodepoint(codepoint, charWidth)
     }
 
@@ -89,7 +90,7 @@ internal class TerminalBuffer(
         var i = 0
         while (i < text.length) {
             val cp = text.codePointAt(i)
-            val charWidth = 1 //TODO: Replace with actual width calculation
+            val charWidth = UnicodeWidth.calculate(cp, state.treatAmbiguousAsWide)
             gridWriter.printCodepoint(cp, charWidth)
             i += Character.charCount(cp)
         }
