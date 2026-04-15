@@ -33,4 +33,14 @@ internal class TerminalState(
             ring.push().clear(pen.currentAttr)
         }
     }
+
+    /**
+     * Resolves a visible viewport row to its backing line index in the ring.
+     *
+     * @param viewportRow Viewport row (0-based).
+     */
+    fun resolveRingIndex(viewportRow: Int): Int {
+        val startIndex = (ring.size - dimensions.height).coerceAtLeast(0)
+        return startIndex + viewportRow
+    }
 }

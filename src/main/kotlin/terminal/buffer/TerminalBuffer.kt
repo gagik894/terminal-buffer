@@ -1,10 +1,11 @@
 package com.gagik.terminal.buffer
 
 import com.gagik.terminal.codec.AttributeCodec
-import com.gagik.terminal.engine.InputHandler
+import com.gagik.terminal.engine.GridWriter
 import com.gagik.terminal.engine.TerminalResizer
 import com.gagik.terminal.model.Attributes
 import com.gagik.terminal.model.Line
+import com.gagik.terminal.model.TerminalConstants
 import com.gagik.terminal.model.VoidLine
 import com.gagik.terminal.state.TerminalState
 
@@ -12,7 +13,7 @@ import com.gagik.terminal.state.TerminalState
  * The primary entry point and public API for the terminal emulator.
  * Implements [TerminalBufferApi] to provide a strict, zero-allocation contract.
  * * Architecturally, this class contains NO physics and NO memory.
- * It coordinates the [InputHandler] and reads from the [TerminalState].
+ * It coordinates the [GridWriter] and reads from the [TerminalState].
  */
 internal class TerminalBuffer(
     initialWidth: Int,
@@ -21,23 +22,14 @@ internal class TerminalBuffer(
 ) : TerminalBufferApi {
 
     internal val state = TerminalState(initialWidth, initialHeight, maxHistory)
-
-    private val inputHandler = InputHandler(state)
+    private val gridWriter = GridWriter(state)
 
 
     // --- Viewport Math Helpers ---
 
-    /** Safely retrieves the active line at the cursor. */
-    private fun getActiveLine(): Line {
-        val startIndex = state.ring.size - height
-        return state.ring[startIndex + cursorRow]
-    }
-
     private fun getVisibleLine(row: Int): Line? {
         if (!state.dimensions.isValidRow(row)) return null
-
-        val startIndex = state.ring.size - height
-        return state.ring[startIndex + row]
+        return state.ring[state.resolveRingIndex(row)]
     }
 
     // --- Public Properties ---
@@ -46,7 +38,6 @@ internal class TerminalBuffer(
     override val height: Int get() = state.dimensions.height
     override val cursorCol: Int get() = state.cursor.col
     override val cursorRow: Int get() = state.cursor.row
-
     override val historySize: Int
         get() = (state.ring.size - height).coerceAtLeast(0)
 
@@ -90,67 +81,49 @@ internal class TerminalBuffer(
     // --- Writing API ---
 
     override fun writeCodepoint(codepoint: Int) {
-        inputHandler.print(codepoint)
+        val charWidth = 1 // TODO: Calculate real display width of codepoint.
+        gridWriter.printCodepoint(codepoint, charWidth)
     }
 
     override fun writeText(text: String) {
         var i = 0
         while (i < text.length) {
             val cp = text.codePointAt(i)
-            inputHandler.print(cp)
+            val charWidth = 1 //TODO: Replace with actual width calculation
+            gridWriter.printCodepoint(cp, charWidth)
             i += Character.charCount(cp)
         }
     }
 
     override fun insertBlankCharacters(count: Int) {
-        getActiveLine().insertCells(cursorCol, count, state.pen.currentAttr)
+        gridWriter.insertBlankCharacters(count)
     }
 
-    override fun newLine() {
-        inputHandler.newLine()
-    }
+    override fun newLine() = gridWriter.newLine()
 
     override fun carriageReturn() {
-        inputHandler.carriageReturn()
+        state.cursor.col = 0
     }
 
     // --- Viewport API ---
 
-    override fun scrollUp() {
-        val newLine = state.ring.push()
-        newLine.clear(state.pen.currentAttr)
-    }
+    override fun scrollUp() = gridWriter.scrollUp()
+
 
     override fun clearScreen() {
-        val lineCount = height.coerceAtMost(state.ring.size)
-        val startIndex = (state.ring.size - height).coerceAtLeast(0)
-
-        for (i in 0 until lineCount) {
-            state.ring[startIndex + i].clear(state.pen.currentAttr)
-        }
+        gridWriter.clearViewport()
         resetCursor()
     }
 
     override fun clearAll() {
-        state.ring.clear()
         resetPen()
-        repeat(height) {
-            state.ring.push().clear(state.pen.currentAttr)
-        }
+        gridWriter.clearAllHistory()
         resetCursor()
     }
 
-    override fun eraseLineToEnd() {
-        getActiveLine().clearFromColumn(cursorCol, state.pen.currentAttr)
-    }
-
-    override fun eraseLineToCursor() {
-        getActiveLine().clearToColumn(cursorCol, state.pen.currentAttr)
-    }
-
-    override fun eraseCurrentLine() {
-        getActiveLine().clear(state.pen.currentAttr)
-    }
+    override fun eraseLineToEnd() = gridWriter.eraseLineToEnd()
+    override fun eraseLineToCursor() = gridWriter.eraseLineToCursor()
+    override fun eraseCurrentLine() = gridWriter.eraseCurrentLine()
 
     // --- Rendering API (Zero Allocation - Critical Path) ---
 
@@ -159,8 +132,8 @@ internal class TerminalBuffer(
     }
 
     override fun getCodepointAt(col: Int, row: Int): Int {
-        if (!state.dimensions.isValidCol(col)) return 0
-        val line = getVisibleLine(row) ?: return 0
+        if (!state.dimensions.isValidCol(col)) return TerminalConstants.EMPTY
+        val line = getVisibleLine(row) ?: return TerminalConstants.EMPTY
         return line.getCodepoint(col)
     }
 
@@ -201,8 +174,7 @@ internal class TerminalBuffer(
     }
 
     override fun reset() {
+        // clearAll already resets pen + cursor and rebuilds a blank viewport.
         clearAll()
-        resetPen()
-        resetCursor()
     }
 }
