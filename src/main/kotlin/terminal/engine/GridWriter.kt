@@ -88,16 +88,33 @@ internal class GridWriter(
     }
 
     /**
-     * Writes a codepoint to the grid and manages wide-character physics.
-     * * If the write targets or overlaps a wide-character cluster (leader or spacer),
-     * the existing cluster is annihilated to prevent orphaned spacers.
+     * Writes a Unicode codepoint to the grid and manages wide-character physics.
      *
-     * Fast-path: 1-cell chars into EMPTY cells bypass annihilation checks.
-     * Wrap-logic: 2-cell chars at the last column trigger an early wrap.
-     * Any write exceeding line width triggers a wrap and potential scroll.
+     * ARCHITECTURAL WARNING:
+     * Do NOT split this method into smaller `clear()`, `write()`, and `move()` helpers.
+     * Terminal writing is not linear. Handling the "Edge Wrap" requires interleaving
+     * clears and moves. Splitting this method will destroy the JIT-optimized fast path
+     * and introduce severe state-mutation overhead.
+     *
+     * --- Overwrite Physics ---
+     * If the write targets or overlaps an existing wide-character cluster (leader or spacer),
+     * the entire existing cluster is annihilated (set to EMPTY) before the write occurs.
+     * This guarantees that no orphaned halves or "ghost" emojis remain on the grid.
+     *
+     * --- Fast-Path Optimization ---
+     * 99% of terminal output is 1-cell ASCII appended to empty space. If the target
+     * cell is EMPTY and the incoming char is width = 1, the engine bypasses all collision
+     * checks, writes directly.
+     *
+     * --- Wrap Logic ---
+     * - Edge Wrap: A 2-cell char at the final column cannot fit. The final column is
+     * cleared, the cursor wraps, and the character is printed on the next line.
+     * - Standard Wrap: Any write that exceeds the line width triggers a soft wrap.
+     * - Bottom Wrap: Wrapping past the bottom row triggers a History Ring allocation (scrollUp).
      *
      * @param codepoint The Unicode codepoint to write.
-     * @param charWidth Visual width: 2 triggers wide logic; others treated as 1.
+     * @param charWidth The visual width of the character. A value of 2 triggers wide
+     * character logic; all other values are treated as 1.
      */
     fun printCodepoint(codepoint: Int, charWidth: Int) {
         var cCol = state.cursor.col
@@ -106,13 +123,14 @@ internal class GridWriter(
         val widthInCells = if (charWidth == 2) 2 else 1
 
         if (cRow !in 0 until height || cCol !in 0 until width) return
-
         var line = getLine(cRow)
 
-        // Hot path: appending a narrow character into an empty cell.
-        // (If cCol is a WIDE_CHAR_SPACER, it is NOT empty, so it falls to the slow path)
+        // ==========================================
+        // FAST PATH: Relies on local registers
+        // ==========================================
         if (widthInCells == 1 && line.getCodepoint(cCol) == TerminalConstants.EMPTY) {
             line.setCell(cCol, codepoint, attr)
+
             if (cCol == width - 1) {
                 line.wrapped = true
                 cCol = 0
@@ -130,7 +148,11 @@ internal class GridWriter(
             return
         }
 
-        // Width=2 at last column cannot fit: clear landing cell and wrap first.
+        // ==========================================
+        // SLOW PATH: OVERWRITES & WIDE CHARACTERS
+        // ==========================================
+
+        // Edge Wrap Defense (Cannot fit width=2 in the last column)
         if (widthInCells == 2 && cCol == width - 1) {
             annihilateAt(cRow, cCol)
             cCol = 0
@@ -142,26 +164,26 @@ internal class GridWriter(
             line = getLine(cRow)
         }
 
-        // Slow path: overwrite physics and wide-neighbor annihilation.
+        // Annihilation Phase (Clear the blast radius)
         annihilateAt(cRow, cCol)
         if (widthInCells == 2 && cCol + 1 < width) {
             annihilateAt(cRow, cCol + 1)
         }
 
-        // Now write EXACTLY at cCol
-        val targetLine = line
-        targetLine.setCell(cCol, codepoint, attr)
+        // Write Phase (Commit to memory)
+        line.setCell(cCol, codepoint, attr)
         cCol += 1
 
         if (widthInCells == 2) {
             if (cCol < width) {
-                targetLine.setCell(cCol, TerminalConstants.WIDE_CHAR_SPACER, attr)
+                line.setCell(cCol, TerminalConstants.WIDE_CHAR_SPACER, attr)
             }
             cCol += 1
         }
 
+        // Standard Wrap Phase
         if (cCol >= width) {
-            targetLine.wrapped = true
+            line.wrapped = true
             cCol = 0
             cRow++
             if (cRow >= height) {
@@ -170,6 +192,7 @@ internal class GridWriter(
             }
         }
 
+        // State Synchronization
         state.cursor.col = cCol
         state.cursor.row = cRow
     }
