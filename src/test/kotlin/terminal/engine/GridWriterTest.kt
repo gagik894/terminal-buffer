@@ -26,6 +26,21 @@ class GridWriterTest {
         }
     }
 
+    private fun assertLineCodepoints(state: TerminalState, row: Int, expected: IntArray) {
+        val line = lineAt(state, row)
+        for (i in expected.indices) {
+            assertEquals(expected[i], line.getCodepoint(i), "Codepoint mismatch at row=$row col=$i")
+        }
+    }
+
+    private fun seedLine(state: TerminalState, row: Int, text: String, attr: Int = 0) {
+        val line = lineAt(state, row)
+        for ((i, ch) in text.withIndex()) {
+            if (i >= line.width) break
+            line.setCell(i, ch.code, attr)
+        }
+    }
+
     @Nested
     @DisplayName("printCodepoint")
     inner class PrintCodepointTests {
@@ -90,7 +105,7 @@ class GridWriterTest {
         }
 
         @Test
-        fun `overwrite while cursor is on spacer resolves to cluster owner`() {
+        fun `overwrite while cursor is on spacer clears cluster and writes at cursor column`() {
             val state = createState(width = 4, height = 1)
             val writer = GridWriter(state)
 
@@ -100,9 +115,50 @@ class GridWriterTest {
             writer.printCodepoint('A'.code, charWidth = 1)
 
             assertAll(
-                { assertEquals('A'.code, lineAt(state, 0).getCodepoint(0)) },
-                { assertEquals(TerminalConstants.EMPTY, lineAt(state, 0).getCodepoint(1)) },
-                { assertEquals(1, state.cursor.col) }
+                { assertEquals(TerminalConstants.EMPTY, lineAt(state, 0).getCodepoint(0)) },
+                { assertEquals('A'.code, lineAt(state, 0).getCodepoint(1)) },
+                { assertEquals(2, state.cursor.col) }
+            )
+        }
+
+        @Test
+        fun `overlap crush wide on spacer annihilates old cluster and prevents leader-leader`() {
+            val state = createState(width = 4, height = 1)
+            val writer = GridWriter(state)
+
+            writer.printCodepoint(0x1F600, charWidth = 2)
+            state.cursor.col = 1
+
+            writer.printCodepoint(0x1F923, charWidth = 2)
+
+            assertAll(
+                { assertEquals(TerminalConstants.EMPTY, lineAt(state, 0).getCodepoint(0)) },
+                { assertEquals(0x1F923, lineAt(state, 0).getCodepoint(1)) },
+                { assertEquals(TerminalConstants.WIDE_CHAR_SPACER, lineAt(state, 0).getCodepoint(2)) },
+                { assertEquals(TerminalConstants.EMPTY, lineAt(state, 0).getCodepoint(3)) },
+                { assertEquals(3, state.cursor.col) },
+                { assertEquals(0, state.cursor.row) }
+            )
+        }
+
+        @Test
+        fun `super crush wide overlap annihilates both neighboring clusters`() {
+            val state = createState(width = 4, height = 1)
+            val writer = GridWriter(state)
+
+            writer.printCodepoint(0x1F600, charWidth = 2) // A at 0-1
+            writer.printCodepoint(0x1F603, charWidth = 2) // B at 2-3
+            state.cursor.col = 1
+
+            writer.printCodepoint(0x1F923, charWidth = 2) // C at 1-2
+
+            assertAll(
+                { assertEquals(TerminalConstants.EMPTY, lineAt(state, 0).getCodepoint(0)) },
+                { assertEquals(0x1F923, lineAt(state, 0).getCodepoint(1)) },
+                { assertEquals(TerminalConstants.WIDE_CHAR_SPACER, lineAt(state, 0).getCodepoint(2)) },
+                { assertEquals(TerminalConstants.EMPTY, lineAt(state, 0).getCodepoint(3)) },
+                { assertEquals(3, state.cursor.col) },
+                { assertEquals(0, state.cursor.row) }
             )
         }
 
@@ -170,6 +226,41 @@ class GridWriterTest {
                 { assertEquals('B'.code, lineAt(state, 0).getCodepoint(1)) },
                 { assertEquals('C'.code, lineAt(state, 0).getCodepoint(2)) },
                 { assertEquals(99, state.cursor.col) }
+            )
+        }
+
+        @Test
+        fun `row out-of-bounds cursor is ignored without mutation`() {
+            val state = createState(width = 3, height = 2)
+            val writer = GridWriter(state)
+            writeAscii(writer, "ABC")
+            state.cursor.row = 99
+
+            writer.printCodepoint('Z'.code, 1)
+
+            assertAll(
+                { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'B'.code, 'C'.code)) },
+                { assertEquals(99, state.cursor.row) }
+            )
+        }
+
+        @Test
+        fun `wide character fits when starting at width minus two`() {
+            val state = createState(width = 4, height = 2)
+            val writer = GridWriter(state)
+            seedLine(state, 0, "AB")
+            state.cursor.row = 0
+            state.cursor.col = 2
+
+            writer.printCodepoint(0x1F923, 2)
+
+            assertAll(
+                { assertEquals('A'.code, lineAt(state, 0).getCodepoint(0)) },
+                { assertEquals('B'.code, lineAt(state, 0).getCodepoint(1)) },
+                { assertEquals(0x1F923, lineAt(state, 0).getCodepoint(2)) },
+                { assertEquals(TerminalConstants.WIDE_CHAR_SPACER, lineAt(state, 0).getCodepoint(3)) },
+                { assertEquals(0, state.cursor.col) },
+                { assertEquals(1, state.cursor.row) }
             )
         }
     }
@@ -293,6 +384,220 @@ class GridWriterTest {
                 { assertEquals(TerminalConstants.EMPTY, lineAt(state, 0).getCodepoint(2)) },
                 { assertEquals('C'.code, lineAt(state, 0).getCodepoint(3)) },
                 { assertEquals('D'.code, lineAt(state, 0).getCodepoint(4)) }
+            )
+        }
+
+        @Test
+        fun `insert is no-op when cursor is out of bounds`() {
+            val state = createState(width = 4, height = 2)
+            val writer = GridWriter(state)
+            writeAscii(writer, "ABCD")
+            state.cursor.col = 99
+
+            writer.insertBlankCharacters(2)
+
+            assertLineCodepoints(state, 0, intArrayOf('A'.code, 'B'.code, 'C'.code, 'D'.code))
+        }
+
+        @Test
+        fun `insert clamps when count exceeds remaining width`() {
+            val state = createState(width = 5, height = 2)
+            val writer = GridWriter(state)
+            seedLine(state, 0, "ABCDE")
+            state.cursor.row = 0
+            state.cursor.col = 3
+
+            writer.insertBlankCharacters(99)
+
+            assertLineCodepoints(state, 0, intArrayOf('A'.code, 'B'.code, 'C'.code, TerminalConstants.EMPTY, TerminalConstants.EMPTY))
+        }
+    }
+
+    @Nested
+    @DisplayName("eraseLineToEnd")
+    inner class EraseLineToEndTests {
+
+        @Test
+        fun `eraseLineToEnd clears suffix including cursor cell`() {
+            val state = createState(width = 5, height = 2)
+            val writer = GridWriter(state)
+            seedLine(state, 0, "ABCDE")
+            state.cursor.row = 0
+            state.cursor.col = 2
+
+            writer.eraseLineToEnd()
+
+            assertLineCodepoints(state, 0, intArrayOf('A'.code, 'B'.code, TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY))
+        }
+
+        @Test
+        fun `eraseLineToEnd is no-op when cursor out of bounds`() {
+            val state = createState(width = 4, height = 2)
+            val writer = GridWriter(state)
+            writeAscii(writer, "ABCD")
+            state.cursor.col = -1
+
+            writer.eraseLineToEnd()
+
+            assertLineCodepoints(state, 0, intArrayOf('A'.code, 'B'.code, 'C'.code, 'D'.code))
+        }
+    }
+
+    @Nested
+    @DisplayName("eraseLineToCursor")
+    inner class EraseLineToCursorTests {
+
+        @Test
+        fun `eraseLineToCursor clears prefix through cursor`() {
+            val state = createState(width = 5, height = 2)
+            val writer = GridWriter(state)
+            seedLine(state, 0, "ABCDE")
+            state.cursor.row = 0
+            state.cursor.col = 2
+
+            writer.eraseLineToCursor()
+
+            assertLineCodepoints(state, 0, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY, 'D'.code, 'E'.code))
+        }
+
+        @Test
+        fun `eraseLineToCursor is no-op when cursor out of bounds`() {
+            val state = createState(width = 4, height = 2)
+            val writer = GridWriter(state)
+            writeAscii(writer, "ABCD")
+            state.cursor.row = 99
+
+            writer.eraseLineToCursor()
+
+            assertLineCodepoints(state, 0, intArrayOf('A'.code, 'B'.code, 'C'.code, 'D'.code))
+        }
+    }
+
+    @Nested
+    @DisplayName("eraseCurrentLine")
+    inner class EraseCurrentLineTests {
+
+        @Test
+        fun `eraseCurrentLine does not affect other rows`() {
+            val state = createState(width = 3, height = 2)
+            val writer = GridWriter(state)
+            seedLine(state, 0, "ABC")
+            seedLine(state, 1, "DEF")
+            state.cursor.row = 0
+
+            writer.eraseCurrentLine()
+
+            assertAll(
+                { assertLineCodepoints(state, 0, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
+                { assertLineCodepoints(state, 1, intArrayOf('D'.code, 'E'.code, 'F'.code)) }
+            )
+        }
+    }
+
+    @Nested
+    @DisplayName("scrollUp")
+    inner class ScrollUpTests {
+
+        @Test
+        fun `scrollUp pushes a blank line and preserves cursor`() {
+            val state = createState(width = 3, height = 2, history = 4)
+            val writer = GridWriter(state)
+            state.cursor.col = 2
+            state.cursor.row = 1
+            val oldSize = state.ring.size
+
+            writer.scrollUp()
+
+            assertAll(
+                { assertTrue(state.ring.size >= oldSize) },
+                { assertEquals(2, state.cursor.col) },
+                { assertEquals(1, state.cursor.row) },
+                { assertLineCodepoints(state, 1, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) }
+            )
+        }
+    }
+
+    @Nested
+    @DisplayName("clearViewport")
+    inner class ClearViewportTests {
+
+        @Test
+        fun `clearViewport clears visible rows and resets wrapped`() {
+            val state = createState(width = 3, height = 2)
+            val writer = GridWriter(state)
+            writeAscii(writer, "ABC")
+            writeAscii(writer, "DEF")
+            lineAt(state, 0).wrapped = true
+            lineAt(state, 1).wrapped = true
+            val oldSize = state.ring.size
+
+            writer.clearViewport()
+
+            assertAll(
+                { assertEquals(oldSize, state.ring.size) },
+                { assertLineCodepoints(state, 0, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
+                { assertLineCodepoints(state, 1, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
+                { assertFalse(lineAt(state, 0).wrapped) },
+                { assertFalse(lineAt(state, 1).wrapped) }
+            )
+        }
+    }
+
+    @Nested
+    @DisplayName("clearAllHistory")
+    inner class ClearAllHistoryTests {
+
+        @Test
+        fun `clearAllHistory resets ring to exactly viewport height with blank lines`() {
+            val state = createState(width = 4, height = 2, history = 5)
+            val writer = GridWriter(state)
+            writeAscii(writer, "ABCDEFGH")
+            writer.scrollUp()
+
+            writer.clearAllHistory()
+
+            assertAll(
+                { assertEquals(2, state.ring.size) },
+                { assertLineCodepoints(state, 0, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
+                { assertLineCodepoints(state, 1, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) }
+            )
+        }
+    }
+
+    @Nested
+    @DisplayName("newLine")
+    inner class NewLineTests {
+
+        @Test
+        fun `newLine moves down and preserves column`() {
+            val state = createState(width = 4, height = 3)
+            val writer = GridWriter(state)
+            state.cursor.col = 2
+            state.cursor.row = 0
+
+            writer.newLine()
+
+            assertAll(
+                { assertEquals(2, state.cursor.col) },
+                { assertEquals(1, state.cursor.row) }
+            )
+        }
+
+        @Test
+        fun `newLine at bottom scrolls and keeps cursor at last row`() {
+            val state = createState(width = 3, height = 2, history = 4)
+            val writer = GridWriter(state)
+            state.cursor.row = 1
+            state.cursor.col = 1
+            val oldSize = state.ring.size
+
+            writer.newLine()
+
+            assertAll(
+                { assertTrue(state.ring.size >= oldSize) },
+                { assertEquals(1, state.cursor.row) },
+                { assertEquals(1, state.cursor.col) },
+                { assertLineCodepoints(state, 1, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) }
             )
         }
     }
