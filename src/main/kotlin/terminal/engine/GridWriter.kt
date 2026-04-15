@@ -31,7 +31,7 @@ internal class GridWriter(
     /**
      * Pushes one new blank line and scrolls the viewport up by one row.
      */
-    private fun scrollUp() {
+    fun scrollUp() {
         state.ring.push().clear(state.pen.currentAttr)
     }
 
@@ -235,5 +235,33 @@ internal class GridWriter(
         if (cRow !in 0 until height) return
 
         getLine(cRow).clear(state.pen.currentAttr)
+    }
+
+    /**
+     * Clears all currently visible lines in the viewport.
+     */
+    fun clearViewport() {
+        val lineCount = height.coerceAtMost(state.ring.size)
+        for (row in 0 until lineCount) {
+            getLine(row).clear(state.pen.currentAttr)
+        }
+    }
+
+    /**
+     * Nukes the entire history ring and repopulates the viewport with blank lines.
+     */
+    fun clearAllHistory() {
+        state.ring.clear()
+        repeat(height) {
+            state.ring.push().clear(state.pen.currentAttr)
+        }
+    }
+
+    fun newLine() {
+        state.cursor.row++
+        if (state.cursor.row >= state.dimensions.height) {
+            state.cursor.row = state.dimensions.height - 1
+            scrollUp()
+        }
     }
 }
