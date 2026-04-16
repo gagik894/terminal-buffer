@@ -81,8 +81,6 @@ internal class Line(
      * Clears cells from the specified column to the end of the line.
      * @param startCol The starting column (inclusive)
      * @param attr The attribute to fill cleared cells with
-     *
-     * @throws IndexOutOfBoundsException if startCol is out of bounds
      */
     fun clearFromColumn(startCol: Int, attr: Int) {
         val start = startCol.coerceAtLeast(0)
@@ -97,8 +95,6 @@ internal class Line(
      * Clears cells from the beginning of the line to the specified column.
      * @param endCol The ending column (inclusive)
      * @param attr The attribute to fill cleared cells with
-     *
-     * @throws IndexOutOfBoundsException if endCol is out of bounds
      */
     fun clearToColumn(endCol: Int, attr: Int) {
         val end = (endCol + 1).coerceAtMost(width)
