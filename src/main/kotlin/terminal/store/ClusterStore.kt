@@ -1,9 +1,7 @@
-package com.gagik.terminal.engine
+package com.gagik.terminal.store
 
-import com.gagik.terminal.buffer.HistoryRing
-import com.gagik.terminal.engine.ClusterStore.Companion.NO_FREE
-import com.gagik.terminal.model.Line
 import com.gagik.terminal.model.TerminalConstants
+import com.gagik.terminal.store.ClusterStore.Companion.NO_FREE
 
 /**
  * A buffer-scoped arena allocator for multi-codepoint grapheme cluster payloads.
@@ -21,7 +19,7 @@ import com.gagik.terminal.model.TerminalConstants
  *
  * ## Lifecycle
  *
- * A [ClusterStore] is owned by a single [HistoryRing].
+ * A [ClusterStore] is owned by a single [com.gagik.terminal.buffer.HistoryRing].
  * When the terminal resizes, the resizer creates a fresh [ClusterStore] for the
  * new ring. Clusters that survive reflow are deep-copied into the new store.
  *
@@ -91,7 +89,7 @@ internal class ClusterStore {
     /**
      * Allocates a new slot for the cluster defined by [codepoints][offset..offset+length)
      * and returns its **handle** — a negative [Int] that can be stored directly in
-     * a [Line]'s codepoint array.
+     * a [com.gagik.terminal.model.Line]'s codepoint array.
      *
      * The codepoints are copied into the internal pool via [System.arraycopy];
      * the caller may safely reuse or discard the source array immediately.
@@ -130,10 +128,10 @@ internal class ClusterStore {
      * Bulk-frees all cluster handles found in [array] between [fromIndex] (inclusive)
      * and [toIndex] (exclusive). Non-cluster values are skipped silently.
      *
-     * Called by [Line] mutation methods ([Line.clear], [Line.clearFromColumn], etc.)
+     * Called by [com.gagik.terminal.model.Line] mutation methods ([com.gagik.terminal.model.Line.clear], [com.gagik.terminal.model.Line.clearFromColumn], etc.)
      * whenever a range of cells is about to be overwritten or discarded.
      *
-     * @param array     The raw codepoint array of a [Line].
+     * @param array     The raw codepoint array of a [com.gagik.terminal.model.Line].
      * @param fromIndex Start of the range to sweep (inclusive).
      * @param toIndex   End of the range to sweep (exclusive).
      */
@@ -161,7 +159,13 @@ internal class ClusterStore {
      * @param index  Position within the cluster (0-based).
      */
     fun codepointAt(handle: Int, index: Int): Int {
-        val slot = decodeSlot(handle)
+        val slot   = decodeSlot(handle)
+        val length = slotLengths[slot]
+        if (index < 0 || index >= length) {
+            throw IndexOutOfBoundsException(
+                "index $index out of bounds for cluster of length $length"
+            )
+        }
         return clusterData[slotStarts[slot] + index]
     }
 
@@ -190,6 +194,11 @@ internal class ClusterStore {
         val slot   = decodeSlot(handle)
         val start  = slotStarts[slot]
         val length = slotLengths[slot]
+        if (destOffset < 0 || destOffset + length > dest.size) {
+            throw IndexOutOfBoundsException(
+                "destOffset $destOffset + length $length exceeds dest.size ${dest.size}"
+            )
+        }
         System.arraycopy(clusterData, start, dest, destOffset, length)
         return length
     }
