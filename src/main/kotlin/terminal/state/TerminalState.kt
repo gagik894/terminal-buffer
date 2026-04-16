@@ -5,6 +5,7 @@ import com.gagik.terminal.model.Cursor
 import com.gagik.terminal.model.GridDimensions
 import com.gagik.terminal.model.Line
 import com.gagik.terminal.model.Pen
+import com.gagik.terminal.store.ClusterStore
 
 /**
  * Encapsulates the entire state of the terminal,
@@ -27,8 +28,18 @@ internal class TerminalState(
     val dimensions = GridDimensions(initialWidth, initialHeight)
     val cursor = Cursor()
     val pen = Pen()
+    var clusterStore: ClusterStore = ClusterStore()
 
-    var ring = HistoryRing(maxHistory + initialHeight) { Line(initialWidth, TODO()) }
+    /**
+     * Circular buffer of physical terminal lines, covering both scrollback history
+     * and the live viewport.
+     *
+     * Capacity = [maxHistory] + [initialHeight], ensuring the viewport always fits
+     * even when history is full.
+     */
+    var ring = HistoryRing(maxHistory + initialHeight) { Line(initialWidth, clusterStore) }
+
+
 
     init {
         repeat(initialHeight) {
