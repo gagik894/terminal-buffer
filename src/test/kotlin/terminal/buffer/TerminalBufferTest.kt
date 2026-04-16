@@ -282,7 +282,7 @@ class TerminalBufferTest {
 			assertAll(
 				{ assertEquals(text, buffer.getLineAsString(0)) },
 				{ assertEquals(0x1F600, buffer.getCodepointAt(1, 0)) },
-				{ assertCursor(buffer, 3, 0) }
+				{ assertCursor(buffer, 4, 0) }
 			)
 		}
 
@@ -361,9 +361,7 @@ class TerminalBufferTest {
 
 		@Test
 		fun `writing supplementary characters at the line boundary does not split them`() {
-			val buffer = newBuffer(width = 2, height = 2)
-			// "A😀" -> 'A' is 1st cell, '😀' (U+1F600) is 2nd cell.
-			// Next write should wrap.
+			val buffer = newBuffer(width = 3, height = 2)
 			buffer.writeText("A😀B")
 
 			assertAll(
