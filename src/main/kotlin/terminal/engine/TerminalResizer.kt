@@ -46,18 +46,30 @@ internal object TerminalResizer {
             while (offset < builder.size) {
                 val newLine = newRing.push()
                 newLine.clear(0)
-                val chunkLength = minOf(newWidth, builder.size - offset)
+
+                var chunkLength = minOf(newWidth, builder.size - offset)
+
+                // If we are chopping exactly at the new width boundary, check if
+                // the NEXT character in the buffer is a wide-character spacer.
+                if (chunkLength == newWidth && offset + chunkLength < builder.size) {
+                    if (builder.codepoints[offset + chunkLength] == TerminalConstants.WIDE_CHAR_SPACER) {
+                        chunkLength--
+                    }
+                }
+
                 // Mark this physical line as wrapped if more content follows.
                 newLine.wrapped = (offset + chunkLength < builder.size)
+
                 for (i in 0 until chunkLength) {
                     newLine.setCell(i, builder.codepoints[offset + i], builder.attrs[offset + i])
+
                     if (offset + i == builder.cursorAbsoluteIndex) {
                         newAbsoluteCursorRow = newRing.size - 1
                         newCursorCol = i
                         cursorPlaced = true
                     }
                 }
-                offset += newWidth
+                offset += chunkLength
             }
         }
 
@@ -66,16 +78,8 @@ internal object TerminalResizer {
 
             // Trailing null codepoints are visual padding, not real content.
             val logicalLen = getLogicalLength(oldLine)
-
-            // For a wrapped line, all oldWidth columns belong to the logical
-            // line even if the tail is blank, so we must read the full width.
-            // An empty wrapped line is an orphaned wrap flag; treat it as empty.
             val dataLength = if (oldLine.wrapped && logicalLen > 0) oldWidth else logicalLen
-
             val hasCursor = (i == absoluteOldCursorRow)
-
-            // Always read at least as far as the cursor column so the cursor
-            // position is recorded even if it sits beyond any real content.
             val readLength = if (hasCursor) maxOf(dataLength, state.cursor.col + 1) else dataLength
 
             for (col in 0 until readLength) {

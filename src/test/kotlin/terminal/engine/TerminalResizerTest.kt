@@ -1,5 +1,6 @@
 package com.gagik.terminal.engine
 
+import com.gagik.terminal.model.TerminalConstants
 import com.gagik.terminal.state.TerminalState
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
@@ -167,6 +168,39 @@ class TerminalResizerTest {
                 .joinToString("") { state.ring[top + it].toText() }
             assertTrue(allText.contains("ABCDE"),
                 "Expected 'ABCDE' somewhere in the screen after resize to width $newWidth")
+        }
+
+        @Test
+        @DisplayName("Wide character clusters are kept together when a resize would split them")
+        fun `wide character does not split across rows`() {
+            val state = buildState(cols = 6, rows = 2)
+            val top = (state.ring.size - state.dimensions.height).coerceAtLeast(0)
+            state.ring[top + 1].apply {
+                setCell(0, 'A'.code, 0)
+                setCell(1, 'B'.code, 0)
+                setCell(2, 'C'.code, 0)
+                setCell(3, '你'.code, 0)
+                setCell(4, TerminalConstants.WIDE_CHAR_SPACER, 0)
+                setCell(5, 'D'.code, 0)
+            }
+            state.cursor.row = 1
+
+            TerminalResizer.resize(state, 4, 2)
+
+            val visibleTop = (state.ring.size - state.dimensions.height).coerceAtLeast(0)
+            val first = state.ring[visibleTop]
+            val second = state.ring[visibleTop + 1]
+
+            assertAll(
+                { assertEquals('A'.code, first.getCodepoint(0)) },
+                { assertEquals('B'.code, first.getCodepoint(1)) },
+                { assertEquals('C'.code, first.getCodepoint(2)) },
+                { assertEquals(TerminalConstants.EMPTY, first.getCodepoint(3)) },
+                { assertEquals('你'.code, second.getCodepoint(0)) },
+                { assertEquals(TerminalConstants.WIDE_CHAR_SPACER, second.getCodepoint(1)) },
+                { assertEquals('D'.code, second.getCodepoint(2)) },
+                { assertEquals(TerminalConstants.EMPTY, second.getCodepoint(3)) }
+            )
         }
     }
 
