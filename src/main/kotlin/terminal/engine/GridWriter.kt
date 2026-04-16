@@ -89,6 +89,59 @@ internal class GridWriter(
     }
 
     /**
+     * Core write engine shared by [printCodepoint] and [printCluster].
+     *
+     * Executes edge-wrap, annihilation, the caller-supplied write, spacer placement,
+     * standard-wrap, and scroll — then commits the new cursor position.
+     *
+     * @param charWidth  Visual cell width (1 or 2).
+     * @param writeCell  Lambda that writes the leader cell at column [col] on [line].
+     *                   Called exactly once, after annihilation and edge-wrap are resolved.
+     */
+    private inline fun writeToGrid(charWidth: Int, crossinline writeCell: (line: Line, col: Int) -> Unit) {
+        var cCol = state.cursor.col
+        var cRow = state.cursor.row
+        val widthInCells = if (charWidth == 2) 2 else 1
+
+        if (cRow !in 0 until height || cCol !in 0 until width) return
+        var line = getLine(cRow)
+
+        // Edge Wrap: a 2-cell character cannot fit in the last column.
+        if (widthInCells == 2 && cCol == width - 1) {
+            annihilateAt(cRow, cCol)
+            cCol = 0
+            cRow++
+            if (cRow >= height) { scrollUp(); cRow = height - 1 }
+            line = getLine(cRow)
+        }
+
+        // Annihilation: clear the blast radius before writing.
+        annihilateAt(cRow, cCol)
+        if (widthInCells == 2 && cCol + 1 < width) annihilateAt(cRow, cCol + 1)
+
+        // Caller-supplied write phase.
+        writeCell(line, cCol)
+        cCol += 1
+
+        // Wide spacer placement.
+        if (widthInCells == 2 && cCol < width) {
+            line.setCell(cCol, TerminalConstants.WIDE_CHAR_SPACER, state.pen.currentAttr)
+            cCol += 1
+        }
+
+        // Standard wrap + scroll.
+        if (cCol >= width) {
+            line.wrapped = true
+            cCol = 0
+            cRow++
+            if (cRow >= height) { scrollUp(); cRow = height - 1 }
+        }
+
+        state.cursor.col = cCol
+        state.cursor.row = cRow
+    }
+
+    /**
      * Writes a Unicode codepoint to the grid and manages wide-character physics.
      *
      * ARCHITECTURAL WARNING:
@@ -118,84 +171,42 @@ internal class GridWriter(
      * character logic; all other values are treated as 1.
      */
     fun printCodepoint(codepoint: Int, charWidth: Int) {
-        var cCol = state.cursor.col
-        var cRow = state.cursor.row
         val attr = state.pen.currentAttr
-        val widthInCells = if (charWidth == 2) 2 else 1
 
-        if (cRow !in 0 until height || cCol !in 0 until width) return
-        var line = getLine(cRow)
-
-        // ==========================================
-        // FAST PATH: Relies on local registers
-        // ==========================================
-        if (widthInCells == 1 && line.getCodepoint(cCol) == TerminalConstants.EMPTY) {
-            line.setCell(cCol, codepoint, attr)
-
-            if (cCol == width - 1) {
-                line.wrapped = true
-                cCol = 0
-                cRow++
-                if (cRow >= height) {
-                    scrollUp()
-                    cRow = height - 1
+        // Fast path: 1-cell write into empty space.
+        val cCol = state.cursor.col
+        val cRow = state.cursor.row
+        if (charWidth != 2 && cRow in 0 until height && cCol in 0 until width) {
+            val line = getLine(cRow)
+            if (line.getCodepoint(cCol) == TerminalConstants.EMPTY) {
+                line.setCell(cCol, codepoint, attr)
+                if (cCol == width - 1) {
+                    line.wrapped = true
+                    state.cursor.col = 0
+                    state.cursor.row = cRow + 1
+                    if (state.cursor.row >= height) { scrollUp(); state.cursor.row = height - 1 }
+                } else {
+                    state.cursor.col = cCol + 1
                 }
-            } else {
-                cCol++
+                return
             }
+        }
 
-            state.cursor.col = cCol
-            state.cursor.row = cRow
+        // Slow path: delegate all physics to writeToGrid.
+        writeToGrid(charWidth) { line, col ->
+            line.setCell(col, codepoint, attr)
+        }
+    }
+
+    fun printCluster(cps: IntArray, cpLen: Int, charWidth: Int) {
+        if (cpLen == 1) {
+            printCodepoint(cps[0], charWidth)
             return
         }
-
-        // ==========================================
-        // SLOW PATH: OVERWRITES & WIDE CHARACTERS
-        // ==========================================
-
-        // Edge Wrap Defense (Cannot fit width=2 in the last column)
-        if (widthInCells == 2 && cCol == width - 1) {
-            annihilateAt(cRow, cCol)
-            cCol = 0
-            cRow++
-            if (cRow >= height) {
-                scrollUp()
-                cRow = height - 1
-            }
-            line = getLine(cRow)
+        val attr = state.pen.currentAttr
+        writeToGrid(charWidth) { line, col ->
+            line.setCluster(col, cps, cpLen, attr)
         }
-
-        // Annihilation Phase (Clear the blast radius)
-        annihilateAt(cRow, cCol)
-        if (widthInCells == 2 && cCol + 1 < width) {
-            annihilateAt(cRow, cCol + 1)
-        }
-
-        // Write Phase (Commit to memory)
-        line.setCell(cCol, codepoint, attr)
-        cCol += 1
-
-        if (widthInCells == 2) {
-            if (cCol < width) {
-                line.setCell(cCol, TerminalConstants.WIDE_CHAR_SPACER, attr)
-            }
-            cCol += 1
-        }
-
-        // Standard Wrap Phase
-        if (cCol >= width) {
-            line.wrapped = true
-            cCol = 0
-            cRow++
-            if (cRow >= height) {
-                scrollUp()
-                cRow = height - 1
-            }
-        }
-
-        // State Synchronization
-        state.cursor.col = cCol
-        state.cursor.row = cRow
     }
 
     /**
@@ -281,6 +292,9 @@ internal class GridWriter(
         }
     }
 
+    /*
+    * Advances the cursor to the next line. If the cursor is on the last line, the viewport scrolls up by one line.
+     */
     fun newLine() {
         state.cursor.row++
         if (state.cursor.row >= state.dimensions.height) {
