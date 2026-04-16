@@ -150,7 +150,7 @@ interface TerminalBufferApi {
     /**
      * Retrieves a read-only view of a specific visual row.
      * @param row The visual row (0 is the top of the screen).
-     * @return A read-only line, or null if the row is out of bounds.
+     * @return A read-only line, or `VoidLine` if the row is out of bounds.
      */
     fun getLine(row: Int): TerminalLineApi
 
