@@ -15,35 +15,35 @@ import org.junit.jupiter.params.provider.ValueSource
 @DisplayName("TerminalBuffer Test Suite")
 class TerminalBufferTest {
 
-	private fun newBuffer(width: Int = 4, height: Int = 3, maxHistory: Int = 5): TerminalBuffer {
-		return TerminalBuffer(width, height, maxHistory)
-	}
+    private fun newBuffer(width: Int = 4, height: Int = 3, maxHistory: Int = 5): TerminalBuffer {
+        return TerminalBuffer(width, height, maxHistory)
+    }
 
-	private fun newApiBuffer(width: Int = 4, height: Int = 3, maxHistory: Int = 5): TerminalBufferApi {
-		return TerminalBuffers.create(width, height, maxHistory)
-	}
+    private fun newApiBuffer(width: Int = 4, height: Int = 3, maxHistory: Int = 5): TerminalBufferApi {
+        return TerminalBuffers.create(width, height, maxHistory)
+    }
 
-	private fun blankScreen(height: Int): String = List(height) { "" }.joinToString("\n")
+    private fun blankScreen(height: Int): String = List(height) { "" }.joinToString("\n")
 
-	private fun defaultAttributes(): Attributes = Attributes(0, 0, bold = false, italic = false, underline = false)
+    private fun defaultAttributes(): Attributes = Attributes(0, 0, bold = false, italic = false, underline = false)
 
-	private fun assertCursor(buffer: TerminalBuffer, col: Int, row: Int) {
-		assertAll(
-			{ assertEquals(col, buffer.cursorCol, "Cursor column mismatch") },
-			{ assertEquals(row, buffer.cursorRow, "Cursor row mismatch") }
-		)
-	}
+    private fun assertCursor(buffer: TerminalBuffer, col: Int, row: Int) {
+        assertAll(
+            { assertEquals(col, buffer.cursorCol, "Cursor column mismatch") },
+            { assertEquals(row, buffer.cursorRow, "Cursor row mismatch") }
+        )
+    }
 
-	@Nested
-	@DisplayName("Initialization & Validation")
-	inner class InitializationTests {
+    @Nested
+    @DisplayName("Initialization & Validation")
+    inner class InitializationTests {
 
-		@ParameterizedTest(name = "Create buffer width={0}, height={1}, history={2}")
-		@CsvSource(
-			"1, 1, 0",
-			"4, 3, 2",
-			"8, 2, 0"
-		)
+        @ParameterizedTest(name = "Create buffer width={0}, height={1}, history={2}")
+        @CsvSource(
+            "1, 1, 0",
+            "4, 3, 2",
+            "8, 2, 0"
+        )
 		fun `creates a fully initialized blank buffer`(width: Int, height: Int, maxHistory: Int) {
 			val buffer = TerminalBuffer(width, height, maxHistory)
 
