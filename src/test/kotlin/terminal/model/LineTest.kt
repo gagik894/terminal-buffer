@@ -1,5 +1,6 @@
 package com.gagik.terminal.model
 
+import com.gagik.terminal.store.ClusterStore
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -9,413 +10,469 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
 import org.junit.jupiter.params.provider.ValueSource
 
-
 @DisplayName("Line Test Suite")
 class LineTest {
 
+    // Every test gets a fresh store. Lines within the same test share one store
+    // to reflect the real ownership model (all lines in a ring share one store).
+    private fun store() = ClusterStore()
+    private fun line(width: Int, store: ClusterStore = store()) = Line(width, store)
+
+    // =========================================================================
+    // Initialization
+    // =========================================================================
+
     @Nested
-    @DisplayName("Initialization & Validation")
+    @DisplayName("Initialization")
     inner class InitializationTests {
 
         @ParameterizedTest(name = "Create line with width={0}")
         @ValueSource(ints = [1, 10, 80, 1000])
-        fun testValidConstruction(width: Int) {
-            val line = Line(width)
-
+        fun `valid widths construct successfully`(width: Int) {
+            val l = line(width)
             assertAll(
-                { assertEquals(width, line.width, "Width mismatch") },
-                { assertFalse(line.wrapped, "New line should not be wrapped") }
+                { assertEquals(width, l.width) },
+                { assertFalse(l.wrapped) }
             )
         }
 
         @Test
-        @DisplayName("New line should be initialized to zeros")
-        fun testDefaultValues() {
-            val line = Line(5)
-            // Verify all cells start as 0
-            for (i in 0 until 5) {
-                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(i), "Codepoint at $i should be EMPTY")
-                assertEquals(0, line.getPackedAttr(i), "Attribute at $i should be 0")
+        fun `all cells start as EMPTY with zeroed attrs`() {
+            val l = line(5)
+            for (col in 0 until 5) {
+                assertAll(
+                    { assertEquals(TerminalConstants.EMPTY, l.getCodepoint(col), "codepoint at $col") },
+                    { assertEquals(0, l.getPackedAttr(col), "attr at $col") }
+                )
             }
         }
 
         @ParameterizedTest(name = "Reject invalid width={0}")
         @ValueSource(ints = [0, -1, -100])
-        fun testInvalidConstruction(invalidWidth: Int) {
-            val ex = assertThrows(IllegalArgumentException::class.java) {
-                Line(invalidWidth)
-            }
-            assertNotNull(ex.message, "Exception should have a message")
+        fun `non-positive widths throw`(invalidWidth: Int) {
+            assertThrows<IllegalArgumentException> { line(invalidWidth) }
         }
     }
 
+    // =========================================================================
+    // setCell / getCodepoint / getPackedAttr — plain cells
+    // =========================================================================
+
     @Nested
-    @DisplayName("Cell Operations (Set/Get)")
+    @DisplayName("setCell / getCodepoint / getPackedAttr")
     inner class CellOperationsTests {
 
-        @ParameterizedTest(name = "Set/Get at index {0} (Width 10)")
-        @CsvSource(
-            "0",   // Start boundary
-            "5",   // Middle
-            "9"    // End boundary
-        )
-        fun testValidCellAccess(index: Int) {
-            val line = Line(10)
-            val testCodepoint = 65 // 'A'
-            val testAttr = 12345
-
-            line.setCell(index, testCodepoint, testAttr)
-
+        @ParameterizedTest(name = "set and get at col={0}")
+        @CsvSource("0", "5", "9")
+        fun `valid columns round-trip codepoint and attr`(col: Int) {
+            val l = line(10)
+            l.setCell(col, 'A'.code, 12345)
             assertAll(
-                { assertEquals(testCodepoint, line.getCodepoint(index), "Codepoint mismatch") },
-                { assertEquals(testAttr, line.getPackedAttr(index), "Attribute mismatch") }
+                { assertEquals('A'.code, l.getCodepoint(col)) },
+                { assertEquals(12345, l.getPackedAttr(col)) }
             )
         }
 
-        @ParameterizedTest(name = "Fail fast on out-of-bounds index {0} (Width 10)")
-        @ValueSource(ints = [-1, -50, 10, 11, 100])
-        fun testOutOfBoundsAccess(invalidIndex: Int) {
-            val line = Line(10)
+        @Test
+        fun `setCell on a cluster cell frees the old handle`() {
+            val store = store()
+            val l = Line(5, store)
+            l.setCluster(2, intArrayOf(0x1F468, 0x200D, 0x1F469), 3, 0)
+            assertTrue(l.isCluster(2))
 
-            assertThrows<IndexOutOfBoundsException> { line.setCell(invalidIndex, 65, 123) }
-            assertThrows<IndexOutOfBoundsException> { line.getCodepoint(invalidIndex) }
-            assertThrows<IndexOutOfBoundsException> { line.getPackedAttr(invalidIndex) }
+            // Overwrite with plain cell — cluster handle must be freed
+            l.setCell(2, 'X'.code, 0)
+
+            assertFalse(l.isCluster(2))
+            assertEquals('X'.code, l.getCodepoint(2))
+
+            // The freed slot must be reused by the next alloc
+            val handle = store.alloc(intArrayOf(99))
+            assertEquals(-2, handle, "Freed cluster slot must be reused")
         }
     }
 
+    // =========================================================================
+    // setCluster / getCodepoint / isCluster / readCluster
+    // =========================================================================
+
     @Nested
-    @DisplayName("State Management (Clear & Wrap)")
-    inner class StateTests {
+    @DisplayName("setCluster / isCluster / readCluster")
+    inner class ClusterCellTests {
 
         @Test
-        @DisplayName("Clear() resets content and wrap status")
-        fun testClearResetsLine() {
-            // Setup a dirty line with data and wrapped=true
-            val width = 5
-            val line = Line(width)
+        fun `setCluster stores multi-codepoint cluster and isCluster returns true`() {
+            val l = line(5)
+            l.setCluster(1, intArrayOf(0x1F468, 0x200D, 0x1F469), 3, 42)
 
-            line.setCell(0, 88, 99)
-            line.setCell(width - 1, 88, 99)
-            line.wrapped = true
+            assertTrue(l.isCluster(1))
+            assertEquals(42, l.getPackedAttr(1))
+        }
 
-            // Execute Clear
-            val defaultAttr = 42
-            line.clear(defaultAttr)
+        @Test
+        fun `getCodepoint on cluster cell returns base codepoint`() {
+            val l = line(5)
+            l.setCluster(0, intArrayOf(0x1F468, 0x200D, 0x1F469), 3, 0)
+
+            assertEquals(0x1F468, l.getCodepoint(0))
+        }
+
+        @Test
+        fun `readCluster copies all codepoints into dest and returns length`() {
+            val l = line(5)
+            l.setCluster(2, intArrayOf(0x1F468, 0x200D, 0x1F469), 3, 0)
+            val dest = IntArray(8)
+
+            val written = l.readCluster(2, dest)
 
             assertAll(
-                "Verify line was fully reset",
-                { assertFalse(line.wrapped, "Wrapped flag should be reset to false") },
-                { assertEquals(TerminalConstants.EMPTY, line.getCodepoint(0), "Codepoints should be reset to EMPTY") },
-                { assertEquals(defaultAttr, line.getPackedAttr(0), "Attrs should be reset to default ($defaultAttr)") }
+                { assertEquals(3, written) },
+                { assertEquals(0x1F468, dest[0]) },
+                { assertEquals(0x200D, dest[1]) },
+                { assertEquals(0x1F469, dest[2]) }
+            )
+        }
+
+        @Test
+        fun `readCluster on plain cell returns 0 and writes nothing`() {
+            val l = line(5)
+            l.setCell(2, 'A'.code, 0)
+            val dest = IntArray(8) { 999 }
+
+            val written = l.readCluster(2, dest)
+
+            assertAll(
+                { assertEquals(0, written) },
+                { assertEquals(999, dest[0], "dest must be untouched for plain cell") }
+            )
+        }
+
+        @Test
+        fun `isCluster returns false for plain cells EMPTY and SPACER`() {
+            val l = line(5)
+            l.setCell(0, 'A'.code, 0)
+            l.setCell(1, TerminalConstants.EMPTY, 0)
+            l.setCell(2, TerminalConstants.WIDE_CHAR_SPACER, 0)
+
+            assertAll(
+                { assertFalse(l.isCluster(0)) },
+                { assertFalse(l.isCluster(1)) },
+                { assertFalse(l.isCluster(2)) }
+            )
+        }
+
+        @Test
+        fun `overwriting cluster with cluster frees old handle before allocating new`() {
+            val store = store()
+            val l = Line(5, store)
+
+            l.setCluster(0, intArrayOf(0xAAAA, 0xBBBB), 2, 0)
+            val firstHandle = l.rawCodepoint(0)
+            assertTrue(firstHandle <= TerminalConstants.CLUSTER_HANDLE_MAX)
+
+            // Overwrite with a different cluster
+            l.setCluster(0, intArrayOf(0xCCCC, 0xDDDD, 0xEEEE), 3, 0)
+
+            // The first handle's slot must have been freed and reused
+            val secondHandle = l.rawCodepoint(0)
+            assertEquals(firstHandle, secondHandle, "Freed slot must be reused for the new cluster")
+
+            // New data must be visible
+            val dest = IntArray(4)
+            val written = l.readCluster(0, dest)
+            assertAll(
+                { assertEquals(3, written) },
+                { assertEquals(0xCCCC, dest[0]) },
+                { assertEquals(0xDDDD, dest[1]) },
+                { assertEquals(0xEEEE, dest[2]) }
+            )
+        }
+
+        @Test
+        fun `reusable dest array across multiple readCluster calls produces correct results`() {
+            val l = line(5)
+            l.setCluster(0, intArrayOf(10, 20), 2, 0)
+            l.setCluster(1, intArrayOf(30, 40, 50), 3, 0)
+            val dest = IntArray(8)
+
+            val w0 = l.readCluster(0, dest)
+            assertEquals(2, w0)
+            assertEquals(10, dest[0]); assertEquals(20, dest[1])
+
+            val w1 = l.readCluster(1, dest)
+            assertEquals(3, w1)
+            assertEquals(30, dest[0]); assertEquals(40, dest[1]); assertEquals(50, dest[2])
+        }
+    }
+
+    // =========================================================================
+    // rawCodepoint / setRawCell — internal accessors used by TerminalResizer
+    // =========================================================================
+
+    @Nested
+    @DisplayName("rawCodepoint / setRawCell (internal reflow contract)")
+    inner class RawAccessorTests {
+
+        @Test
+        fun `rawCodepoint returns stored Int without resolving cluster handle`() {
+            val store = store()
+            val l = Line(5, store)
+            l.setCluster(0, intArrayOf(0x1F468, 0x200D), 2, 0)
+
+            val raw = l.rawCodepoint(0)
+            assertTrue(raw <= TerminalConstants.CLUSTER_HANDLE_MAX,
+                "rawCodepoint must return the negative handle, not the base codepoint")
+        }
+
+        @Test
+        fun `setRawCell transplants a handle without double-allocating`() {
+            val store = store()
+            val src = Line(5, store)
+            src.setCluster(0, intArrayOf(0x1F469, 0x200D, 0x1F680), 3, 7)
+
+            val raw  = src.rawCodepoint(0)
+            val attr = src.getPackedAttr(0)
+
+            val dst = Line(5, store)
+            dst.setRawCell(0, raw, attr)
+
+            // dst must resolve the same cluster data via the shared store
+            val dest = IntArray(4)
+            val written = dst.readCluster(0, dest)
+            assertAll(
+                { assertEquals(3, written) },
+                { assertEquals(0x1F469, dest[0]) },
+                { assertEquals(0x200D, dest[1]) },
+                { assertEquals(0x1F680, dest[2]) },
+                { assertEquals(7, dst.getPackedAttr(0)) }
+            )
+        }
+
+        @Test
+        fun `setRawCell with plain codepoint works identically to setCell`() {
+            val l = line(5)
+            l.setRawCell(3, 'Z'.code, 55)
+
+            assertAll(
+                { assertEquals('Z'.code, l.getCodepoint(3)) },
+                { assertEquals(55, l.getPackedAttr(3)) },
+                { assertFalse(l.isCluster(3)) }
             )
         }
     }
 
+    // =========================================================================
+    // clear()
+    // =========================================================================
+
     @Nested
-    @DisplayName("copyFrom()")
-    inner class CopyFromTests {
+    @DisplayName("clear()")
+    inner class ClearTests {
+
+
 
         @Test
-        fun `copies all data from another line`() {
-            val source = Line(10)
-            source.setCell(0, 'A'.code, 1)
-            source.setCell(5, 'B'.code, 2)
-            source.wrapped = true
+        fun `clear frees all cluster handles so store slots are reused`() {
+            val store = store()
+            val l = Line(3, store)
+            l.setCluster(0, intArrayOf(0xAAAA, 0xBBBB), 2, 0)
+            l.setCluster(1, intArrayOf(0xCCCC), 1, 0)
 
-            val dest = Line(10)
-            dest.copyFrom(source)
+            l.clear(0)
 
-            assertEquals('A'.code, dest.getCodepoint(0))
-            assertEquals(1, dest.getPackedAttr(0))
-            assertEquals('B'.code, dest.getCodepoint(5))
-            assertEquals(2, dest.getPackedAttr(5))
-            assertTrue(dest.wrapped)
-        }
-
-        @Test
-        fun `throws on width mismatch`() {
-            val source = Line(10)
-            val dest = Line(20)
-
-            assertThrows<IllegalArgumentException> {
-                dest.copyFrom(source)
-            }
-        }
-
-        @Test
-        fun `overwrites existing data`() {
-            val source = Line(10)
-            source.setCell(0, 'X'.code, 99)
-
-            val dest = Line(10)
-            dest.setCell(0, 'Y'.code, 88)
-            dest.copyFrom(source)
-
-            assertEquals('X'.code, dest.getCodepoint(0))
-            assertEquals(99, dest.getPackedAttr(0))
+            // Both slots freed — next two allocs must reuse them
+            val h1 = store.alloc(intArrayOf(1))
+            val h2 = store.alloc(intArrayOf(2))
+            // Freelist is LIFO: slot 1 freed last → reused first
+            assertAll(
+                { assertEquals(-3, h1, "First freed-slot reuse") },
+                { assertEquals(-2, h2, "Second freed-slot reuse") }
+            )
         }
     }
+
+    // =========================================================================
+    // clearFromColumn()
+    // =========================================================================
 
     @Nested
     @DisplayName("clearFromColumn()")
     inner class ClearFromColumnTests {
 
         @Test
-        fun `clears from specified column to end`() {
-            val line = Line(10)
-            for (col in 0 until 10) {
-                line.setCell(col, 'A'.code + col, col)
-            }
+        fun `clears from specified column to end leaving prefix intact`() {
+            val l = line(10)
+            for (col in 0 until 10) l.setCell(col, 'A'.code + col, col)
 
-            line.clearFromColumn(5, 99)
+            l.clearFromColumn(5, 99)
 
-            // Columns 0-4 should be unchanged
             for (col in 0 until 5) {
-                assertEquals('A'.code + col, line.getCodepoint(col))
-                assertEquals(col, line.getPackedAttr(col))
+                assertAll(
+                    { assertEquals('A'.code + col, l.getCodepoint(col)) },
+                    { assertEquals(col, l.getPackedAttr(col)) }
+                )
             }
-            // Columns 5-9 should be cleared
             for (col in 5 until 10) {
-                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(col))
-                assertEquals(99, line.getPackedAttr(col))
+                assertAll(
+                    { assertEquals(TerminalConstants.EMPTY, l.getCodepoint(col)) },
+                    { assertEquals(99, l.getPackedAttr(col)) }
+                )
             }
         }
 
         @Test
-        fun `clears entire line when startCol is 0`() {
-            val line = Line(5)
-            for (col in 0 until 5) {
-                line.setCell(col, 'X'.code, col)
-            }
-
-            line.clearFromColumn(0, 42)
-
-            for (col in 0 until 5) {
-                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(col))
-                assertEquals(42, line.getPackedAttr(col))
-            }
+        fun `startCol 0 clears the entire line`() {
+            val l = line(5)
+            for (col in 0 until 5) l.setCell(col, 'X'.code, col)
+            l.clearFromColumn(0, 42)
+            for (col in 0 until 5) assertEquals(TerminalConstants.EMPTY, l.getCodepoint(col))
         }
 
         @Test
-        fun `handles negative startCol by clamping to 0`() {
-            val line = Line(5)
-            for (col in 0 until 5) {
-                line.setCell(col, 'X'.code, col)
-            }
-
-            line.clearFromColumn(-5, 42)
-
-            for (col in 0 until 5) {
-                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(col))
-                assertEquals(42, line.getPackedAttr(col))
-            }
+        fun `negative startCol is clamped to 0 and clears entire line`() {
+            val l = line(5)
+            for (col in 0 until 5) l.setCell(col, 'X'.code, col)
+            l.clearFromColumn(-5, 42)
+            for (col in 0 until 5) assertEquals(TerminalConstants.EMPTY, l.getCodepoint(col))
         }
 
         @Test
-        fun `handles startCol beyond width by doing nothing`() {
-            val line = Line(5)
-            for (col in 0 until 5) {
-                line.setCell(col, 'X'.code, col)
-            }
+        fun `startCol beyond width is a no-op`() {
+            val l = line(5)
+            for (col in 0 until 5) l.setCell(col, 'X'.code, col)
+            l.clearFromColumn(10, 42)
+            for (col in 0 until 5) assertEquals('X'.code, l.getCodepoint(col))
+        }
 
-            line.clearFromColumn(10, 42)
+        @Test
+        fun `frees cluster handles in the cleared range`() {
+            val store = store()
+            val l = Line(5, store)
+            l.setCluster(3, intArrayOf(0x1F600, 0x200D), 2, 0)
 
-            for (col in 0 until 5) {
-                assertEquals('X'.code, line.getCodepoint(col))
-                assertEquals(col, line.getPackedAttr(col))
-            }
+            l.clearFromColumn(3, 0)
+
+            val h = store.alloc(intArrayOf(1))
+            assertEquals(-2, h, "Cluster handle in cleared range must be freed")
         }
     }
+
+    // =========================================================================
+    // clearToColumn()
+    // =========================================================================
 
     @Nested
     @DisplayName("clearToColumn()")
     inner class ClearToColumnTests {
 
         @Test
-        fun `clears from beginning to specified column`() {
-            val line = Line(10)
-            for (col in 0 until 10) {
-                line.setCell(col, 'A'.code + col, col)
-            }
+        fun `clears from start through specified column leaving suffix intact`() {
+            val l = line(10)
+            for (col in 0 until 10) l.setCell(col, 'A'.code + col, col)
 
-            line.clearToColumn(4, 99)
+            l.clearToColumn(4, 99)
 
-            // Columns 0-4 should be cleared
             for (col in 0..4) {
-                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(col))
-                assertEquals(99, line.getPackedAttr(col))
+                assertAll(
+                    { assertEquals(TerminalConstants.EMPTY, l.getCodepoint(col)) },
+                    { assertEquals(99, l.getPackedAttr(col)) }
+                )
             }
-            // Columns 5-9 should be unchanged
             for (col in 5 until 10) {
-                assertEquals('A'.code + col, line.getCodepoint(col))
-                assertEquals(col, line.getPackedAttr(col))
+                assertAll(
+                    { assertEquals('A'.code + col, l.getCodepoint(col)) },
+                    { assertEquals(col, l.getPackedAttr(col)) }
+                )
             }
         }
 
         @Test
-        fun `clears entire line when endCol is width-1`() {
-            val line = Line(5)
-            for (col in 0 until 5) {
-                line.setCell(col, 'X'.code, col)
-            }
-
-            line.clearToColumn(4, 42)
-
-            for (col in 0 until 5) {
-                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(col))
-                assertEquals(42, line.getPackedAttr(col))
-            }
+        fun `endCol of width-1 clears the entire line`() {
+            val l = line(5)
+            for (col in 0 until 5) l.setCell(col, 'X'.code, col)
+            l.clearToColumn(4, 42)
+            for (col in 0 until 5) assertEquals(TerminalConstants.EMPTY, l.getCodepoint(col))
         }
 
         @Test
-        fun `handles negative endCol by doing nothing`() {
-            val line = Line(5)
-            for (col in 0 until 5) {
-                line.setCell(col, 'X'.code, col)
-            }
-
-            line.clearToColumn(-1, 42)
-
-            for (col in 0 until 5) {
-                assertEquals('X'.code, line.getCodepoint(col))
-                assertEquals(col, line.getPackedAttr(col))
-            }
+        fun `negative endCol is a no-op`() {
+            val l = line(5)
+            for (col in 0 until 5) l.setCell(col, 'X'.code, col)
+            l.clearToColumn(-1, 42)
+            for (col in 0 until 5) assertEquals('X'.code, l.getCodepoint(col))
         }
 
         @Test
-        fun `handles endCol beyond width by clearing entire line`() {
-            val line = Line(5)
-            for (col in 0 until 5) {
-                line.setCell(col, 'X'.code, col)
-            }
+        fun `endCol beyond width clears entire line`() {
+            val l = line(5)
+            for (col in 0 until 5) l.setCell(col, 'X'.code, col)
+            l.clearToColumn(100, 42)
+            for (col in 0 until 5) assertEquals(TerminalConstants.EMPTY, l.getCodepoint(col))
+        }
 
-            line.clearToColumn(100, 42)
+        @Test
+        fun `frees cluster handles in the cleared range`() {
+            val store = store()
+            val l = Line(5, store)
+            l.setCluster(1, intArrayOf(0x1F600, 0x200D), 2, 0)
 
-            for (col in 0 until 5) {
-                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(col))
-                assertEquals(42, line.getPackedAttr(col))
-            }
+            l.clearToColumn(2, 0)
+
+            val h = store.alloc(intArrayOf(1))
+            assertEquals(-2, h, "Cluster handle in cleared range must be freed")
         }
     }
+
+    // =========================================================================
+    // fill()
+    // =========================================================================
 
     @Nested
     @DisplayName("fill()")
     inner class FillTests {
 
         @Test
-        fun `fills entire line with character`() {
-            val line = Line(5)
-            line.fill('-'.code, 99)
-
+        fun `fills all cells with given codepoint and attr`() {
+            val l = line(5)
+            l.fill('-'.code, 99)
             for (col in 0 until 5) {
-                assertEquals('-'.code, line.getCodepoint(col))
-                assertEquals(99, line.getPackedAttr(col))
+                assertAll(
+                    { assertEquals('-'.code, l.getCodepoint(col)) },
+                    { assertEquals(99, l.getPackedAttr(col)) }
+                )
             }
         }
 
         @Test
-        fun `fill with 0 clears all codepoints`() {
-            val line = Line(5)
-            for (col in 0 until 5) {
-                line.setCell(col, 'A'.code + col, col)
-            }
-
-            line.fill(TerminalConstants.EMPTY, 42)
-
-            for (col in 0 until 5) {
-                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(col))
-                assertEquals(42, line.getPackedAttr(col))
-            }
+        fun `fill with EMPTY zeroes all codepoints`() {
+            val l = line(5)
+            for (col in 0 until 5) l.setCell(col, 'A'.code + col, col)
+            l.fill(TerminalConstants.EMPTY, 42)
+            for (col in 0 until 5) assertEquals(TerminalConstants.EMPTY, l.getCodepoint(col))
         }
 
         @Test
-        fun `fill overwrites existing content`() {
-            val line = Line(5)
-            for (col in 0 until 5) {
-                line.setCell(col, 'X'.code, col)
-            }
+        fun `fill frees all cluster handles before overwriting`() {
+            val store = store()
+            val l = Line(4, store)
+            l.setCluster(0, intArrayOf(0xAAAA, 0xBBBB), 2, 0)
+            l.setCluster(2, intArrayOf(0xCCCC), 1, 0)
 
-            line.fill('Y'.code, 100)
+            l.fill('Z'.code, 0)
 
-            for (col in 0 until 5) {
-                assertEquals('Y'.code, line.getCodepoint(col))
-                assertEquals(100, line.getPackedAttr(col))
-            }
-        }
-    }
-
-    @Nested
-    @DisplayName("toText()")
-    inner class ToTextTests {
-
-        @Test
-        fun `converts line to string`() {
-            val line = Line(5)
-            line.setCell(0, 'H'.code, 0)
-            line.setCell(1, 'e'.code, 0)
-            line.setCell(2, 'l'.code, 0)
-            line.setCell(3, 'l'.code, 0)
-            line.setCell(4, 'o'.code, 0)
-
-            assertEquals("Hello", line.toText())
-        }
-
-        @Test
-        fun `empty cells render as spaces`() {
-            val line = Line(5)
-            line.setCell(0, 'A'.code, 0)
-            // cells 1-3 are empty (0)
-            line.setCell(4, 'B'.code, 0)
-
-            assertEquals("A   B", line.toText())
-        }
-
-        @Test
-        fun `toTextTrimmed removes trailing spaces`() {
-            val line = Line(10)
-            line.setCell(0, 'H'.code, 0)
-            line.setCell(1, 'i'.code, 0)
-            // rest are empty
-
-            assertEquals("Hi        ", line.toText())
-            assertEquals("Hi", line.toTextTrimmed())
-        }
-
-        @Test
-        fun `empty line returns all spaces`() {
-            val line = Line(5)
-            assertEquals("     ", line.toText())
-            assertEquals("", line.toTextTrimmed())
-        }
-
-        @Test
-        fun `wide spacer is not rendered as standalone glyph`() {
-            val line = Line(4)
-            line.setCell(0, '你'.code, 0)
-            line.setCell(1, TerminalConstants.WIDE_CHAR_SPACER, 0)
-            line.setCell(2, 'X'.code, 0)
-
+            val h1 = store.alloc(intArrayOf(1))
+            val h2 = store.alloc(intArrayOf(2))
+            // Both cluster slots freed; new allocs reuse them
             assertAll(
-                { assertEquals(TerminalConstants.WIDE_CHAR_SPACER, line.getCodepoint(1)) },
-                { assertEquals("你X ", line.toText()) },
-                { assertEquals("你X", line.toTextTrimmed()) }
-            )
-        }
-
-        @Test
-        fun `orphan wide spacer is skipped and not treated as visible trailing content`() {
-            val line = Line(4)
-            line.setCell(0, 'A'.code, 0)
-            line.setCell(1, '你'.code, 0)
-            line.setCell(2, TerminalConstants.WIDE_CHAR_SPACER, 0)
-
-            assertAll(
-                { assertEquals(TerminalConstants.WIDE_CHAR_SPACER, line.getCodepoint(2)) },
-                { assertEquals("A你 ", line.toText()) },
-                { assertEquals("A你", line.toTextTrimmed()) }
+                { assertEquals(-3, h1) },
+                { assertEquals(-2, h2) }
             )
         }
     }
+
+    // =========================================================================
+    // insertCells()
+    // =========================================================================
 
     @Nested
     @DisplayName("insertCells()")
@@ -423,32 +480,162 @@ class LineTest {
 
         @Test
         fun `inserts blanks and shifts content right`() {
-            val line = Line(5)
-            line.setCell(0, 'A'.code, 1)
-            line.setCell(1, 'B'.code, 2)
-            line.setCell(2, 'C'.code, 3)
+            val l = line(5)
+            l.setCell(0, 'A'.code, 1)
+            l.setCell(1, 'B'.code, 2)
+            l.setCell(2, 'C'.code, 3)
 
-            line.insertCells(col = 1, count = 2, defaultAttr = 99)
+            l.insertCells(col = 1, count = 2, defaultAttr = 99)
 
-            assertEquals('A'.code, line.getCodepoint(0))
-            assertEquals(TerminalConstants.EMPTY, line.getCodepoint(1))
-            assertEquals(TerminalConstants.EMPTY, line.getCodepoint(2))
-            assertEquals('B'.code, line.getCodepoint(3))
-            assertEquals('C'.code, line.getCodepoint(4))
-            assertEquals(99, line.getPackedAttr(1))
-            assertEquals(99, line.getPackedAttr(2))
+            assertAll(
+                { assertEquals('A'.code, l.getCodepoint(0)) },
+                { assertEquals(TerminalConstants.EMPTY, l.getCodepoint(1)) },
+                { assertEquals(TerminalConstants.EMPTY, l.getCodepoint(2)) },
+                { assertEquals('B'.code, l.getCodepoint(3)) },
+                { assertEquals('C'.code, l.getCodepoint(4)) },
+                { assertEquals(99, l.getPackedAttr(1)) },
+                { assertEquals(99, l.getPackedAttr(2)) }
+            )
         }
 
         @Test
-        fun `insertCells no-ops for invalid column or non-positive count`() {
-            val line = Line(3)
-            line.setCell(0, 'X'.code, 7)
+        fun `cells pushed off the right edge are freed if they are cluster handles`() {
+            val store = store()
+            val l = Line(3, store)
+            l.setCluster(2, intArrayOf(0x1F600, 0x200D), 2, 0) // will fall off on insert at 0
 
-            line.insertCells(col = -1, count = 1, defaultAttr = 9)
-            line.insertCells(col = 1, count = 0, defaultAttr = 9)
+            l.insertCells(col = 0, count = 1, defaultAttr = 0)
 
-            assertEquals('X'.code, line.getCodepoint(0))
-            assertEquals(7, line.getPackedAttr(0))
+            // Cluster at col 2 was shifted off and freed
+            val h = store.alloc(intArrayOf(99))
+            assertEquals(-2, h, "Cluster shifted off the edge must be freed")
+        }
+
+        @Test
+        fun `insert at col 0 shifts entire line right`() {
+            val l = line(4)
+            l.setCell(0, 'A'.code, 0)
+            l.setCell(1, 'B'.code, 0)
+            l.setCell(2, 'C'.code, 0)
+
+            l.insertCells(col = 0, count = 1, defaultAttr = 0)
+
+            assertAll(
+                { assertEquals(TerminalConstants.EMPTY, l.getCodepoint(0)) },
+                { assertEquals('A'.code, l.getCodepoint(1)) },
+                { assertEquals('B'.code, l.getCodepoint(2)) },
+                { assertEquals('C'.code, l.getCodepoint(3)) }
+            )
+        }
+
+        @Test
+        fun `insert count larger than remaining space clamps correctly`() {
+            val l = line(4)
+            l.setCell(0, 'A'.code, 0)
+            l.setCell(1, 'B'.code, 0)
+
+            // inserting 10 at col 1 on a width-4 line: only 3 free cells to the right
+            l.insertCells(col = 1, count = 10, defaultAttr = 55)
+
+            assertAll(
+                { assertEquals('A'.code, l.getCodepoint(0)) },
+                { assertEquals(TerminalConstants.EMPTY, l.getCodepoint(1)) },
+                { assertEquals(TerminalConstants.EMPTY, l.getCodepoint(2)) },
+                { assertEquals(TerminalConstants.EMPTY, l.getCodepoint(3)) }
+            )
+        }
+
+        @Test
+        fun `no-op for negative col`() {
+            val l = line(3)
+            l.setCell(0, 'X'.code, 7)
+            l.insertCells(col = -1, count = 1, defaultAttr = 9)
+            assertEquals('X'.code, l.getCodepoint(0))
+        }
+
+        @Test
+        fun `no-op for zero count`() {
+            val l = line(3)
+            l.setCell(0, 'X'.code, 7)
+            l.insertCells(col = 0, count = 0, defaultAttr = 9)
+            assertEquals('X'.code, l.getCodepoint(0))
+        }
+    }
+
+    // =========================================================================
+    // toText / toTextTrimmed
+    // =========================================================================
+
+    @Nested
+    @DisplayName("toText / toTextTrimmed")
+    inner class ToTextTests {
+
+        @Test
+        fun `plain ascii line renders correctly`() {
+            val l = line(5)
+            "Hello".forEachIndexed { i, c -> l.setCell(i, c.code, 0) }
+            assertEquals("Hello", l.toText())
+        }
+
+        @Test
+        fun `empty cells render as spaces in toText`() {
+            val l = line(5)
+            l.setCell(0, 'A'.code, 0)
+            l.setCell(4, 'B'.code, 0)
+            assertEquals("A   B", l.toText())
+        }
+
+        @Test
+        fun `toTextTrimmed strips trailing empty cells`() {
+            val l = line(10)
+            l.setCell(0, 'H'.code, 0)
+            l.setCell(1, 'i'.code, 0)
+            assertEquals("Hi        ", l.toText())
+            assertEquals("Hi", l.toTextTrimmed())
+        }
+
+        @Test
+        fun `fully empty line returns spaces for toText and empty string for toTextTrimmed`() {
+            val l = line(5)
+            assertEquals("     ", l.toText())
+            assertEquals("", l.toTextTrimmed())
+        }
+
+        @Test
+        fun `wide char spacer is skipped in rendered output`() {
+            val l = line(4)
+            l.setCell(0, '你'.code, 0)
+            l.setCell(1, TerminalConstants.WIDE_CHAR_SPACER, 0)
+            l.setCell(2, 'X'.code, 0)
+            assertAll(
+                { assertEquals("你X ", l.toText()) },
+                { assertEquals("你X", l.toTextTrimmed()) }
+            )
+        }
+
+        @Test
+        fun `cluster cell emits all codepoints in sequence`() {
+            val l = line(5)
+            // Family emoji: man + ZWJ + woman
+            l.setCluster(0, intArrayOf(0x1F468, 0x200D, 0x1F469), 3, 0)
+            l.setCell(1, 'X'.code, 0)
+
+            val text = l.toTextTrimmed()
+            // Must contain the base codepoint and all combining codepoints
+            assertTrue(text.codePoints().toArray().contains(0x1F468), "Base must be present")
+            assertTrue(text.codePoints().toArray().contains(0x200D),  "ZWJ must be present")
+            assertTrue(text.codePoints().toArray().contains(0x1F469), "Second emoji must be present")
+            assertTrue(text.contains('X'),                             "'X' after cluster must be present")
+        }
+
+        @Test
+        fun `cluster at last column is not trimmed by toTextTrimmed`() {
+            val l = line(5)
+            l.setCluster(4, intArrayOf(0x1F600, 0x200D), 2, 0)
+
+            val trimmed = l.toTextTrimmed()
+            assertTrue(trimmed.codePoints().toArray().contains(0x1F600),
+                "Cluster at last column must not be trimmed")
         }
     }
 }

@@ -1,218 +1,276 @@
 package com.gagik.terminal.model
 
 import com.gagik.terminal.buffer.TerminalLineApi
-import com.gagik.terminal.util.Validations.requirePositive
+import com.gagik.terminal.store.ClusterStore
 
 /**
- * A single visual terminal line of fixed width.
+ * A mutable physical terminal line backed by two primitive arrays.
  *
- * Storage is "packed":
- * Each `i` in the range [0, width-1] corresponds to a cell on the line.
- * - codepoints`[i]` == TerminalConstants.EMPTY means empty cell (renders as space)
- * - attrs`[i]` is a packed Int produced by AttributeCodec
+ * ## Cell encoding
+ *
+ * Each column is represented by a pair of parallel `Int` values:
+ * - `codepoints[col]` — the raw storage value (see [TerminalConstants] for the full encoding)
+ * - `attrs[col]`      — the packed cell attribute (decoded via [com.gagik.terminal.codec.AttributeCodec])
  *
  * wrapped=true means this line is a soft continuation of the previous line
  * caused by wrapping at the terminal width.
  *
- * @param width The fixed width of the line in cells. Must be > 0.
- * @throws IllegalArgumentException if width is not greater than 0
+ * ## Ownership
+ *
+ * [store] is shared by all lines belonging to the same [com.gagik.terminal.buffer.HistoryRing].
+ * Lines must never be transferred to a ring that uses a different store without
+ * deep-copying their cluster payloads (see [com.gagik.terminal.engine.TerminalResizer]).
+ *
+ * ## Mutability
+ *
+ * All mutation methods are `internal` and called exclusively by
+ * [com.gagik.terminal.engine.GridWriter]. The [TerminalLineApi] surface exposed to
+ * the renderer is strictly read-only.
+ *
+ * @param width The number of columns in this line. Immutable after construction.
+ * @param store The [ClusterStore] that owns cluster payloads for this line's ring.
  */
 internal class Line(
-    override val width: Int
+    override val width: Int,
+    internal val store: ClusterStore
 ) : TerminalLineApi {
+
     init {
-        requirePositive(width, "width")
+        require(width > 0) { "Line width must be positive, got $width" }
     }
 
-    // The codepoints for each cell in the line.
-    private val codepoints: IntArray = IntArray(width) { TerminalConstants.EMPTY }
-    // The attributes for each cell in the line, packed into ints.
-    private val attrs: IntArray = IntArray(width)
-    // Whether this line is a soft-wrapped continuation of the previous line.
+
+    /** Raw storage array. May contain codepoints, EMPTY, WIDE_CHAR_SPACER, or cluster handles. */
+    private val codepoints = IntArray(width) { TerminalConstants.EMPTY }
+
+    /** Packed cell attributes, parallel to [codepoints]. */
+    private val attrs = IntArray(width)
+
+    /**
+     * True when this line's content continues on the next physical line.
+     * Set by [com.gagik.terminal.engine.GridWriter] during soft-wrap events.
+     */
     var wrapped: Boolean = false
 
+    // Internal raw accessors: used by GridWriter and TerminalResizer only
+
     /**
-     * Clears the line by resetting all codepoints to 0 and all attributes to defaultCellAttr.
-     * Also sets wrapped to false.
-     * @param defaultCellAttr The attribute to set for all cells after clearing.
+     * Returns the raw value stored at [col] without any decoding.
+     * May return a plain codepoint, [TerminalConstants.EMPTY],
+     * [TerminalConstants.WIDE_CHAR_SPACER], or a cluster handle (<= -2).
+     *
+     * @param col Column index.
      */
-    fun clear(defaultCellAttr: Int) {
-        codepoints.fill(TerminalConstants.EMPTY)
-        attrs.fill(defaultCellAttr)
-        wrapped = false
+    fun rawCodepoint(col: Int): Int = codepoints[col]
+
+    /**
+     * Writes [raw] and [attr] directly into [col] without allocating or freeing any
+     * cluster handle. Used by [com.gagik.terminal.engine.TerminalResizer] to transplant
+     * raw values (including live cluster handles) into a newly allocated line that
+     * shares the same [store].
+     *
+     * **Caller is responsible** for ensuring the handle is valid in [store].
+     *
+     * @param col Column index.
+     */
+    fun setRawCell(col: Int, raw: Int, attr: Int) {
+        codepoints[col] = raw
+        attrs[col]      = attr
+    }
+
+    // TerminalLineApi — public read-only surface
+
+    /**
+     * Returns the base (first) codepoint for the cell at [col].
+     *
+     * For cluster cells the leading codepoint of the grapheme sequence is returned,
+     * enabling simple renderers to draw one glyph without knowing about clusters.
+     *
+     * @param col Column index.
+     */
+    override fun getCodepoint(col: Int): Int {
+        val raw = codepoints[col]
+        return if (raw <= TerminalConstants.CLUSTER_HANDLE_MAX) store.baseCodepoint(raw) else raw
     }
 
     /**
-     * Sets the cell at the specified column to the given codepoint and attribute.
+     * Returns the packed attribute for the cell at [col].
      *
-     * @param col The column index of the cell to set
-     * @param codepoint The Unicode codepoint to set in the cell
-     * @param attr The packed attribute Int to set for the cell
-     *
-     * @throws IndexOutOfBoundsException if col is out of bounds
-     */
-    fun setCell(col: Int, codepoint: Int, attr: Int) {
-        codepoints[col] = codepoint
-        attrs[col] = attr
-    }
-
-    /**
-     * Gets the codepoint of the cell at the specified column.
-     *
-     * @param col The column index of the cell to query
-     * @return The Unicode codepoint at the specified column
-     *
-     * @throws IndexOutOfBoundsException if col is out of bounds
-     */
-    override fun getCodepoint(col: Int): Int = codepoints[col]
-
-
-    /**
-     * Gets the attribute of the cell at the specified column.
-     *
-     * @param col The column index of the cell to query
-     * @return The packed attribute Int at the specified column
-     *
-     * @throws IndexOutOfBoundsException if col is out of bounds
+     * @param col Column index.
      */
     override fun getPackedAttr(col: Int): Int = attrs[col]
 
     /**
-     * Clears cells from the specified column to the end of the line.
-     * @param startCol The starting column (inclusive)
-     * @param attr The attribute to fill cleared cells with
+     * Returns `true` if [col] holds a multi-codepoint grapheme cluster.
+     * Shape-aware renderers should call [readCluster] for such cells.
+     *
+     * @param col Column index.
+     */
+    override fun isCluster(col: Int): Boolean =
+        codepoints[col] <= TerminalConstants.CLUSTER_HANDLE_MAX
+
+    /**
+     * Copies the full codepoint sequence of the cluster at [col] into [dest].
+     * Returns the number of codepoints written, or 0 if the cell is not a cluster.
+     *
+     * Zero-allocation: no heap objects are created by this method.
+     *
+     * @param col  Column index.
+     * @param dest Destination array. Must have capacity >= actual cluster length.
+     */
+    override fun readCluster(col: Int, dest: IntArray): Int {
+        val raw = codepoints[col]
+        if (raw > TerminalConstants.CLUSTER_HANDLE_MAX) return 0
+        return store.readInto(raw, dest)
+    }
+
+    // Internal mutation — called exclusively by GridWriter
+
+    /**
+     * Writes a single codepoint into [col], freeing any cluster handle previously
+     * stored there. This is the standard write path for all non-cluster cells.
+     */
+    fun setCell(col: Int, codepoint: Int, attr: Int) {
+        freeHandleAt(col)
+        codepoints[col] = codepoint
+        attrs[col]      = attr
+    }
+
+    /**
+     * Writes a grapheme cluster into [col] by allocating a slot in [store] and
+     * storing the resulting handle. Any previous value (including another cluster
+     * handle) at [col] is freed first.
+     *
+     * @param col    Target column.
+     * @param cps    Source array of codepoints. Not retained after this call.
+     * @param cpLen  Number of valid codepoints in [cps].
+     * @param attr   Packed cell attribute.
+     */
+    fun setCluster(col: Int, cps: IntArray, cpLen: Int, attr: Int) {
+        freeHandleAt(col)
+        codepoints[col] = store.alloc(cps, 0, cpLen)
+        attrs[col]      = attr
+    }
+
+    /**
+     * Clears all cells to [defaultAttr] and frees every cluster handle in the line.
+     * Also resets the [wrapped] flag.
+     */
+    fun clear(defaultAttr: Int) {
+        store.freeRange(codepoints, 0, width)
+        codepoints.fill(TerminalConstants.EMPTY)
+        attrs.fill(defaultAttr)
+        wrapped = false
+    }
+
+    /**
+     * Clears cells from [startCol] (inclusive) to the end of the line,
+     * freeing any cluster handles in that range.
      */
     fun clearFromColumn(startCol: Int, attr: Int) {
-        val start = startCol.coerceAtLeast(0)
-        if (start >= width) return
-
-        // Native block zeroing
-        codepoints.fill(TerminalConstants.EMPTY, start, width)
-        attrs.fill(attr, start, width)
+        val from = startCol.coerceAtLeast(0)
+        if (from >= width) return
+        store.freeRange(codepoints, from, width)
+        codepoints.fill(TerminalConstants.EMPTY, from, width)
+        attrs.fill(attr, from, width)
     }
 
     /**
-     * Clears cells from the beginning of the line to the specified column.
-     * @param endCol The ending column (inclusive)
-     * @param attr The attribute to fill cleared cells with
+     * Clears cells from the start of the line through [endCol] (inclusive),
+     * freeing any cluster handles in that range.
      */
     fun clearToColumn(endCol: Int, attr: Int) {
-        val end = (endCol + 1).coerceAtMost(width)
-        if (end <= 0) return
-
-        // Native block zeroing
-        codepoints.fill(TerminalConstants.EMPTY, 0, end)
-        attrs.fill(attr, 0, end)
+        val to = (endCol + 1).coerceAtMost(width)
+        if (to <= 0) return
+        store.freeRange(codepoints, 0, to)
+        codepoints.fill(TerminalConstants.EMPTY, 0, to)
+        attrs.fill(attr, 0, to)
     }
 
     /**
-     * Copies the contents of another line into this line.
-     * Both lines must have the same width.
-     *
-     * @param other The line to copy from
-     * @throws IllegalArgumentException if widths don't match
+     * Inserts [count] blank cells at [col], shifting existing content to the right.
+     * Cells shifted off the right edge are freed (cluster handles are released).
+     * The wide-cluster leader at [col] must be annihilated by the caller before
+     * this method is invoked.
      */
-    fun copyFrom(other: Line) {
-        require(other.width == width) { "width mismatch: this=$width, other=${other.width}" }
-        System.arraycopy(other.codepoints, 0, codepoints, 0, width)
-        System.arraycopy(other.attrs, 0, attrs, 0, width)
-        this.wrapped = other.wrapped
+    fun insertCells(col: Int, count: Int, defaultAttr: Int) {
+        if (col !in 0 until width || count <= 0) return
+        val safeCount  = count.coerceAtMost(width - col)
+        val shiftCount = width - col - safeCount
+
+        // Free handles that will fall off the right edge.
+        store.freeRange(codepoints, width - safeCount, width)
+
+        if (shiftCount > 0) {
+            System.arraycopy(codepoints, col, codepoints, col + safeCount, shiftCount)
+            System.arraycopy(attrs,      col, attrs,      col + safeCount, shiftCount)
+        }
+        codepoints.fill(TerminalConstants.EMPTY, col, col + safeCount)
+        attrs.fill(defaultAttr, col, col + safeCount)
     }
 
     /**
-     * Fills the entire line with the specified character and attribute.
-     *
-     * @param codepoint Unicode codepoint to fill with (TerminalConstants.EMPTY for empty/space)
-     * @param attr The attribute to set for all cells
+     * Fills every cell with [codepoint] and [attr], freeing all cluster handles first.
+     * Used for bulk background-color fills (e.g. erase-display operations).
      */
     fun fill(codepoint: Int, attr: Int) {
+        store.freeRange(codepoints, 0, width)
         codepoints.fill(codepoint)
         attrs.fill(attr)
     }
 
+    // -------------------------------------------------------------------------
+    // Text rendering helpers — allocating, not for use in render loops
+    // -------------------------------------------------------------------------
 
     /**
-     * Converts the line content to a string.
-     * Empty cells (codepoint 0) are rendered as spaces.
-     * Trailing spaces are preserved.
-     *
-     * @return String representation of the line
+     * Renders the full line as a [String], including trailing spaces.
+     * Wide-char spacer cells are omitted (the leader already contributed its glyph).
+     * Intended for debugging and tests only.
      */
-    fun toText(): String {
-        val sb = StringBuilder(width)
-        for (cp in codepoints) {
-            if (cp == TerminalConstants.EMPTY) {
-                sb.append(' ')
-            } else if (cp == TerminalConstants.WIDE_CHAR_SPACER) {
-                // Spacer is a physical ghost cell and has no standalone glyph.
-                continue
-            } else {
-                sb.appendCodePoint(cp)
-            }
+    fun toText(): String = buildString(width) {
+        for (col in 0 until width) {
+            appendCell(col)
         }
-        return sb.toString()
     }
 
     /**
-     * Converts the line content to a string, trimming trailing empty cells (codepoint 0).
-     *
-     * @return String representation of the line with trailing empty cells removed
+     * Renders the line as a [String], trimming trailing blank cells.
+     * Intended for scrollback serialisation, debugging, and tests.
      */
     fun toTextTrimmed(): String {
-        var lastValidCol = width - 1
-
-        // Scan backwards to find the last non-empty cell
-        while (lastValidCol >= 0 && codepoints[lastValidCol] == TerminalConstants.EMPTY) {
-            lastValidCol--
+        var last = width - 1
+        while (last >= 0 && codepoints[last] == TerminalConstants.EMPTY) last--
+        if (last < 0) return ""
+        return buildString(last + 1) {
+            for (col in 0..last) appendCell(col)
         }
-
-        // If the line is completely empty, return instantly without allocating
-        if (lastValidCol < 0) return ""
-
-        val sb = StringBuilder(lastValidCol + 1)
-        for (col in 0..lastValidCol) {
-            val cp = codepoints[col]
-            if (cp == TerminalConstants.EMPTY) {
-                sb.append(' ')
-            } else if (cp == TerminalConstants.WIDE_CHAR_SPACER) {
-                // Spacer is consumed by the wide leader on the previous cell.
-                continue
-            } else {
-                sb.appendCodePoint(cp)
-            }
-        }
-        return sb.toString()
     }
 
+    // -------------------------------------------------------------------------
+    // Private helpers
+    // -------------------------------------------------------------------------
 
     /**
-     * Inserts [count] blank cells at [col], shifting the remaining cells to the right.
-     * Cells shifted beyond the line width are discarded.
-     * Uses native block memory operations for zero-allocation performance.
+     * Appends the glyph(s) at [col] to [this] [StringBuilder].
+     * Cluster cells emit all codepoints in sequence; spacer cells are skipped.
      */
-    fun insertCells(col: Int, count: Int, defaultAttr: Int) {
-        if (col !in 0..<width || count <= 0) return
-
-        // Use long for calculation to prevent overflow before clamping
-        val safeCount = count.coerceAtMost(width - col)
-        val shiftCount = width - col - safeCount
-
-        if (shiftCount > 0) {
-            // Native block shift to the right
-            System.arraycopy(codepoints, col, codepoints, col + safeCount, shiftCount)
-            System.arraycopy(attrs, col, attrs, col + safeCount, shiftCount)
+    private fun StringBuilder.appendCell(col: Int) {
+        val raw = codepoints[col]
+        when {
+            raw == TerminalConstants.EMPTY            -> append(' ')
+            raw == TerminalConstants.WIDE_CHAR_SPACER -> Unit // skip; leader already appended
+            raw <= TerminalConstants.CLUSTER_HANDLE_MAX -> {
+                val len = store.length(raw)
+                for (i in 0 until len) appendCodePoint(store.codepointAt(raw, i))
+            }
+            else -> appendCodePoint(raw)
         }
-
-        // Fill the newly opened space with blanks
-        val endFill = col + safeCount
-        codepoints.fill(TerminalConstants.EMPTY, col, endFill)
-        attrs.fill(defaultAttr, col, endFill)
     }
-}
 
-
-internal object VoidLine : TerminalLineApi {
-    override val width: Int = 0
-    override fun getCodepoint(col: Int): Int = TerminalConstants.EMPTY
-    override fun getPackedAttr(col: Int): Int = 0
+    /** Frees the cluster handle at [col] if present; no-op otherwise. */
+    private fun freeHandleAt(col: Int) {
+        val raw = codepoints[col]
+        if (raw <= TerminalConstants.CLUSTER_HANDLE_MAX) store.free(raw)
+    }
 }

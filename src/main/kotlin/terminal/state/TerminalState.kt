@@ -28,7 +28,7 @@ internal class TerminalState(
     val cursor = Cursor()
     val pen = Pen()
 
-    var ring = HistoryRing(maxHistory + initialHeight) { Line(initialWidth) }
+    var ring = HistoryRing(maxHistory + initialHeight) { Line(initialWidth, TODO()) }
 
     init {
         repeat(initialHeight) {

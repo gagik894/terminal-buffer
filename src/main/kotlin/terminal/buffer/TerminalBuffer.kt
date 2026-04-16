@@ -6,7 +6,6 @@ import com.gagik.terminal.engine.TerminalResizer
 import com.gagik.terminal.model.Attributes
 import com.gagik.terminal.model.Line
 import com.gagik.terminal.model.TerminalConstants
-import com.gagik.terminal.model.VoidLine
 import com.gagik.terminal.state.TerminalState
 import com.gagik.terminal.util.UnicodeWidth
 
@@ -129,7 +128,7 @@ internal class TerminalBuffer(
     // --- Rendering API (Zero Allocation - Critical Path) ---
 
     override fun getLine(row: Int): TerminalLineApi {
-        return getVisibleLine(row) ?: VoidLine
+        return getVisibleLine(row) ?: TODO()
     }
 
     override fun getCodepointAt(col: Int, row: Int): Int {

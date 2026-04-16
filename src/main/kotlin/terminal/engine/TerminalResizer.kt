@@ -9,7 +9,7 @@ internal object TerminalResizer {
     fun resize(state: TerminalState, newWidth: Int, newHeight: Int) {
         val oldWidth = state.dimensions.width
         val oldHeight = state.dimensions.height
-        val newRing = HistoryRing(state.maxHistory + newHeight) { Line(newWidth) }
+        val newRing = HistoryRing(state.maxHistory + newHeight) { Line(newWidth, TODO()) }
         val builder = LogicalLineBuilder(oldWidth * 10)
 
         // The cursor row expressed as an absolute index into the ring,
