@@ -2,7 +2,6 @@ package com.gagik.terminal.util
 
 /**
  * Shared validation utilities for terminal components.
- * Centralizes common validation logic to ensure DRY and consistency.
  */
 internal object Validations {
 

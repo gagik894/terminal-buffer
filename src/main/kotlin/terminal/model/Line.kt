@@ -1,6 +1,6 @@
 package com.gagik.terminal.model
 
-import com.gagik.terminal.util.Validations.isInBounds
+import com.gagik.terminal.buffer.TerminalLineApi
 import com.gagik.terminal.util.Validations.requirePositive
 
 /**
@@ -8,8 +8,8 @@ import com.gagik.terminal.util.Validations.requirePositive
  *
  * Storage is "packed":
  * Each `i` in the range [0, width-1] corresponds to a cell on the line.
- * - codepoints[i] == 0 means empty cell (renders as space)
- * - attrs[i] is a packed Int produced by AttributeCodec
+ * - codepoints`[i]` == TerminalConstants.EMPTY means empty cell (renders as space)
+ * - attrs`[i]` is a packed Int produced by AttributeCodec
  *
  * wrapped=true means this line is a soft continuation of the previous line
  * caused by wrapping at the terminal width.
@@ -18,16 +18,16 @@ import com.gagik.terminal.util.Validations.requirePositive
  * @throws IllegalArgumentException if width is not greater than 0
  */
 internal class Line(
-    val width: Int
-) {
+    override val width: Int
+) : TerminalLineApi {
     init {
         requirePositive(width, "width")
     }
 
-    // The codepoints for each cell in the line. 0 means empty cell.
-    val codepoints: IntArray = IntArray(width) { 0 }
+    // The codepoints for each cell in the line.
+    private val codepoints: IntArray = IntArray(width) { TerminalConstants.EMPTY }
     // The attributes for each cell in the line, packed into ints.
-    val attrs: IntArray = IntArray(width)
+    private val attrs: IntArray = IntArray(width)
     // Whether this line is a soft-wrapped continuation of the previous line.
     var wrapped: Boolean = false
 
@@ -37,37 +37,45 @@ internal class Line(
      * @param defaultCellAttr The attribute to set for all cells after clearing.
      */
     fun clear(defaultCellAttr: Int) {
-        codepoints.fill(0)
+        codepoints.fill(TerminalConstants.EMPTY)
         attrs.fill(defaultCellAttr)
         wrapped = false
     }
 
     /**
      * Sets the cell at the specified column to the given codepoint and attribute.
-     * If col is out of bounds, the method does nothing.
+     *
      * @param col The column index of the cell to set
      * @param codepoint The Unicode codepoint to set in the cell
      * @param attr The packed attribute Int to set for the cell
+     *
+     * @throws IndexOutOfBoundsException if col is out of bounds
      */
     fun setCell(col: Int, codepoint: Int, attr: Int) {
-        if (!isInBounds(col, width)) return
         codepoints[col] = codepoint
         attrs[col] = attr
     }
 
     /**
      * Gets the codepoint of the cell at the specified column.
+     *
      * @param col The column index of the cell to query
-     * @return The Unicode codepoint at the specified column, or null if col is out of bounds
+     * @return The Unicode codepoint at the specified column
+     *
+     * @throws IndexOutOfBoundsException if col is out of bounds
      */
-    fun getCodepoint(col: Int): Int? = if (isInBounds(col, width)) codepoints[col] else null
+    override fun getCodepoint(col: Int): Int = codepoints[col]
+
 
     /**
      * Gets the attribute of the cell at the specified column.
+     *
      * @param col The column index of the cell to query
-     * @return The packed attribute Int at the specified column, or null if col is out of bounds
+     * @return The packed attribute Int at the specified column
+     *
+     * @throws IndexOutOfBoundsException if col is out of bounds
      */
-    fun getAttr(col: Int): Int? = if (isInBounds(col, width)) attrs[col] else null
+    override fun getPackedAttr(col: Int): Int = attrs[col]
 
     /**
      * Clears cells from the specified column to the end of the line.
@@ -75,11 +83,12 @@ internal class Line(
      * @param attr The attribute to fill cleared cells with
      */
     fun clearFromColumn(startCol: Int, attr: Int) {
-        val start = startCol.coerceIn(0, width)
-        for (col in start until width) {
-            codepoints[col] = 0
-            attrs[col] = attr
-        }
+        val start = startCol.coerceAtLeast(0)
+        if (start >= width) return
+
+        // Native block zeroing
+        codepoints.fill(TerminalConstants.EMPTY, start, width)
+        attrs.fill(attr, start, width)
     }
 
     /**
@@ -88,11 +97,12 @@ internal class Line(
      * @param attr The attribute to fill cleared cells with
      */
     fun clearToColumn(endCol: Int, attr: Int) {
-        val end = (endCol + 1).coerceIn(0, width)
-        for (col in 0 until end) {
-            codepoints[col] = 0
-            attrs[col] = attr
-        }
+        val end = (endCol + 1).coerceAtMost(width)
+        if (end <= 0) return
+
+        // Native block zeroing
+        codepoints.fill(TerminalConstants.EMPTY, 0, end)
+        attrs.fill(attr, 0, end)
     }
 
     /**
@@ -112,13 +122,14 @@ internal class Line(
     /**
      * Fills the entire line with the specified character and attribute.
      *
-     * @param codepoint Unicode codepoint to fill with (0 for empty/space)
+     * @param codepoint Unicode codepoint to fill with (TerminalConstants.EMPTY for empty/space)
      * @param attr The attribute to set for all cells
      */
     fun fill(codepoint: Int, attr: Int) {
         codepoints.fill(codepoint)
         attrs.fill(attr)
     }
+
 
     /**
      * Converts the line content to a string.
@@ -130,8 +141,11 @@ internal class Line(
     fun toText(): String {
         val sb = StringBuilder(width)
         for (cp in codepoints) {
-            if (cp == 0) {
+            if (cp == TerminalConstants.EMPTY) {
                 sb.append(' ')
+            } else if (cp == TerminalConstants.WIDE_CHAR_SPACER) {
+                // Spacer is a physical ghost cell and has no standalone glyph.
+                continue
             } else {
                 sb.appendCodePoint(cp)
             }
@@ -140,9 +154,65 @@ internal class Line(
     }
 
     /**
-     * Converts the line content to a string, trimming trailing spaces.
+     * Converts the line content to a string, trimming trailing empty cells (codepoint 0).
      *
-     * @return String representation of the line with trailing spaces removed
+     * @return String representation of the line with trailing empty cells removed
      */
-    fun toTextTrimmed(): String = toText().trimEnd()
+    fun toTextTrimmed(): String {
+        var lastValidCol = width - 1
+
+        // Scan backwards to find the last non-empty cell
+        while (lastValidCol >= 0 && codepoints[lastValidCol] == TerminalConstants.EMPTY) {
+            lastValidCol--
+        }
+
+        // If the line is completely empty, return instantly without allocating
+        if (lastValidCol < 0) return ""
+
+        val sb = StringBuilder(lastValidCol + 1)
+        for (col in 0..lastValidCol) {
+            val cp = codepoints[col]
+            if (cp == TerminalConstants.EMPTY) {
+                sb.append(' ')
+            } else if (cp == TerminalConstants.WIDE_CHAR_SPACER) {
+                // Spacer is consumed by the wide leader on the previous cell.
+                continue
+            } else {
+                sb.appendCodePoint(cp)
+            }
+        }
+        return sb.toString()
+    }
+
+
+    /**
+     * Inserts [count] blank cells at [col], shifting the remaining cells to the right.
+     * Cells shifted beyond the line width are discarded.
+     * Uses native block memory operations for zero-allocation performance.
+     */
+    fun insertCells(col: Int, count: Int, defaultAttr: Int) {
+        if (col !in 0..<width || count <= 0) return
+
+        // Use long for calculation to prevent overflow before clamping
+        val safeCount = count.coerceAtMost(width - col)
+        val shiftCount = width - col - safeCount
+
+        if (shiftCount > 0) {
+            // Native block shift to the right
+            System.arraycopy(codepoints, col, codepoints, col + safeCount, shiftCount)
+            System.arraycopy(attrs, col, attrs, col + safeCount, shiftCount)
+        }
+
+        // Fill the newly opened space with blanks
+        val endFill = col + safeCount
+        codepoints.fill(TerminalConstants.EMPTY, col, endFill)
+        attrs.fill(defaultAttr, col, endFill)
+    }
+}
+
+
+internal object VoidLine : TerminalLineApi {
+    override val width: Int = 0
+    override fun getCodepoint(col: Int): Int = TerminalConstants.EMPTY
+    override fun getPackedAttr(col: Int): Int = 0
 }

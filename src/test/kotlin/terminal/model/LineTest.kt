@@ -24,8 +24,6 @@ class LineTest {
 
             assertAll(
                 { assertEquals(width, line.width, "Width mismatch") },
-                { assertEquals(width, line.codepoints.size, "Codepoints array size mismatch") },
-                { assertEquals(width, line.attrs.size, "Attributes array size mismatch") },
                 { assertFalse(line.wrapped, "New line should not be wrapped") }
             )
         }
@@ -36,8 +34,8 @@ class LineTest {
             val line = Line(5)
             // Verify all cells start as 0
             for (i in 0 until 5) {
-                assertEquals(0, line.codepoints[i], "Codepoint at $i should be 0")
-                assertEquals(0, line.attrs[i], "Attribute at $i should be 0")
+                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(i), "Codepoint at $i should be EMPTY")
+                assertEquals(0, line.getPackedAttr(i), "Attribute at $i should be 0")
             }
         }
 
@@ -70,25 +68,18 @@ class LineTest {
 
             assertAll(
                 { assertEquals(testCodepoint, line.getCodepoint(index), "Codepoint mismatch") },
-                { assertEquals(testAttr, line.getAttr(index), "Attribute mismatch") }
+                { assertEquals(testAttr, line.getPackedAttr(index), "Attribute mismatch") }
             )
         }
 
-        @ParameterizedTest(name = "Ignore out-of-bounds index {0} (Width 10)")
+        @ParameterizedTest(name = "Fail fast on out-of-bounds index {0} (Width 10)")
         @ValueSource(ints = [-1, -50, 10, 11, 100])
         fun testOutOfBoundsAccess(invalidIndex: Int) {
             val line = Line(10)
 
-            // Ensure setting doesn't throw or change state
-            assertDoesNotThrow {
-                line.setCell(invalidIndex, 65, 123)
-            }
-
-            // Ensure getting returns null
-            assertAll(
-                { assertNull(line.getCodepoint(invalidIndex), "Should return null for invalid codepoint index") },
-                { assertNull(line.getAttr(invalidIndex), "Should return null for invalid attr index") }
-            )
+            assertThrows<IndexOutOfBoundsException> { line.setCell(invalidIndex, 65, 123) }
+            assertThrows<IndexOutOfBoundsException> { line.getCodepoint(invalidIndex) }
+            assertThrows<IndexOutOfBoundsException> { line.getPackedAttr(invalidIndex) }
         }
     }
 
@@ -114,8 +105,8 @@ class LineTest {
             assertAll(
                 "Verify line was fully reset",
                 { assertFalse(line.wrapped, "Wrapped flag should be reset to false") },
-                { assertEquals(0, line.getCodepoint(0), "Codepoints should be reset to 0") },
-                { assertEquals(defaultAttr, line.getAttr(0), "Attrs should be reset to default ($defaultAttr)") }
+                { assertEquals(TerminalConstants.EMPTY, line.getCodepoint(0), "Codepoints should be reset to EMPTY") },
+                { assertEquals(defaultAttr, line.getPackedAttr(0), "Attrs should be reset to default ($defaultAttr)") }
             )
         }
     }
@@ -135,9 +126,9 @@ class LineTest {
             dest.copyFrom(source)
 
             assertEquals('A'.code, dest.getCodepoint(0))
-            assertEquals(1, dest.getAttr(0))
+            assertEquals(1, dest.getPackedAttr(0))
             assertEquals('B'.code, dest.getCodepoint(5))
-            assertEquals(2, dest.getAttr(5))
+            assertEquals(2, dest.getPackedAttr(5))
             assertTrue(dest.wrapped)
         }
 
@@ -161,7 +152,7 @@ class LineTest {
             dest.copyFrom(source)
 
             assertEquals('X'.code, dest.getCodepoint(0))
-            assertEquals(99, dest.getAttr(0))
+            assertEquals(99, dest.getPackedAttr(0))
         }
     }
 
@@ -181,12 +172,12 @@ class LineTest {
             // Columns 0-4 should be unchanged
             for (col in 0 until 5) {
                 assertEquals('A'.code + col, line.getCodepoint(col))
-                assertEquals(col, line.getAttr(col))
+                assertEquals(col, line.getPackedAttr(col))
             }
             // Columns 5-9 should be cleared
             for (col in 5 until 10) {
-                assertEquals(0, line.getCodepoint(col))
-                assertEquals(99, line.getAttr(col))
+                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(col))
+                assertEquals(99, line.getPackedAttr(col))
             }
         }
 
@@ -200,8 +191,8 @@ class LineTest {
             line.clearFromColumn(0, 42)
 
             for (col in 0 until 5) {
-                assertEquals(0, line.getCodepoint(col))
-                assertEquals(42, line.getAttr(col))
+                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(col))
+                assertEquals(42, line.getPackedAttr(col))
             }
         }
 
@@ -215,8 +206,8 @@ class LineTest {
             line.clearFromColumn(-5, 42)
 
             for (col in 0 until 5) {
-                assertEquals(0, line.getCodepoint(col))
-                assertEquals(42, line.getAttr(col))
+                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(col))
+                assertEquals(42, line.getPackedAttr(col))
             }
         }
 
@@ -231,7 +222,7 @@ class LineTest {
 
             for (col in 0 until 5) {
                 assertEquals('X'.code, line.getCodepoint(col))
-                assertEquals(col, line.getAttr(col))
+                assertEquals(col, line.getPackedAttr(col))
             }
         }
     }
@@ -251,13 +242,13 @@ class LineTest {
 
             // Columns 0-4 should be cleared
             for (col in 0..4) {
-                assertEquals(0, line.getCodepoint(col))
-                assertEquals(99, line.getAttr(col))
+                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(col))
+                assertEquals(99, line.getPackedAttr(col))
             }
             // Columns 5-9 should be unchanged
             for (col in 5 until 10) {
                 assertEquals('A'.code + col, line.getCodepoint(col))
-                assertEquals(col, line.getAttr(col))
+                assertEquals(col, line.getPackedAttr(col))
             }
         }
 
@@ -271,8 +262,8 @@ class LineTest {
             line.clearToColumn(4, 42)
 
             for (col in 0 until 5) {
-                assertEquals(0, line.getCodepoint(col))
-                assertEquals(42, line.getAttr(col))
+                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(col))
+                assertEquals(42, line.getPackedAttr(col))
             }
         }
 
@@ -287,7 +278,7 @@ class LineTest {
 
             for (col in 0 until 5) {
                 assertEquals('X'.code, line.getCodepoint(col))
-                assertEquals(col, line.getAttr(col))
+                assertEquals(col, line.getPackedAttr(col))
             }
         }
 
@@ -301,8 +292,8 @@ class LineTest {
             line.clearToColumn(100, 42)
 
             for (col in 0 until 5) {
-                assertEquals(0, line.getCodepoint(col))
-                assertEquals(42, line.getAttr(col))
+                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(col))
+                assertEquals(42, line.getPackedAttr(col))
             }
         }
     }
@@ -318,7 +309,7 @@ class LineTest {
 
             for (col in 0 until 5) {
                 assertEquals('-'.code, line.getCodepoint(col))
-                assertEquals(99, line.getAttr(col))
+                assertEquals(99, line.getPackedAttr(col))
             }
         }
 
@@ -329,11 +320,11 @@ class LineTest {
                 line.setCell(col, 'A'.code + col, col)
             }
 
-            line.fill(0, 42)
+            line.fill(TerminalConstants.EMPTY, 42)
 
             for (col in 0 until 5) {
-                assertEquals(0, line.getCodepoint(col))
-                assertEquals(42, line.getAttr(col))
+                assertEquals(TerminalConstants.EMPTY, line.getCodepoint(col))
+                assertEquals(42, line.getPackedAttr(col))
             }
         }
 
@@ -348,7 +339,7 @@ class LineTest {
 
             for (col in 0 until 5) {
                 assertEquals('Y'.code, line.getCodepoint(col))
-                assertEquals(100, line.getAttr(col))
+                assertEquals(100, line.getPackedAttr(col))
             }
         }
     }
@@ -395,6 +386,69 @@ class LineTest {
             val line = Line(5)
             assertEquals("     ", line.toText())
             assertEquals("", line.toTextTrimmed())
+        }
+
+        @Test
+        fun `wide spacer is not rendered as standalone glyph`() {
+            val line = Line(4)
+            line.setCell(0, '你'.code, 0)
+            line.setCell(1, TerminalConstants.WIDE_CHAR_SPACER, 0)
+            line.setCell(2, 'X'.code, 0)
+
+            assertAll(
+                { assertEquals(TerminalConstants.WIDE_CHAR_SPACER, line.getCodepoint(1)) },
+                { assertEquals("你X ", line.toText()) },
+                { assertEquals("你X", line.toTextTrimmed()) }
+            )
+        }
+
+        @Test
+        fun `orphan wide spacer is skipped and not treated as visible trailing content`() {
+            val line = Line(4)
+            line.setCell(0, 'A'.code, 0)
+            line.setCell(1, '你'.code, 0)
+            line.setCell(2, TerminalConstants.WIDE_CHAR_SPACER, 0)
+
+            assertAll(
+                { assertEquals(TerminalConstants.WIDE_CHAR_SPACER, line.getCodepoint(2)) },
+                { assertEquals("A你 ", line.toText()) },
+                { assertEquals("A你", line.toTextTrimmed()) }
+            )
+        }
+    }
+
+    @Nested
+    @DisplayName("insertCells()")
+    inner class InsertCellsTests {
+
+        @Test
+        fun `inserts blanks and shifts content right`() {
+            val line = Line(5)
+            line.setCell(0, 'A'.code, 1)
+            line.setCell(1, 'B'.code, 2)
+            line.setCell(2, 'C'.code, 3)
+
+            line.insertCells(col = 1, count = 2, defaultAttr = 99)
+
+            assertEquals('A'.code, line.getCodepoint(0))
+            assertEquals(TerminalConstants.EMPTY, line.getCodepoint(1))
+            assertEquals(TerminalConstants.EMPTY, line.getCodepoint(2))
+            assertEquals('B'.code, line.getCodepoint(3))
+            assertEquals('C'.code, line.getCodepoint(4))
+            assertEquals(99, line.getPackedAttr(1))
+            assertEquals(99, line.getPackedAttr(2))
+        }
+
+        @Test
+        fun `insertCells no-ops for invalid column or non-positive count`() {
+            val line = Line(3)
+            line.setCell(0, 'X'.code, 7)
+
+            line.insertCells(col = -1, count = 1, defaultAttr = 9)
+            line.insertCells(col = 1, count = 0, defaultAttr = 9)
+
+            assertEquals('X'.code, line.getCodepoint(0))
+            assertEquals(7, line.getPackedAttr(0))
         }
     }
 }
