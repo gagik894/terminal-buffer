@@ -600,5 +600,49 @@ class GridWriterTest {
                 { assertLineCodepoints(state, 1, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) }
             )
         }
+
+        @Test
+        fun `newLine at scroll region bottom scrolls only the region`() {
+            val state = createState(width = 3, height = 3, history = 4)
+            val writer = GridWriter(state)
+            seedLine(state, 0, "AAA")
+            seedLine(state, 1, "BBB")
+            seedLine(state, 2, "CCC")
+            state.setScrollRegion(top = 2, bottom = 3)
+            state.cursor.row = 2
+            state.cursor.col = 1
+
+            writer.newLine()
+
+            assertAll(
+                { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
+                { assertLineCodepoints(state, 1, intArrayOf('C'.code, 'C'.code, 'C'.code)) },
+                { assertLineCodepoints(state, 2, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
+                { assertEquals(1, state.cursor.col) },
+                { assertEquals(2, state.cursor.row) }
+            )
+        }
+
+        @Test
+        fun `reverseLineFeed at scroll region top scrolls only the region`() {
+            val state = createState(width = 3, height = 3, history = 4)
+            val writer = GridWriter(state)
+            seedLine(state, 0, "AAA")
+            seedLine(state, 1, "BBB")
+            seedLine(state, 2, "CCC")
+            state.setScrollRegion(top = 2, bottom = 3)
+            state.cursor.row = 1
+            state.cursor.col = 1
+
+            writer.reverseLineFeed()
+
+            assertAll(
+                { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
+                { assertLineCodepoints(state, 1, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
+                { assertLineCodepoints(state, 2, intArrayOf('B'.code, 'B'.code, 'B'.code)) },
+                { assertEquals(1, state.cursor.col) },
+                { assertEquals(1, state.cursor.row) }
+            )
+        }
     }
 }

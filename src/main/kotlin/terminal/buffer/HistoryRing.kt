@@ -69,4 +69,15 @@ internal class HistoryRing(
         head = 0
         size = 0
     }
+
+    /**
+     * Directly sets the line at physical ring index [ringIndex].
+     * Used exclusively by [com.gagik.terminal.engine.GridWriter] for in-place region rotation.
+     * [ringIndex] must be a valid absolute index into the backing array —
+     * use [com.gagik.terminal.state.TerminalState.resolveRingIndex] to obtain it.
+     */
+    internal fun setDirect(ringIndex: Int, line: Line) {
+        val physical = (head + ringIndex) % capacity
+        data[physical] = line
+    }
 }

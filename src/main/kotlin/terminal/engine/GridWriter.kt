@@ -36,6 +36,45 @@ internal class GridWriter(
         state.ring.push().clear(state.pen.currentAttr)
     }
 
+    fun scrollRegionUp() {
+        val top = state.scrollTop
+        val bottom = state.scrollBottom
+
+        if (state.isFullViewportScroll) {
+            state.ring.push().clear(state.pen.currentAttr)
+        } else {
+            val ringBase = (state.ring.size - height).coerceAtLeast(0)
+            val topLine = state.ring[ringBase + top]
+
+            topLine.clear(state.pen.currentAttr)
+            rotateLinesUp(ringBase + top, ringBase + bottom, topLine)
+        }
+    }
+
+    fun scrollRegionDown() {
+        val top = state.scrollTop
+        val bottom = state.scrollBottom
+        val ringBase = (state.ring.size - height).coerceAtLeast(0)
+
+        val bottomLine = state.ring[ringBase + bottom]
+        bottomLine.clear(state.pen.currentAttr)
+        rotateLinesDown(ringBase + top, ringBase + bottom, bottomLine)
+    }
+
+    private fun rotateLinesUp(fromRingIdx: Int, toRingIdx: Int, evicted: Line) {
+        for (i in fromRingIdx until toRingIdx) {
+            state.ring.setDirect(i, state.ring[i + 1])
+        }
+        state.ring.setDirect(toRingIdx, evicted)
+    }
+
+    private fun rotateLinesDown(fromRingIdx: Int, toRingIdx: Int, evicted: Line) {
+        for (i in toRingIdx downTo fromRingIdx + 1) {
+            state.ring.setDirect(i, state.ring[i - 1])
+        }
+        state.ring.setDirect(fromRingIdx, evicted)
+    }
+
     /**
      * Returns the canonical owner cell for the cluster that covers [col].
      * For now, clusters are either 1-cell codepoints or 2-cell wide leaders + spacer.
@@ -95,7 +134,7 @@ internal class GridWriter(
      * standard-wrap, and scroll — then commits the new cursor position.
      *
      * @param charWidth  Visual cell width (1 or 2).
-     * @param writeCell  Lambda that writes the leader cell at column [col] on [line].
+     * @param writeCell  Lambda that writes the leader cell at column col on line.
      *                   Called exactly once, after annihilation and edge-wrap are resolved.
      */
     private inline fun writeToGrid(charWidth: Int, writeCell: (line: Line, col: Int) -> Unit) {
@@ -111,7 +150,7 @@ internal class GridWriter(
             annihilateAt(cRow, cCol)
             cCol = 0
             cRow++
-            if (cRow >= height) { scrollUp(); cRow = height - 1 }
+            if (cRow > state.scrollBottom) { scrollRegionUp(); cRow = state.scrollBottom }
             line = getLine(cRow)
         }
 
@@ -134,7 +173,7 @@ internal class GridWriter(
             line.wrapped = true
             cCol = 0
             cRow++
-            if (cRow >= height) { scrollUp(); cRow = height - 1 }
+            if (cRow > state.scrollBottom) { scrollRegionUp(); cRow = state.scrollBottom }
         }
 
         state.cursor.col = cCol
@@ -178,13 +217,16 @@ internal class GridWriter(
         val cRow = state.cursor.row
         if (charWidth != 2 && cRow in 0 until height && cCol in 0 until width) {
             val line = getLine(cRow)
-            if (line.getCodepoint(cCol) == TerminalConstants.EMPTY) {
+            if (line.rawCodepoint(cCol) == TerminalConstants.EMPTY) {
                 line.setCell(cCol, codepoint, attr)
                 if (cCol == width - 1) {
                     line.wrapped = true
                     state.cursor.col = 0
                     state.cursor.row = cRow + 1
-                    if (state.cursor.row >= height) { scrollUp(); state.cursor.row = height - 1 }
+                    if (state.cursor.row > state.scrollBottom) {
+                        scrollRegionUp()
+                        state.cursor.row = state.scrollBottom
+                    }
                 } else {
                     state.cursor.col = cCol + 1
                 }
@@ -297,10 +339,21 @@ internal class GridWriter(
      * the viewport scrolls up by one row.
      */
     fun newLine() {
-        state.cursor.row++
-        if (state.cursor.row >= state.dimensions.height) {
-            state.cursor.row = state.dimensions.height - 1
-            scrollUp()
+        val cRow = state.cursor.row
+        if (cRow == state.scrollBottom) {
+            scrollRegionUp()
+        } else {
+            state.cursor.row = (cRow + 1).coerceAtMost(height - 1)
+        }
+    }
+
+    @Suppress("unused")
+    fun reverseLineFeed() {
+        val cRow = state.cursor.row
+        if (cRow == state.scrollTop) {
+            scrollRegionDown()
+        } else {
+            state.cursor.row = (cRow - 1).coerceAtLeast(0)
         }
     }
 }
