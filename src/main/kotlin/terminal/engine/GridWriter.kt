@@ -98,7 +98,7 @@ internal class GridWriter(
      * @param writeCell  Lambda that writes the leader cell at column [col] on [line].
      *                   Called exactly once, after annihilation and edge-wrap are resolved.
      */
-    private inline fun writeToGrid(charWidth: Int, crossinline writeCell: (line: Line, col: Int) -> Unit) {
+    private inline fun writeToGrid(charWidth: Int, writeCell: (line: Line, col: Int) -> Unit) {
         var cCol = state.cursor.col
         var cRow = state.cursor.row
         val widthInCells = if (charWidth == 2) 2 else 1
@@ -292,8 +292,9 @@ internal class GridWriter(
         }
     }
 
-    /*
-    * Advances the cursor to the next line. If the cursor is on the last line, the viewport scrolls up by one line.
+    /**
+     * Advances the cursor to the next line. If the cursor is on the last line,
+     * the viewport scrolls up by one row.
      */
     fun newLine() {
         state.cursor.row++

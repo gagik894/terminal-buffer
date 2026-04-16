@@ -274,3 +274,16 @@ internal class Line(
         if (raw <= TerminalConstants.CLUSTER_HANDLE_MAX) store.free(raw)
     }
 }
+
+
+/**
+ * A read-only, zero-allocation sentinel returned by [com.gagik.terminal.buffer.TerminalBufferApi.getLine]
+ * when the requested row is out of bounds. Avoids null checks in the renderer.
+ */
+internal object VoidLine : TerminalLineApi {
+    override val width: Int = 0
+    override fun getCodepoint(col: Int): Int = TerminalConstants.EMPTY
+    override fun getPackedAttr(col: Int): Int = 0
+    override fun isCluster(col: Int): Boolean = false
+    override fun readCluster(col: Int, dest: IntArray): Int = 0
+}

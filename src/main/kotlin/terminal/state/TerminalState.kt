@@ -28,8 +28,10 @@ internal class TerminalState(
     val dimensions = GridDimensions(initialWidth, initialHeight)
     val cursor = Cursor()
     val pen = Pen()
-    var clusterStore: ClusterStore = ClusterStore()
 
+    // NOTE: clusterStore must be declared before ring because ring's factory
+    // lambda captures clusterStore by reference during array initialization.
+    var clusterStore: ClusterStore = ClusterStore()
     /**
      * Circular buffer of physical terminal lines, covering both scrollback history
      * and the live viewport.
