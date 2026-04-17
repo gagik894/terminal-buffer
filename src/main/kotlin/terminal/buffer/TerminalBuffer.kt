@@ -107,6 +107,8 @@ internal class TerminalBuffer(
 
     override fun newLine() = mutationEngine.newLine()
 
+    override fun reverseLineFeed() = mutationEngine.reverseLineFeed()
+
     override fun carriageReturn() {
         state.cursor.col = 0
     }

@@ -153,6 +153,15 @@ interface TerminalBufferApi {
     fun newLine()
 
     /**
+     * Executes Reverse Index (RI, ESC M).
+     *
+     * Moves the cursor up by one row while preserving the current column. If the
+     * cursor is already at the top margin of the active scroll region, that region
+     * scrolls down by one row and the cursor remains on the top margin.
+     */
+    fun reverseLineFeed()
+
+    /**
      * Executes a carriage return.
      *
      * Moves the cursor to column 0 on the current row.

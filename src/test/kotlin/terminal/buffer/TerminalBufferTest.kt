@@ -330,6 +330,75 @@ class TerminalBufferTest {
 		}
 
 		@Test
+		fun `reverse line feed moves cursor up without changing column when not at top margin`() {
+			val buffer = newBuffer(width = 4, height = 3)
+			buffer.writeText("ABCD")
+			buffer.setCursor(2, 2)
+
+			buffer.reverseLineFeed()
+
+			assertAll(
+				{ assertCursor(buffer, 2, 1) },
+				{ assertEquals("ABCD", buffer.getLineAsString(0)) }
+			)
+		}
+
+		@Test
+		fun `reverse line feed at top margin scrolls down and preserves history size`() {
+			val buffer = newBuffer(width = 3, height = 3, maxHistory = 4)
+			buffer.setCursor(0, 0); buffer.writeText("A0")
+			buffer.setCursor(0, 1); buffer.writeText("B1")
+			buffer.setCursor(0, 2); buffer.writeText("C2")
+			buffer.setCursor(1, 0)
+			val beforeHistory = buffer.historySize
+
+			buffer.reverseLineFeed()
+
+			assertAll(
+				{ assertEquals(beforeHistory, buffer.historySize) },
+				{ assertEquals("", buffer.getLineAsString(0)) },
+				{ assertEquals("A0", buffer.getLineAsString(1)) },
+				{ assertEquals("B1", buffer.getLineAsString(2)) },
+				{ assertCursor(buffer, 1, 0) }
+			)
+		}
+
+		@Test
+		fun `reverse line feed respects custom scroll region and leaves outside rows untouched`() {
+			val buffer = newBuffer(width = 3, height = 4, maxHistory = 2)
+			buffer.setCursor(0, 0); buffer.writeText("T0")
+			buffer.setCursor(0, 1); buffer.writeText("A1")
+			buffer.setCursor(0, 2); buffer.writeText("B2")
+			buffer.setCursor(0, 3); buffer.writeText("Z3")
+			buffer.setScrollRegion(2, 3) // rows [1..2]
+			buffer.setCursor(1, 1)
+
+			buffer.reverseLineFeed()
+
+			assertAll(
+				{ assertEquals("T0", buffer.getLineAsString(0)) },
+				{ assertEquals("", buffer.getLineAsString(1)) },
+				{ assertEquals("A1", buffer.getLineAsString(2)) },
+				{ assertEquals("Z3", buffer.getLineAsString(3)) },
+				{ assertCursor(buffer, 1, 1) }
+			)
+		}
+
+		@Test
+		fun `reverse line feed is exposed on TerminalBufferApi`() {
+			val buffer = newApiBuffer(width = 3, height = 2, maxHistory = 2)
+			buffer.writeText("AB")
+			buffer.setCursor(1, 1)
+
+			buffer.reverseLineFeed()
+
+			assertAll(
+				{ assertEquals(1, buffer.cursorCol) },
+				{ assertEquals(0, buffer.cursorRow) }
+			)
+		}
+
+		@Test
 		fun `line feed scrolls when invoked on the bottom row`() {
 			val buffer = newBuffer(width = 2, height = 2, maxHistory = 4)
 
