@@ -108,8 +108,11 @@ internal class TerminalBuffer(
 
     // --- Viewport API ---
 
-    override fun scrollUp() = mutationEngine.scrollUp()
+    override fun setScrollRegion(top: Int, bottom: Int) = state.setScrollRegion(top, bottom)
+    override fun resetScrollRegion() = state.resetScrollRegion()
 
+    override fun scrollUp() = mutationEngine.scrollUp()
+    override fun scrollDown() = mutationEngine.scrollDown()
 
     override fun clearScreen() {
         mutationEngine.clearViewport()

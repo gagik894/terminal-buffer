@@ -124,6 +124,27 @@ interface TerminalBufferApi {
     // --- Viewport API ---
 
     /**
+     * Sets the scroll region to a specific range of lines.
+     * Lines outside the range are hidden.
+     * Scrolling operations will only affect lines within the region.
+     *
+     * @param top The index of the first line in the scroll region (0-based)
+     * @param bottom The index of the last line in the scroll region (0-based)
+     */
+    fun setScrollRegion(top: Int, bottom: Int)
+
+    /**
+     * Resets the scroll region to the entire buffer.
+     */
+    fun resetScrollRegion()
+
+    /**
+     * Pops the top line from the scrollback history and moves it to the bottom.
+     * The cursor position is preserved.
+     */
+    fun scrollDown()
+
+    /**
      * Pushes a new blank line to the bottom of the buffer using the current pen attributes.
      * Existing lines are shifted up, and the top visible line is moved into history.
      * The cursor position is preserved.
