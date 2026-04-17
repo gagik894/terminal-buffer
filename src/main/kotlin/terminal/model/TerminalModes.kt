@@ -14,10 +14,10 @@ internal class TerminalModes {
     var isInsertMode: Boolean = false
 
     /** Mode 7 — Auto-Wrap Mode (DECAWM). True = wrap at right margin (default). */
-    var isAutoWrap: Boolean = true
+    var isAutoWrap: Boolean = true // TODO: Implement
 
     /** Mode 1 — Application Cursor Keys (DECCKM). False = normal cursor keys (default). */
-    var isApplicationCursorKeys: Boolean = false
+    var isApplicationCursorKeys: Boolean = false // TODO: Implement
 
     /**
      * Whether ambiguous-width Unicode characters are treated as wide (2-cell).
