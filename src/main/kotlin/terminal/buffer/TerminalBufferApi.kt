@@ -3,14 +3,17 @@ package com.gagik.terminal.buffer
 import com.gagik.terminal.model.Attributes
 
 /**
- * Public API for the terminal buffer.
+ * Public contract for the terminal buffer.
  *
  * Exposes cursor movement, writing, viewport mutation, rendering, and debugging
  * operations over a terminal grid with optional scrollback history.
+ *
+ * All row and column indices are **0-based** unless a method explicitly states
+ * otherwise (e.g. [setScrollRegion] follows the 1-based DECSTBM convention).
  */
 interface TerminalBufferApi {
 
-    // --- Properties ---
+    // ── Properties ────────────────────────────────────────────────────────────
 
     /** Width of the visible terminal grid, in cells. */
     val width: Int
@@ -18,26 +21,26 @@ interface TerminalBufferApi {
     /** Height of the visible terminal grid, in rows. */
     val height: Int
 
-    /** Current cursor column, 0-based. */
+    /** Current cursor column (0-based). */
     val cursorCol: Int
 
-    /** Current cursor row, 0-based. */
+    /** Current cursor row (0-based). */
     val cursorRow: Int
 
     /** Number of lines currently retained in scrollback history. */
     val historySize: Int
 
-    // --- Styling API ---
+    // ── Pen / Styling ─────────────────────────────────────────────────────────
 
     /**
-     * Sets the active pen attributes used by subsequent write and clear operations.
+     * Sets the active pen attributes used by all subsequent write and erase operations.
      *
-     * Out-of-range color indices are clamped.
+     * Out-of-range colour indices are clamped to the nearest valid value.
      *
-     * @param fg Foreground color index.
-     * @param bg Background color index.
-     * @param bold `true` to enable bold text.
-     * @param italic `true` to enable italic text.
+     * @param fg Foreground colour index (0 = default).
+     * @param bg Background colour index (0 = default).
+     * @param bold `true` to enable bold weight.
+     * @param italic `true` to enable italic style.
      * @param underline `true` to enable underline.
      */
     fun setPenAttributes(
@@ -48,290 +51,448 @@ interface TerminalBufferApi {
         underline: Boolean = false
     )
 
-    /** Resets the active pen to the terminal default attributes. */
+    /**
+     * Resets the active pen to the terminal default attributes.
+     *
+     * Equivalent to `SGR 0` (`CSI 0 m`).
+     */
     fun resetPen()
 
-    // --- Cursor API ---
+    // ── Cursor movement ───────────────────────────────────────────────────────
 
     /**
-     * Moves the cursor to an absolute position, clamped to visible bounds.
+     * Saves the current cursor position and pen attributes (DECSC, `ESC 7`).
      *
-     * @param col Target column, 0-based.
-     * @param row Target row, 0-based.
+     * Only one save slot exists per screen. Calling this again overwrites the
+     * previous save. The saved state can be restored with [restoreCursor].
+     */
+    fun saveCursor()
+
+    /**
+     * Restores the cursor position and pen attributes previously saved by
+     * [saveCursor] (DECRC, `ESC 8`).
+     *
+     * If no cursor has been saved, homes the cursor to `(0, 0)` and resets the
+     * pen to the default attribute — matching xterm behaviour. The restored
+     * position is clamped to the current grid bounds in case the terminal was
+     * resized since the save.
+     */
+    fun restoreCursor()
+
+    /**
+     * Moves the cursor to an absolute position (CUP, `CSI row ; col H`).
+     *
+     * Both axes are clamped to the visible grid bounds.
+     *
+     * @param col Target column (0-based).
+     * @param row Target row (0-based).
      */
     fun setCursor(col: Int, row: Int)
 
     /**
-     * Moves the cursor relatively, clamped to visible bounds.
+     * Moves the cursor by a relative offset.
      *
-     * @param dx Horizontal delta; negative values move left.
-     * @param dy Vertical delta; negative values move up.
+     * Both axes are clamped to the visible grid bounds. Negative deltas move
+     * left or up; positive deltas move right or down.
+     *
+     * @param dx Horizontal delta in cells.
+     * @param dy Vertical delta in rows.
      */
     fun moveCursor(dx: Int, dy: Int)
 
     /**
-     * Moves the cursor up by [n] rows, clamped to the top edge.
+     * Moves the cursor up by [n] rows, clamped to the top edge (CUU, `CSI n A`).
      *
-     * Negative values reverse direction instead of throwing.
-     *
-     * @param n Number of rows to move.
+     * @param n Number of rows. Negative values move down instead.
      */
     fun cursorUp(n: Int = 1)
 
     /**
-     * Moves the cursor down by [n] rows, clamped to the bottom edge.
+     * Moves the cursor down by [n] rows, clamped to the bottom edge (CUD, `CSI n B`).
      *
-     * Negative values reverse direction instead of throwing.
-     *
-     * @param n Number of rows to move.
+     * @param n Number of rows. Negative values move up instead.
      */
     fun cursorDown(n: Int = 1)
 
     /**
-     * Moves the cursor left by [n] columns, clamped to the left edge.
+     * Moves the cursor left by [n] columns, clamped to the left edge (CUB, `CSI n D`).
      *
-     * Negative values reverse direction instead of throwing.
-     *
-     * @param n Number of columns to move.
+     * @param n Number of columns. Negative values move right instead.
      */
     fun cursorLeft(n: Int = 1)
 
     /**
-     * Moves the cursor right by [n] columns, clamped to the right edge.
+     * Moves the cursor right by [n] columns, clamped to the right edge (CUF, `CSI n C`).
      *
-     * Negative values reverse direction instead of throwing.
-     *
-     * @param n Number of columns to move.
+     * @param n Number of columns. Negative values move left instead.
      */
     fun cursorRight(n: Int = 1)
 
-    /** Resets the cursor to the home position `(0, 0)`. */
+    /**
+     * Resets the cursor to the home position `(col=0, row=0)`.
+     *
+     * Pen attributes are not affected.
+     */
     fun resetCursor()
+
+    // ── Tab stops ─────────────────────────────────────────────────────────────
+
+    /**
+     * Sets a tab stop at the current cursor column (HTS, `ESC H`).
+     *
+     * The stop persists until explicitly cleared by [clearTabStop],
+     * [clearAllTabStops], or a hard terminal reset.
+     */
+    fun setTabStop()
+
+    /**
+     * Clears the tab stop at the current cursor column (TBC 0, `CSI 0 g`).
+     *
+     * Has no effect if no stop exists at the current column.
+     */
+    fun clearTabStop()
+
+    /**
+     * Clears all tab stops (TBC 3, `CSI 3 g`).
+     *
+     * After this call, [horizontalTab] will advance the cursor directly to the
+     * right margin until stops are re-established via [setTabStop] or a hard reset.
+     */
+    fun clearAllTabStops()
+
+    /**
+     * Advances the cursor to the next tab stop (HT, `0x09`).
+     *
+     * If no stop exists to the right of the current column, the cursor clamps
+     * to the right margin (`width - 1`). Tab never triggers a line wrap.
+     */
+    fun horizontalTab()
+
+    // ── Terminal modes ────────────────────────────────────────────────────────
+
+    /**
+     * Sets Insert/Replace Mode (IRM, `CSI 4 h` / `CSI 4 l`).
+     *
+     * - `true`  — insert mode: characters are shifted right before being written.
+     * - `false` — replace mode: characters overwrite the cell at the cursor (default).
+     *
+     * @param enabled `true` to enable insert mode, `false` to restore replace mode.
+     */
+    fun setInsertMode(enabled: Boolean)
+
+    /**
+     * Sets Auto-Wrap Mode (DECAWM, `CSI ? 7 h` / `CSI ? 7 l`).
+     *
+     * - `true`  — the cursor wraps to the next line when it reaches the right margin (default).
+     * - `false` — the cursor clamps at the right margin; subsequent characters overwrite the last cell.
+     *
+     * @param enabled `true` to enable auto-wrap, `false` to disable it.
+     */
+    fun setAutoWrap(enabled: Boolean)
+
+    /**
+     * Sets Application Cursor Keys mode (DECCKM, `CSI ? 1 h` / `CSI ? 1 l`).
+     *
+     * - `true`  — cursor keys emit application sequences (`ESC O A/B/C/D`).
+     * - `false` — cursor keys emit normal sequences (`ESC [ A/B/C/D`) (default).
+     *
+     * @param enabled `true` to activate application cursor keys.
+     */
+    fun setApplicationCursorKeys(enabled: Boolean)
+
+    /**
+     * Controls how ambiguous-width Unicode characters are measured.
+     *
+     * - `true`  — ambiguous characters (e.g. U+00B7, U+2019) occupy 2 cells.
+     * - `false` — ambiguous characters occupy 1 cell (default; matches most Western locales).
+     *
+     * Set this once at terminal initialisation to match the host environment's
+     * locale. Changing it mid-session will cause column misalignment for text
+     * already on screen.
+     *
+     * @param enabled `true` to treat ambiguous-width characters as wide.
+     */
+    fun setTreatAmbiguousAsWide(enabled: Boolean)
+
+    // ── Resize ────────────────────────────────────────────────────────────────
 
     /**
      * Resizes the terminal to [newWidth] × [newHeight].
      *
      * Existing content is reflowed to the new width, the cursor is relocated to
-     * the corresponding position in the reflowed content, and scrollback is
-     * preserved when possible within the configured history capacity.
+     * the corresponding position in the reflowed content, and scrollback history
+     * is preserved within the configured capacity. The active scroll region is
+     * reset to the full viewport after resize.
      *
-     * The active scroll region is reset to the full viewport after resize.
-     *
-     * @param newWidth New terminal width, in cells.
-     * @param newHeight New terminal height, in rows.
-     * @throws IllegalArgumentException if [newWidth] <= 0 or [newHeight] <= 0.
+     * @param newWidth  New terminal width in cells. Must be > 0.
+     * @param newHeight New terminal height in rows. Must be > 0.
+     * @throws IllegalArgumentException if either dimension is ≤ 0.
      */
     fun resize(newWidth: Int, newHeight: Int)
 
-    // --- Writing API ---
+    // ── Writing ───────────────────────────────────────────────────────────────
 
     /**
-     * Writes a single Unicode codepoint using the current pen attributes and
-     * advances the cursor, handling wrapping and scrolling as needed.
+     * Writes a single Unicode codepoint at the cursor position using the active
+     * pen attributes, then advances the cursor.
+     *
+     * Wrapping and scrolling are applied automatically. Wide characters (e.g.
+     * CJK, emoji) occupy two cells and are handled transparently.
      *
      * @param codepoint Unicode codepoint to write.
      */
     fun writeCodepoint(codepoint: Int)
 
     /**
-     * Writes [text] literally to the buffer.
+     * Writes [text] literally to the buffer using the active pen attributes.
      *
-     * Control characters such as `\n`, `\r`, and `\t` are not interpreted; they
-     * are written as ordinary codepoints. Use [newLine] or [carriageReturn] for
-     * terminal control behavior.
+     * Control characters (`\n`, `\r`, `\t`, etc.) are **not** interpreted —
+     * they are written as ordinary codepoints. Use [newLine], [carriageReturn],
+     * or [horizontalTab] for the corresponding terminal control behaviour.
      *
-     * @param text Text to write literally.
+     * @param text Text to write.
      */
     fun writeText(text: String)
 
     /**
-     * Executes a line feed.
+     * Executes a line feed (LF, `0x0A`).
      *
      * Moves the cursor down by one row without resetting the column. If the
-     * cursor is on the bottom margin, the active scroll region is scrolled up.
+     * cursor is on the bottom margin of the active scroll region, that region
+     * scrolls up by one line.
      */
     fun newLine()
 
     /**
-     * Executes a carriage return.
+     * Executes Reverse Index (RI, `ESC M`).
+     *
+     * Moves the cursor up by one row without changing the column. If the cursor
+     * is already on the top margin of the active scroll region, that region
+     * scrolls down by one line and the cursor remains on the top margin.
+     */
+    fun reverseLineFeed()
+
+    /**
+     * Executes a carriage return (CR, `0x0D`).
      *
      * Moves the cursor to column 0 on the current row.
      */
     fun carriageReturn()
 
-    // --- Viewport & Vertical Editing API ---
+    // ── Scroll region ─────────────────────────────────────────────────────────
 
     /**
-     * Sets the active vertical scroll region.
+     * Sets the active vertical scroll region (DECSTBM, `CSI top ; bottom r`).
      *
-     * Arguments follow DECSTBM semantics: both [top] and [bottom] are 1-based
-     * inclusive row numbers. Inputs are clamped to viewport bounds. Invalid or
-     * degenerate regions are ignored. Setting a region resets the cursor to home.
+     * [top] and [bottom] are **1-based inclusive** row numbers, following the
+     * DECSTBM convention. Both values are clamped to the viewport bounds.
+     * Degenerate or invalid regions (e.g. top ≥ bottom) are ignored.
+     * Setting a region homes the cursor to `(0, 0)`.
      *
-     * @param top 1-based top row, inclusive.
-     * @param bottom 1-based bottom row, inclusive.
+     * @param top    First row of the scroll region (1-based, inclusive).
+     * @param bottom Last row of the scroll region (1-based, inclusive).
      */
     fun setScrollRegion(top: Int, bottom: Int)
 
-    /** Resets the active scroll region to the full visible viewport. */
+    /**
+     * Resets the active scroll region to the full visible viewport.
+     *
+     * Homes the cursor to `(0, 0)`.
+     */
     fun resetScrollRegion()
 
     /**
-     * Scrolls the active scroll region upward by one line.
+     * Scrolls the active scroll region upward by one line (SU, `CSI 1 S`).
      *
-     * If the active region is the full viewport, the top visible line may enter
-     * scrollback history and a blank line is exposed at the bottom. If the
-     * region is restricted, only lines inside that region are rotated and
-     * scrollback history is unchanged.
-     *
+     * When the region spans the full viewport, the top line may enter scrollback
+     * history and a blank line is exposed at the bottom. When the region is
+     * restricted, only lines inside it rotate and scrollback is unchanged.
      * The cursor position is preserved.
      */
     fun scrollUp()
 
     /**
-     * Scrolls the active scroll region downward by one line.
+     * Scrolls the active scroll region downward by one line (SD, `CSI 1 T`).
      *
-     * Lines inside the active region are shifted downward in place and a blank
-     * line is exposed at the top of the region. Scrollback history is not
-     * consumed.
-     *
+     * Lines inside the active region shift downward and a blank line is exposed
+     * at the top of the region. Scrollback history is not consumed.
      * The cursor position is preserved.
      */
     fun scrollDown()
 
+    // ── Vertical editing ──────────────────────────────────────────────────────
+
     /**
-     * Inserts blank lines at the current cursor row within the active scroll region (ANSI IL).
+     * Inserts [count] blank lines at the cursor row within the active scroll
+     * region (IL, `CSI n L`).
      *
-     * Lines at and below the cursor row are shifted downward inside the active
-     * region. Lines shifted past the bottom margin are discarded. If the cursor
-     * is outside the active scroll region, the operation is ignored.
+     * Lines at and below the cursor row are shifted down. Lines pushed past the
+     * bottom margin are discarded. Ignored if the cursor is outside the active
+     * scroll region. The cursor position is preserved.
      *
-     * The cursor position is preserved.
-     *
-     * @param count Number of lines to insert. Non-positive values are ignored.
+     * @param count Number of blank lines to insert. Non-positive values are ignored.
      */
     fun insertLines(count: Int)
 
     /**
-     * Deletes lines starting at the current cursor row within the active scroll region (ANSI DL).
+     * Deletes [count] lines starting at the cursor row within the active scroll
+     * region (DL, `CSI n M`).
      *
-     * Lines below the deleted area are shifted upward inside the active region,
-     * and blank lines are exposed at the bottom margin. If the cursor is outside
-     * the active scroll region, the operation is ignored.
-     *
-     * The cursor position is preserved.
+     * Lines below the deleted area shift upward and blank lines are exposed at
+     * the bottom margin. Ignored if the cursor is outside the active scroll
+     * region. The cursor position is preserved.
      *
      * @param count Number of lines to delete. Non-positive values are ignored.
      */
     fun deleteLines(count: Int)
 
-    // --- Line & Screen Editing API ---
+    // ── Character editing ─────────────────────────────────────────────────────
 
     /**
-     * Inserts blank cells at the cursor position on the current row (ANSI ICH),
-     * shifting existing cells to the right.
+     * Inserts [count] blank cells at the cursor column, shifting existing cells
+     * to the right (ICH, `CSI n @`).
      *
-     * Cells shifted past the end of the line are discarded.
+     * Cells shifted past the right margin are discarded.
      *
      * @param count Number of blank cells to insert. Non-positive values are ignored.
      */
     fun insertBlankCharacters(count: Int)
 
-    /** Erases from the cursor position to the end of the current line (ANSI EL 0). */
+    /**
+     * Deletes [count] characters at the cursor column, shifting the remainder
+     * of the line left and filling vacated cells on the right with blanks using
+     * the active pen attribute (DCH, `CSI n P`).
+     *
+     * The cursor position is not changed.
+     *
+     * @param count Number of characters to delete. Non-positive values are ignored.
+     */
+    fun deleteCharacters(count: Int)
+
+    // ── Erase in Line (CSI n K) ───────────────────────────────────────────────
+
+    /** Erases from the cursor to the end of the current line (EL 0, `CSI 0 K`). */
     fun eraseLineToEnd()
 
-    /** Erases from the start of the current line through the cursor position (ANSI EL 1). */
+    /** Erases from the start of the current line through the cursor (EL 1, `CSI 1 K`). */
     fun eraseLineToCursor()
 
-    /** Erases the entire current line (ANSI EL 2). */
+    /** Erases the entire current line (EL 2, `CSI 2 K`). The cursor is not moved. */
     fun eraseCurrentLine()
 
+    // ── Erase in Display (CSI n J) ────────────────────────────────────────────
+
+    /** Erases from the cursor to the end of the visible screen (ED 0, `CSI 0 J`). */
+    fun eraseScreenToEnd()
+
+    /** Erases from the start of the visible screen through the cursor (ED 1, `CSI 1 J`). */
+    fun eraseScreenToCursor()
+
+    /** Erases the entire visible screen without moving the cursor (ED 2, `CSI 2 J`). */
+    fun eraseEntireScreen()
+
+    /** Erases the entire visible screen and all scrollback history (ED 3, `CSI 3 J`). */
+    fun eraseScreenAndHistory()
+
     /**
-     * Clears the visible screen using the current pen attributes and resets the
-     * cursor to home. Scrollback history is preserved.
+     * Clears the visible screen and homes the cursor (equivalent to ED 2 + CUP).
+     *
+     * Scrollback history is preserved. This matches what the shell `clear`
+     * command sends.
      */
     fun clearScreen()
 
     /**
      * Clears all visible content and scrollback history, resets the pen, and
-     * resets the cursor home.
+     * homes the cursor. The scroll region is not affected.
      *
-     * This does not reset the scroll region; use [reset] for a fuller terminal reset.
+     * This also clears the DECSC saved-cursor state, so a subsequent
+     * `restoreCursor()` has no saved position to restore, and resets tab stops
+     * to the VT100 defaults.
+     *
+     * For a complete terminal reset including the scroll region, use [reset].
      */
     fun clearAll()
 
-    // --- Rendering API (Zero Allocation - Critical Path) ---
+    // ── Rendering (zero-allocation critical path) ─────────────────────────────
 
     /**
      * Returns a read-only view of a visible row.
      *
-     * @param row Visible row index, 0-based.
-     * @return A read-only line, or `VoidLine` if [row] is out of bounds.
+     * @param row Visible row index (0-based).
+     * @return The row's line, or a blank `VoidLine` if [row] is out of bounds.
      */
     fun getLine(row: Int): TerminalLineApi
 
     /**
-     * Returns the Unicode codepoint at a screen position.
+     * Returns the Unicode codepoint stored at the given screen position.
      *
-     * @param col Column index, 0-based.
-     * @param row Row index, 0-based.
-     * @return The stored codepoint, or `0` if the position is empty or out of bounds.
+     * @param col Column index (0-based).
+     * @param row Row index (0-based).
+     * @return The stored codepoint, or `0` if the cell is empty or out of bounds.
      */
     fun getCodepointAt(col: Int, row: Int): Int
 
     /**
-     * Returns the packed attribute value at a screen position.
+     * Returns the packed attribute word at the given screen position.
      *
-     * Production renderers should use this method directly and decode the packed
-     * value themselves.
+     * Intended for use in hot rendering paths. Callers should decode the packed
+     * value directly via `AttributeCodec` rather than allocating an [Attributes]
+     * object.
      *
-     * @param col Column index, 0-based.
-     * @param row Row index, 0-based.
-     * @return The packed cell attributes, or the active pen attributes if out of bounds.
+     * @param col Column index (0-based).
+     * @param row Row index (0-based).
+     * @return The packed cell attributes, or the active pen attribute if out of bounds.
      */
     fun getPackedAttrAt(col: Int, row: Int): Int
 
-    // --- Testing & Debugging API (Allocating) ---
+    // ── Testing and debugging (allocating) ───────────────────────────────────
 
     /**
-     * Returns the attributes at a screen position as an allocated [Attributes] object.
+     * Returns the attributes at a screen position as an unpacked [Attributes] object.
      *
-     * This method is intended for tests and debugging, not hot rendering paths.
+     * Allocates on every call. Intended for tests and debugging only — do not
+     * use on a hot rendering path.
      *
-     * @param col Column index, 0-based.
-     * @param row Row index, 0-based.
-     * @return Unpacked attributes, or `null` if out of bounds.
+     * @param col Column index (0-based).
+     * @param row Row index (0-based).
+     * @return Unpacked attributes, or `null` if the position is out of bounds.
      */
     fun getAttrAt(col: Int, row: Int): Attributes?
 
     /**
-     * Returns a visible row as text, trimming trailing blank cells while
-     * preserving actual space characters stored in the line.
+     * Returns the content of a visible row as a string, trimming trailing blank
+     * cells while preserving intentional space characters stored in the line.
      *
-     * @param row Visible row index, 0-based.
-     * @return The rendered row text, or an empty string if the row is blank or out of bounds.
+     * @param row Visible row index (0-based).
+     * @return The row text, or an empty string if the row is blank or out of bounds.
      */
     fun getLineAsString(row: Int): String
 
     /**
-     * Returns the visible screen as newline-joined text.
+     * Returns the visible screen as a newline-joined string.
      *
-     * @return The visible screen contents, one row per line.
+     * @return Visible screen contents, one row per line, top to bottom.
      */
     fun getScreenAsString(): String
 
     /**
-     * Returns scrollback history followed by the visible screen as newline-joined text.
+     * Returns the entire buffer — scrollback history followed by the visible
+     * screen — as a newline-joined string.
      *
-     * @return Entire buffer contents, oldest history first.
+     * @return All buffer contents, oldest history line first.
      */
     fun getAllAsString(): String
 
+    // ── Reset ─────────────────────────────────────────────────────────────────
+
     /**
-     * Resets the terminal to its initial observable state.
+     * Performs a full terminal reset (RIS, `ESC c`).
      *
-     * Clears visible content and history, resets the pen, resets the cursor, and
-     * restores the scroll region to the full viewport.
+     * Clears all visible content and scrollback history, resets the pen to
+     * default attributes, homes the cursor, restores the scroll region to the
+     * full viewport, resets all mode flags to their defaults, and restores tab
+     * stops to the standard 8-column VT100 spacing.
      */
     fun reset()
 }

@@ -1,6 +1,7 @@
 package com.gagik.terminal.buffer
 
 import com.gagik.terminal.codec.AttributeCodec
+import com.gagik.terminal.engine.CursorEngine
 import com.gagik.terminal.engine.MutationEngine
 import com.gagik.terminal.engine.TerminalResizer
 import com.gagik.terminal.model.Attributes
@@ -24,7 +25,7 @@ internal class TerminalBuffer(
 
     internal val state = TerminalState(initialWidth, initialHeight, maxHistory)
     private val mutationEngine = MutationEngine(state)
-
+    private val cursorEngine = CursorEngine(state)
 
     // --- Viewport Math Helpers ---
 
@@ -54,15 +55,12 @@ internal class TerminalBuffer(
 
     // --- Cursor API ---
 
-    override fun setCursor(col: Int, row: Int) {
-        state.cursor.col = state.dimensions.clampCol(col)
-        state.cursor.row = state.dimensions.clampRow(row)
-    }
-
+    override fun saveCursor() = cursorEngine.saveCursor()
+    override fun restoreCursor() = cursorEngine.restoreCursor()
+    override fun setCursor(col: Int, row: Int) = cursorEngine.setCursor(col, row)
     override fun moveCursor(dx: Int, dy: Int) {
         setCursor(cursorCol + dx, cursorRow + dy)
     }
-
     override fun cursorUp(n: Int) = moveCursor(0, -n)
     override fun cursorDown(n: Int) = moveCursor(0, n)
     override fun cursorLeft(n: Int) = moveCursor(-n, 0)
@@ -72,6 +70,11 @@ internal class TerminalBuffer(
         setCursor(0, 0)
     }
 
+    override fun setTabStop() = state.tabStops.setStop(state.cursor.col)
+    override fun clearTabStop() = state.tabStops.clearStop(state.cursor.col)
+    override fun clearAllTabStops() = state.tabStops.clearAll()
+    override fun horizontalTab() = cursorEngine.horizontalTab()
+
     override fun resize(newWidth: Int, newHeight: Int) {
         require(newWidth > 0) { "newWidth must be > 0, was $newWidth" }
         require(newHeight > 0) { "newHeight must be > 0, was $newHeight" }
@@ -80,10 +83,28 @@ internal class TerminalBuffer(
         state.resetScrollRegion()
     }
 
+    // --- Terminal modes ---
+
+    override fun setInsertMode(enabled: Boolean) {
+        state.modes.isInsertMode = enabled
+    }
+
+    override fun setAutoWrap(enabled: Boolean) {
+        state.modes.isAutoWrap = enabled
+    }
+
+    override fun setTreatAmbiguousAsWide(enabled: Boolean) {
+        state.modes.treatAmbiguousAsWide = enabled
+    }
+
+    override fun setApplicationCursorKeys(enabled: Boolean) {
+        state.modes.isApplicationCursorKeys = enabled
+    }
+
     // --- Writing API ---
 
     override fun writeCodepoint(codepoint: Int) {
-        val charWidth = UnicodeWidth.calculate(codepoint, state.treatAmbiguousAsWide)
+        val charWidth = UnicodeWidth.calculate(codepoint, state.modes.treatAmbiguousAsWide)
         mutationEngine.printCodepoint(codepoint, charWidth)
     }
 
@@ -91,7 +112,7 @@ internal class TerminalBuffer(
         var i = 0
         while (i < text.length) {
             val cp = text.codePointAt(i)
-            val charWidth = UnicodeWidth.calculate(cp, state.treatAmbiguousAsWide)
+            val charWidth = UnicodeWidth.calculate(cp, state.modes.treatAmbiguousAsWide)
             mutationEngine.printCodepoint(cp, charWidth)
             i += Character.charCount(cp)
         }
@@ -101,11 +122,15 @@ internal class TerminalBuffer(
         mutationEngine.insertBlankCharacters(count)
     }
 
+    override fun deleteCharacters(count: Int) {
+        mutationEngine.deleteCharacters(count)
+    }
+
     override fun newLine() = mutationEngine.newLine()
 
-    override fun carriageReturn() {
-        state.cursor.col = 0
-    }
+    override fun reverseLineFeed() = mutationEngine.reverseLineFeed()
+
+    override fun carriageReturn()  = cursorEngine.carriageReturn()
 
     // --- Viewport API ---
 
@@ -124,16 +149,19 @@ internal class TerminalBuffer(
         resetPen()
         mutationEngine.clearAllHistory()
         resetCursor()
+        state.savedCursor.clear()
     }
 
     override fun eraseLineToEnd() = mutationEngine.eraseLineToEnd()
     override fun eraseLineToCursor() = mutationEngine.eraseLineToCursor()
     override fun eraseCurrentLine() = mutationEngine.eraseCurrentLine()
-
     override fun insertLines(count: Int) = mutationEngine.insertLines(count)
     override fun deleteLines(count: Int) = mutationEngine.deleteLines(count)
 
-    // --- Rendering API (Zero Allocation - Critical Path) ---
+    override fun eraseScreenToEnd() = mutationEngine.eraseScreenToEnd()
+    override fun eraseScreenToCursor() = mutationEngine.eraseScreenToCursor()
+    override fun eraseEntireScreen() = mutationEngine.clearViewport()
+    override fun eraseScreenAndHistory() = mutationEngine.eraseScreenAndHistory()
 
     override fun getLine(row: Int): TerminalLineApi = getVisibleLine(row) ?: VoidLine
 
@@ -177,7 +205,11 @@ internal class TerminalBuffer(
     }
 
     override fun reset() {
-        clearAll()
+        clearAll() // Wipe the memory
+
+        // Restore all hardware state to factory defaults (RIS)
         state.resetScrollRegion()
+        state.modes.reset()
+        state.tabStops.resetToDefault()
     }
 }

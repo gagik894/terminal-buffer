@@ -1,10 +1,7 @@
 package com.gagik.terminal.state
 
 import com.gagik.terminal.buffer.HistoryRing
-import com.gagik.terminal.model.Cursor
-import com.gagik.terminal.model.GridDimensions
-import com.gagik.terminal.model.Line
-import com.gagik.terminal.model.Pen
+import com.gagik.terminal.model.*
 import com.gagik.terminal.store.ClusterStore
 
 /**
@@ -17,16 +14,16 @@ import com.gagik.terminal.store.ClusterStore
  * @param initialWidth The initial width of the terminal
  * @param initialHeight The initial height of the terminal
  * @param maxHistory The maximum number of lines to retain in the history buffer
- * @param treatAmbiguousAsWide Whether to treat ambiguous width characters as wide (default: false)
  */
 internal class TerminalState(
     initialWidth: Int,
     initialHeight: Int,
     val maxHistory: Int,
-    var treatAmbiguousAsWide: Boolean = false
 ) {
+    val modes = TerminalModes()
     val dimensions = GridDimensions(initialWidth, initialHeight)
     val cursor = Cursor()
+    val savedCursor = SavedCursorState()
     val pen = Pen()
 
     // NOTE: clusterStore must be declared before ring because ring's factory
@@ -50,6 +47,7 @@ internal class TerminalState(
      * Default: height - 1 (bottom of screen).
      */
     var scrollBottom: Int = initialHeight - 1
+    val tabStops = TabStops(dimensions.width)
 
     init {
         repeat(initialHeight) {

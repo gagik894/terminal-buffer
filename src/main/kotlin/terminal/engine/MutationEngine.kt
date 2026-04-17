@@ -152,7 +152,7 @@ internal class MutationEngine(
      * ARCHITECTURAL WARNING: do NOT split into smaller helpers. Edge-wrap
      * requires interleaved clears and moves; splitting destroys the JIT fast path.
      */
-    private inline fun writeToGrid(charWidth: Int, writeCell: (line: Line, col: Int) -> Unit) {
+    private inline fun writeToGrid(charWidth: Int, crossinline writeCell: (line: Line, col: Int) -> Unit) {
         var cCol = state.cursor.col
         var cRow = state.cursor.row
         val widthInCells = if (charWidth == 2) 2 else 1
@@ -168,7 +168,23 @@ internal class MutationEngine(
             line = getLine(cRow)
         }
 
-        // Annihilation: clear the blast radius before writing.
+        // ── INSERT MODE: The Memory Shift ────────────────────────────────────
+        // Must happen on the post-edge-wrap (line, cCol) — BEFORE annihilation —
+        // so live content is shifted right, not the emptied blast radius.
+        if (state.modes.isInsertMode) {
+            // Left Boundary Defense: if the cursor sits on a wide spacer,
+            // destroy the owning leader now so we don't push an orphaned
+            // spacer rightward into the shifted content.
+            if (line.rawCodepoint(cCol) == TerminalConstants.WIDE_CHAR_SPACER) {
+                annihilateAt(cRow, cCol)
+            }
+            line.insertCells(cCol, widthInCells, state.pen.currentAttr)
+        }
+
+        // ── REPLACE MODE & CLEANUP: Annihilation ─────────────────────────────
+        // In Replace mode: clears the character being overwritten.
+        // In Insert mode: still required to clear a 1-cell hole before a 2-cell
+        // write, or to clear any partial residue after the shift.
         annihilateAt(cRow, cCol)
         if (widthInCells == 2 && cCol + 1 < width) annihilateAt(cRow, cCol + 1)
 
@@ -193,6 +209,7 @@ internal class MutationEngine(
         state.cursor.row = cRow
     }
 
+
     // ----- Public write API --------------------------------------------------
 
     /**
@@ -206,10 +223,12 @@ internal class MutationEngine(
         val cCol = state.cursor.col
         val cRow = state.cursor.row
 
-        // Fast path: 1-cell write into empty space.
-        if (charWidth != 2 && cRow in 0 until height && cCol in 0 until width) {
+        // Fast path: REPLACE mode only.
+        // Insert mode must always go through writeToGrid so the shift runs.
+        if (!state.modes.isInsertMode && charWidth != 2
+            && cRow in 0 until height && cCol in 0 until width) {
             val line = getLine(cRow)
-            if (line.rawCodepoint(cCol) == TerminalConstants.EMPTY) {
+            if (line.rawCodepoint   (cCol) == TerminalConstants.EMPTY) {
                 line.setCell(cCol, codepoint, attr)
                 if (cCol == width - 1) {
                     line.wrapped = true
@@ -222,11 +241,12 @@ internal class MutationEngine(
             }
         }
 
-        // Slow path: delegate all physics to writeToGrid.
+        // Slow path: full physics via writeToGrid.
         writeToGrid(charWidth) { line, col ->
             line.setCell(col, codepoint, attr)
         }
     }
+
 
     fun printCluster(cps: IntArray, cpLen: Int, charWidth: Int) {
         if (cpLen == 1) {
@@ -313,6 +333,45 @@ internal class MutationEngine(
         line.insertCells(cCol, count, state.pen.currentAttr)
     }
 
+    /**
+     * Deletes [count] characters starting at the cursor column, shifting the
+     * remainder of the line left and filling the vacated cells on the right
+     * with blanks using the current pen attribute. The cursor position is not
+     * changed. Corresponds to ANSI DCH (CSI n P).
+     *
+     * Wide-character safety:
+     * - The cluster at the cursor is annihilated before the shift so the left
+     *   boundary is never left with an orphaned spacer.
+     * - The cell immediately after the deleted region is checked: if it is a
+     *   wide-character spacer the owning leader would be shifted in without its
+     *   spacer, so the entire cluster is annihilated before the shift proceeds.
+     *   Ordinary characters at the right boundary are never touched.
+     *
+     * @param count Number of characters to delete. Non-positive values are ignored.
+     *              Values larger than the remaining columns from the cursor are
+     *              clamped to the line's right edge.
+     */
+    fun deleteCharacters(count: Int) {
+        if (count <= 0) return
+
+        val cRow = state.cursor.row
+        val cCol = state.cursor.col
+        if (cRow !in 0 until height || cCol !in 0 until width) return
+
+        val safeCount = count.coerceAtMost(width - cCol)
+
+        annihilateAt(cRow, cCol)
+
+        if (safeCount < width - cCol) {
+            val rightEdge = cCol + safeCount
+            if (getLine(cRow).rawCodepoint(rightEdge) == TerminalConstants.WIDE_CHAR_SPACER) {
+                annihilateAt(cRow, rightEdge)
+            }
+        }
+
+        getLine(cRow).deleteCells(cCol, safeCount, state.pen.currentAttr)
+    }
+
     fun eraseLineToEnd() {
         val cRow = state.cursor.row
         val cCol = state.cursor.col
@@ -323,8 +382,9 @@ internal class MutationEngine(
 
     fun eraseLineToCursor() {
         val cRow = state.cursor.row
-        val cCol = state.cursor.col
-        if (cRow !in 0 until height || cCol !in 0 until width) return
+        val cCol = state.cursor.col.coerceAtMost(width - 1)
+        if (cRow !in 0 until height || cCol < 0) return
+
         annihilateAt(cRow, cCol)
         getLine(cRow).clearToColumn(cCol, state.pen.currentAttr)
     }
@@ -333,6 +393,48 @@ internal class MutationEngine(
         val cRow = state.cursor.row
         if (cRow !in 0 until height) return
         getLine(cRow).clear(state.pen.currentAttr)
+    }
+
+    /**
+     * Erases from the cursor to the end of the visible screen (ED 0).
+     * The cursor position is not changed.
+     */
+    fun eraseScreenToEnd() {
+        val cRow = state.cursor.row
+        if (cRow !in 0 until height) return
+
+        // Clear the remainder of the current line
+        eraseLineToEnd()
+
+        // Clear all subsequent lines
+        for (row in cRow + 1 until height) {
+            getLine(row).clear(state.pen.currentAttr)
+        }
+    }
+
+    /**
+     * Erases from the start of the visible screen through the cursor (ED 1).
+     * The cursor position is not changed.
+     */
+    fun eraseScreenToCursor() {
+        val cRow = state.cursor.row
+        if (cRow !in 0 until height) return
+
+        // Clear all preceding lines
+        for (row in 0 until cRow) {
+            getLine(row).clear(state.pen.currentAttr)
+        }
+
+        // Clear the beginning of the current line through the cursor
+        eraseLineToCursor()
+    }
+
+    /**
+     * Erases the entire visible screen and all scrollback history (xterm ED 3).
+     * The cursor position is not changed.
+     */
+    fun eraseScreenAndHistory() {
+        clearAllHistory()
     }
 
     fun clearViewport() {
