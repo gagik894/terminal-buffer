@@ -410,7 +410,7 @@ class TerminalResizerTest {
             TerminalResizer.resize(state, 10, 8)
 
             assertEquals(8, state.dimensions.height)
-            assertEquals(8, state.ring.size.coerceAtLeast(8))
+            assertTrue(state.ring.size >= 8)
         }
     }
 
