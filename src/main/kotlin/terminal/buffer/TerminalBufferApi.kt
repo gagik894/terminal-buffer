@@ -188,7 +188,7 @@ interface TerminalBufferApi {
      *
      * @param enabled `true` to enable auto-wrap, `false` to disable it.
      */
-    //TODO: fun setAutoWrap(enabled: Boolean)
+    fun setAutoWrap(enabled: Boolean)
 
     /**
      * Sets Application Cursor Keys mode (DECCKM, `CSI ? 1 h` / `CSI ? 1 l`).
@@ -198,7 +198,7 @@ interface TerminalBufferApi {
      *
      * @param enabled `true` to activate application cursor keys.
      */
-    //TODO: fun setApplicationCursorKeys(enabled: Boolean)
+    fun setApplicationCursorKeys(enabled: Boolean)
 
     /**
      * Controls how ambiguous-width Unicode characters are measured.
@@ -212,7 +212,7 @@ interface TerminalBufferApi {
      *
      * @param enabled `true` to treat ambiguous-width characters as wide.
      */
-    //TODO: fun setTreatAmbiguousAsWide(enabled: Boolean)
+    fun setTreatAmbiguousAsWide(enabled: Boolean)
 
     // ── Resize ────────────────────────────────────────────────────────────────
 

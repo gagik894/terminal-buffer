@@ -17,7 +17,7 @@ internal class TerminalModes {
     var isAutoWrap: Boolean = true // TODO: Implement
 
     /** Mode 1 — Application Cursor Keys (DECCKM). False = normal cursor keys (default). */
-    var isApplicationCursorKeys: Boolean = false // TODO: Implement
+    var isApplicationCursorKeys: Boolean = false
 
     /**
      * Whether ambiguous-width Unicode characters are treated as wide (2-cell).

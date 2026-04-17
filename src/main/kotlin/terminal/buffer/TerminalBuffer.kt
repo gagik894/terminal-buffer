@@ -83,6 +83,24 @@ internal class TerminalBuffer(
         state.resetScrollRegion()
     }
 
+    // --- Terminal modes ---
+
+    override fun setInsertMode(enabled: Boolean) {
+        state.modes.isInsertMode = enabled
+    }
+
+    override fun setAutoWrap(enabled: Boolean) {
+        state.modes.isAutoWrap = enabled
+    }
+
+    override fun setTreatAmbiguousAsWide(enabled: Boolean) {
+        state.modes.treatAmbiguousAsWide = enabled
+    }
+
+    override fun setApplicationCursorKeys(enabled: Boolean) {
+        state.modes.isApplicationCursorKeys = enabled
+    }
+
     // --- Writing API ---
 
     override fun writeCodepoint(codepoint: Int) {
@@ -118,10 +136,6 @@ internal class TerminalBuffer(
 
     override fun setScrollRegion(top: Int, bottom: Int) = state.setScrollRegion(top, bottom)
     override fun resetScrollRegion() = state.resetScrollRegion()
-
-    override fun setInsertMode(enabled: Boolean) {
-        state.modes.isInsertMode = enabled
-    }
 
     override fun scrollUp() = mutationEngine.scrollUp()
     override fun scrollDown() = mutationEngine.scrollDown()
