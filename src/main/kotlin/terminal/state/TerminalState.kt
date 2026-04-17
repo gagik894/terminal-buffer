@@ -14,14 +14,13 @@ import com.gagik.terminal.store.ClusterStore
  * @param initialWidth The initial width of the terminal
  * @param initialHeight The initial height of the terminal
  * @param maxHistory The maximum number of lines to retain in the history buffer
- * @param treatAmbiguousAsWide Whether to treat ambiguous width characters as wide (default: false)
  */
 internal class TerminalState(
     initialWidth: Int,
     initialHeight: Int,
     val maxHistory: Int,
-    var treatAmbiguousAsWide: Boolean = false
 ) {
+    val modes = TerminalModes()
     val dimensions = GridDimensions(initialWidth, initialHeight)
     val cursor = Cursor()
     val savedCursor = SavedCursorState()

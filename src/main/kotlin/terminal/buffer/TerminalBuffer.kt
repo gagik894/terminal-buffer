@@ -81,7 +81,7 @@ internal class TerminalBuffer(
     // --- Writing API ---
 
     override fun writeCodepoint(codepoint: Int) {
-        val charWidth = UnicodeWidth.calculate(codepoint, state.treatAmbiguousAsWide)
+        val charWidth = UnicodeWidth.calculate(codepoint, state.modes.treatAmbiguousAsWide)
         mutationEngine.printCodepoint(codepoint, charWidth)
     }
 
@@ -89,7 +89,7 @@ internal class TerminalBuffer(
         var i = 0
         while (i < text.length) {
             val cp = text.codePointAt(i)
-            val charWidth = UnicodeWidth.calculate(cp, state.treatAmbiguousAsWide)
+            val charWidth = UnicodeWidth.calculate(cp, state.modes.treatAmbiguousAsWide)
             mutationEngine.printCodepoint(cp, charWidth)
             i += Character.charCount(cp)
         }
