@@ -101,6 +101,10 @@ internal class TerminalBuffer(
         mutationEngine.insertBlankCharacters(count)
     }
 
+    override fun deleteCharacters(count: Int) {
+        mutationEngine.deleteCharacters(count)
+    }
+
     override fun newLine() = mutationEngine.newLine()
 
     override fun carriageReturn() {

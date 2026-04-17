@@ -575,6 +575,126 @@ class TerminalBufferTest {
 		}
 
 		@Test
+		fun `deleteCharacters shifts remaining line content left and keeps cursor`() {
+			val buffer = newBuffer(width = 6, height = 2)
+			buffer.writeText("ABCDEF")
+			buffer.setCursor(1, 0)
+			buffer.setPenAttributes(fg = 2, bg = 3)
+
+			buffer.deleteCharacters(2) // Delete "BC"
+
+			assertAll(
+				{ assertEquals("ADEF", buffer.getLineAsString(0)) },
+				{ assertEquals(Attributes(2, 3, bold = false, italic = false, underline = false), buffer.getAttrAt(4, 0)) },
+				{ assertEquals(Attributes(2, 3, bold = false, italic = false, underline = false), buffer.getAttrAt(5, 0)) },
+				{ assertCursor(buffer, 1, 0) }
+			)
+		}
+
+		@Test
+		fun `deleteCharacters is no-op for zero and negative count`() {
+			val buffer = newBuffer(width = 6, height = 1)
+			buffer.writeText("ABCDE")
+			buffer.setCursor(2, 0)
+
+			buffer.deleteCharacters(0)
+			buffer.deleteCharacters(-3)
+
+			assertAll(
+				{ assertEquals("ABCDE", buffer.getLineAsString(0)) },
+				{ assertCursor(buffer, 2, 0) }
+			)
+		}
+
+		@Test
+		fun `deleteCharacters clamps count to remaining cells`() {
+			val buffer = newBuffer(width = 6, height = 1)
+			buffer.writeText("ABCDE")
+			buffer.setCursor(3, 0)
+
+			buffer.deleteCharacters(99)
+
+			assertAll(
+				{ assertEquals("ABC", buffer.getLineAsString(0)) },
+				{ assertEquals(TerminalConstants.EMPTY, buffer.getCodepointAt(3, 0)) },
+				{ assertEquals(TerminalConstants.EMPTY, buffer.getCodepointAt(4, 0)) },
+				{ assertEquals(TerminalConstants.EMPTY, buffer.getCodepointAt(5, 0)) },
+				{ assertCursor(buffer, 3, 0) }
+			)
+		}
+
+		@Test
+		fun `deleteCharacters does not affect history`() {
+			val buffer = newBuffer(width = 2, height = 2, maxHistory = 5)
+			buffer.writeText("ABCDE")
+			val beforeHistory = buffer.historySize
+			buffer.setCursor(0, 1)
+
+			buffer.deleteCharacters(1)
+
+			assertEquals(beforeHistory, buffer.historySize)
+		}
+
+		@Test
+		fun `deleteCharacters annihilates wide leader at cursor`() {
+			val buffer = newBuffer(width = 6, height = 1)
+			buffer.writeText("A😀B")
+			buffer.setCursor(1, 0)
+
+			buffer.deleteCharacters(1)
+
+			assertAll(
+				{ assertEquals('A'.code, buffer.getCodepointAt(0, 0)) },
+				{ assertEquals(TerminalConstants.EMPTY, buffer.getCodepointAt(1, 0)) },
+				{ assertEquals('B'.code, buffer.getCodepointAt(2, 0)) }
+			)
+		}
+
+		@Test
+		fun `deleteCharacters annihilates wide spacer at cursor`() {
+			val buffer = newBuffer(width = 6, height = 1)
+			buffer.writeText("A😀B")
+			buffer.setCursor(2, 0)
+
+			buffer.deleteCharacters(1)
+
+			assertAll(
+				{ assertEquals('A'.code, buffer.getCodepointAt(0, 0)) },
+				{ assertEquals(TerminalConstants.EMPTY, buffer.getCodepointAt(1, 0)) },
+				{ assertEquals('B'.code, buffer.getCodepointAt(2, 0)) }
+			)
+		}
+
+		@Test
+		fun `deleteCharacters annihilates right-boundary spacer to prevent orphan wide`() {
+			val buffer = newBuffer(width = 6, height = 1)
+			buffer.writeText("AB😀C")
+			buffer.setCursor(1, 0)
+			buffer.deleteCharacters(2)
+
+			assertAll(
+				{ assertEquals('A'.code, buffer.getCodepointAt(0, 0)) },
+				{ assertEquals(TerminalConstants.EMPTY, buffer.getCodepointAt(1, 0)) },
+				{ assertEquals('C'.code, buffer.getCodepointAt(2, 0)) }
+			)
+		}
+
+		@Test
+		fun `deleteCharacters keeps non-spacer right boundary content intact`() {
+			val buffer = newBuffer(width = 6, height = 1)
+			buffer.writeText("AB😀C")
+			buffer.setCursor(1, 0)
+			buffer.deleteCharacters(1)
+
+			assertAll(
+				{ assertEquals('A'.code, buffer.getCodepointAt(0, 0)) },
+				{ assertEquals(0x1F600, buffer.getCodepointAt(1, 0)) },
+				{ assertEquals(TerminalConstants.WIDE_CHAR_SPACER, buffer.getCodepointAt(2, 0)) },
+				{ assertEquals('C'.code, buffer.getCodepointAt(3, 0)) }
+			)
+		}
+
+		@Test
 		fun `carriageReturn resets only the column`() {
 			val buffer = newBuffer(width = 4, height = 3)
 
@@ -722,7 +842,7 @@ class TerminalBufferTest {
 
 			assertAll(
 				{ assertEquals("", buffer.getLineAsString(0)) },
-				{ assertEquals("D", buffer.getLineAsString(1)) },
+				{ assertEquals("  F", buffer.getLineAsString(1)) },
 				{ assertEquals("GHI", buffer.getLineAsString(2)) }
 			)
 		}

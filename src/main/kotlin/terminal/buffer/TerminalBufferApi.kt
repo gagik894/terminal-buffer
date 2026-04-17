@@ -237,6 +237,16 @@ interface TerminalBufferApi {
      */
     fun insertBlankCharacters(count: Int)
 
+    /**
+     * Deletes [count] characters at the cursor column, shifting the remainder
+     * of the line left and filling vacated cells on the right with blanks using
+     * the current pen attribute. The cursor position is not changed.
+     * Corresponds to ANSI DCH (CSI n P).
+     *
+     * @param count Number of characters to delete. Non-positive values are ignored.
+     */
+    fun deleteCharacters(count: Int)
+
     /** Erases from the cursor position to the end of the current line (ANSI EL 0). */
     fun eraseLineToEnd()
 
