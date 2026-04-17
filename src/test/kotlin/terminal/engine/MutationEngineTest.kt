@@ -416,7 +416,11 @@ class MutationEngineTest {
 
             writer.insertBlankCharacters(99)
 
-            assertLineCodepoints(state, 0, intArrayOf('A'.code, 'B'.code, 'C'.code, TerminalConstants.EMPTY, TerminalConstants.EMPTY))
+            assertLineCodepoints(
+                state,
+                0,
+                intArrayOf('A'.code, 'B'.code, 'C'.code, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+            )
         }
     }
 
@@ -485,7 +489,13 @@ class MutationEngineTest {
             assertAll(
                 { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
                 { assertLineCodepoints(state, 1, intArrayOf('B'.code, 'B'.code, 'B'.code)) },
-                { assertLineCodepoints(state, 2, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
+                {
+                    assertLineCodepoints(
+                        state,
+                        2,
+                        intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+                    )
+                },
                 { assertLineCodepoints(state, 3, intArrayOf('C'.code, 'C'.code, 'C'.code)) },
                 { assertLineCodepoints(state, 4, intArrayOf('E'.code, 'E'.code, 'E'.code)) }
             )
@@ -508,8 +518,20 @@ class MutationEngineTest {
             assertAll(
                 { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
                 { assertLineCodepoints(state, 1, intArrayOf('B'.code, 'B'.code, 'B'.code)) },
-                { assertLineCodepoints(state, 2, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
-                { assertLineCodepoints(state, 3, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) }
+                {
+                    assertLineCodepoints(
+                        state,
+                        2,
+                        intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+                    )
+                },
+                {
+                    assertLineCodepoints(
+                        state,
+                        3,
+                        intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+                    )
+                }
             )
         }
 
@@ -527,7 +549,13 @@ class MutationEngineTest {
             assertAll(
                 { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
                 { assertLineCodepoints(state, 1, intArrayOf('B'.code, 'B'.code, 'B'.code)) },
-                { assertLineCodepoints(state, 2, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) }
+                {
+                    assertLineCodepoints(
+                        state,
+                        2,
+                        intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+                    )
+                }
             )
         }
 
@@ -636,7 +664,13 @@ class MutationEngineTest {
                 { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
                 { assertLineCodepoints(state, 1, intArrayOf('B'.code, 'B'.code, 'B'.code)) },
                 { assertLineCodepoints(state, 2, intArrayOf('D'.code, 'D'.code, 'D'.code)) },
-                { assertLineCodepoints(state, 3, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
+                {
+                    assertLineCodepoints(
+                        state,
+                        3,
+                        intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+                    )
+                },
                 { assertLineCodepoints(state, 4, intArrayOf('E'.code, 'E'.code, 'E'.code)) }
             )
         }
@@ -658,8 +692,20 @@ class MutationEngineTest {
             assertAll(
                 { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
                 { assertLineCodepoints(state, 1, intArrayOf('B'.code, 'B'.code, 'B'.code)) },
-                { assertLineCodepoints(state, 2, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
-                { assertLineCodepoints(state, 3, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) }
+                {
+                    assertLineCodepoints(
+                        state,
+                        2,
+                        intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+                    )
+                },
+                {
+                    assertLineCodepoints(
+                        state,
+                        3,
+                        intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+                    )
+                }
             )
         }
 
@@ -677,7 +723,13 @@ class MutationEngineTest {
             assertAll(
                 { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
                 { assertLineCodepoints(state, 1, intArrayOf('B'.code, 'B'.code, 'B'.code)) },
-                { assertLineCodepoints(state, 2, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) }
+                {
+                    assertLineCodepoints(
+                        state,
+                        2,
+                        intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+                    )
+                }
             )
         }
 
@@ -734,7 +786,17 @@ class MutationEngineTest {
 
             writer.eraseLineToEnd()
 
-            assertLineCodepoints(state, 0, intArrayOf('A'.code, 'B'.code, TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY))
+            assertLineCodepoints(
+                state,
+                0,
+                intArrayOf(
+                    'A'.code,
+                    'B'.code,
+                    TerminalConstants.EMPTY,
+                    TerminalConstants.EMPTY,
+                    TerminalConstants.EMPTY
+                )
+            )
         }
 
         @Test
@@ -764,7 +826,17 @@ class MutationEngineTest {
 
             writer.eraseLineToCursor()
 
-            assertLineCodepoints(state, 0, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY, 'D'.code, 'E'.code))
+            assertLineCodepoints(
+                state,
+                0,
+                intArrayOf(
+                    TerminalConstants.EMPTY,
+                    TerminalConstants.EMPTY,
+                    TerminalConstants.EMPTY,
+                    'D'.code,
+                    'E'.code
+                )
+            )
         }
 
         @Test
@@ -795,7 +867,13 @@ class MutationEngineTest {
             writer.eraseCurrentLine()
 
             assertAll(
-                { assertLineCodepoints(state, 0, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
+                {
+                    assertLineCodepoints(
+                        state,
+                        0,
+                        intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+                    )
+                },
                 { assertLineCodepoints(state, 1, intArrayOf('D'.code, 'E'.code, 'F'.code)) }
             )
         }
@@ -819,7 +897,13 @@ class MutationEngineTest {
                 { assertTrue(state.ring.size >= oldSize) },
                 { assertEquals(2, state.cursor.col) },
                 { assertEquals(1, state.cursor.row) },
-                { assertLineCodepoints(state, 1, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) }
+                {
+                    assertLineCodepoints(
+                        state,
+                        1,
+                        intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+                    )
+                }
             )
         }
     }
@@ -842,8 +926,20 @@ class MutationEngineTest {
 
             assertAll(
                 { assertEquals(oldSize, state.ring.size) },
-                { assertLineCodepoints(state, 0, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
-                { assertLineCodepoints(state, 1, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
+                {
+                    assertLineCodepoints(
+                        state,
+                        0,
+                        intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+                    )
+                },
+                {
+                    assertLineCodepoints(
+                        state,
+                        1,
+                        intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+                    )
+                },
                 { assertFalse(lineAt(state, 0).wrapped) },
                 { assertFalse(lineAt(state, 1).wrapped) }
             )
@@ -865,8 +961,30 @@ class MutationEngineTest {
 
             assertAll(
                 { assertEquals(2, state.ring.size) },
-                { assertLineCodepoints(state, 0, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
-                { assertLineCodepoints(state, 1, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) }
+                {
+                    assertLineCodepoints(
+                        state,
+                        0,
+                        intArrayOf(
+                            TerminalConstants.EMPTY,
+                            TerminalConstants.EMPTY,
+                            TerminalConstants.EMPTY,
+                            TerminalConstants.EMPTY
+                        )
+                    )
+                },
+                {
+                    assertLineCodepoints(
+                        state,
+                        1,
+                        intArrayOf(
+                            TerminalConstants.EMPTY,
+                            TerminalConstants.EMPTY,
+                            TerminalConstants.EMPTY,
+                            TerminalConstants.EMPTY
+                        )
+                    )
+                }
             )
         }
     }
@@ -904,7 +1022,13 @@ class MutationEngineTest {
                 { assertTrue(state.ring.size >= oldSize) },
                 { assertEquals(1, state.cursor.row) },
                 { assertEquals(1, state.cursor.col) },
-                { assertLineCodepoints(state, 1, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) }
+                {
+                    assertLineCodepoints(
+                        state,
+                        1,
+                        intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+                    )
+                }
             )
         }
     }
@@ -942,7 +1066,13 @@ class MutationEngineTest {
             assertAll(
                 { assertEquals(0, state.cursor.row) },
                 { assertEquals(1, state.cursor.col) },
-                { assertLineCodepoints(state, 0, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
+                {
+                    assertLineCodepoints(
+                        state,
+                        0,
+                        intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+                    )
+                },
                 { assertLineCodepoints(state, 1, intArrayOf('A'.code, 'B'.code, 'C'.code)) }
             )
         }
@@ -974,7 +1104,13 @@ class MutationEngineTest {
             writer.scrollDown()
 
             assertAll(
-                { assertLineCodepoints(state, 0, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
+                {
+                    assertLineCodepoints(
+                        state,
+                        0,
+                        intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+                    )
+                },
                 { assertLineCodepoints(state, 1, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
                 { assertLineCodepoints(state, 2, intArrayOf('B'.code, 'B'.code, 'B'.code)) }
             )
@@ -1024,7 +1160,13 @@ class MutationEngineTest {
 
             assertAll(
                 { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
-                { assertLineCodepoints(state, 1, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
+                {
+                    assertLineCodepoints(
+                        state,
+                        1,
+                        intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+                    )
+                },
                 { assertLineCodepoints(state, 2, intArrayOf('B'.code, 'B'.code, 'B'.code)) }
             )
         }
@@ -1045,7 +1187,11 @@ class MutationEngineTest {
             writer.scrollUp()
 
             assertTrue(state.ring.size >= oldSize, "Ring should grow or stay same")
-            assertLineCodepoints(state, 1, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY))
+            assertLineCodepoints(
+                state,
+                1,
+                intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+            )
         }
 
         @Test
@@ -1064,7 +1210,11 @@ class MutationEngineTest {
             assertEquals(oldSize, state.ring.size, "Partial region scroll should not change ring size")
             assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code))
             assertLineCodepoints(state, 1, intArrayOf('C'.code, 'C'.code, 'C'.code))
-            assertLineCodepoints(state, 2, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY))
+            assertLineCodepoints(
+                state,
+                2,
+                intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+            )
         }
 
         @Test
@@ -1427,6 +1577,358 @@ class MutationEngineTest {
             writer.scrollUp()
 
             assertTrue(state.ring.size >= 1)
+        }
+    }
+
+    @Nested
+    @DisplayName("eraseScreenToEnd")
+    inner class EraseScreenToEndTests {
+
+        @Test
+        fun `eraseScreenToEnd clears from cursor through end of screen`() {
+            val state = createState(width = 3, height = 3)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AAA")
+            seedLine(state, 1, "BBB")
+            seedLine(state, 2, "CCC")
+            state.cursor.row = 1
+            state.cursor.col = 1
+
+            writer.eraseScreenToEnd()
+
+            assertAll(
+                { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
+                {
+                    assertLineCodepoints(
+                        state,
+                        1,
+                        intArrayOf('B'.code, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+                    )
+                },
+                {
+                    assertLineCodepoints(
+                        state,
+                        2,
+                        intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+                    )
+                }
+            )
+        }
+
+        @Test
+        fun `eraseScreenToEnd at row 0 col 0 clears entire screen`() {
+            val state = createState(width = 2, height = 3)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AA")
+            seedLine(state, 1, "BB")
+            seedLine(state, 2, "CC")
+            state.cursor.row = 0
+            state.cursor.col = 0
+
+            writer.eraseScreenToEnd()
+
+            assertAll(
+                { assertLineCodepoints(state, 0, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
+                { assertLineCodepoints(state, 1, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
+                { assertLineCodepoints(state, 2, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY)) }
+            )
+        }
+
+        @Test
+        fun `eraseScreenToEnd at last row last col clears only that cell`() {
+            val state = createState(width = 3, height = 3)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AAA")
+            seedLine(state, 1, "BBB")
+            seedLine(state, 2, "CCC")
+            state.cursor.row = 2
+            state.cursor.col = 2
+
+            writer.eraseScreenToEnd()
+
+            assertAll(
+                { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
+                { assertLineCodepoints(state, 1, intArrayOf('B'.code, 'B'.code, 'B'.code)) },
+                { assertLineCodepoints(state, 2, intArrayOf('C'.code, 'C'.code, TerminalConstants.EMPTY)) }
+            )
+        }
+
+        @Test
+        fun `eraseScreenToEnd does not change cursor position`() {
+            val state = createState(width = 3, height = 3)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AAA")
+            seedLine(state, 1, "BBB")
+            seedLine(state, 2, "CCC")
+            state.cursor.row = 1
+            state.cursor.col = 1
+
+            writer.eraseScreenToEnd()
+
+            assertAll(
+                { assertEquals(1, state.cursor.col) },
+                { assertEquals(1, state.cursor.row) }
+            )
+        }
+
+        @Test
+        fun `eraseScreenToEnd is no-op when cursor is out of bounds`() {
+            val state = createState(width = 3, height = 3)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AAA")
+            seedLine(state, 1, "BBB")
+            seedLine(state, 2, "CCC")
+            state.cursor.row = 99
+
+            writer.eraseScreenToEnd()
+
+            assertAll(
+                { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
+                { assertLineCodepoints(state, 1, intArrayOf('B'.code, 'B'.code, 'B'.code)) },
+                { assertLineCodepoints(state, 2, intArrayOf('C'.code, 'C'.code, 'C'.code)) }
+            )
+        }
+
+        @Test
+        fun `eraseScreenToEnd uses current pen attribute`() {
+            val state = createState(width = 3, height = 2)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AAA", attr = 10)
+            seedLine(state, 1, "BBB", attr = 10)
+            state.pen.setAttributes(fg = 5, bg = 2, bold = true)
+            val clearAttr = state.pen.currentAttr
+            state.cursor.row = 0
+            state.cursor.col = 1
+
+            writer.eraseScreenToEnd()
+
+            assertLineAttrs(state, 0, intArrayOf(10, clearAttr, clearAttr))
+            assertLineAttrs(state, 1, intArrayOf(clearAttr, clearAttr, clearAttr))
+        }
+    }
+
+    @Nested
+    @DisplayName("eraseScreenToCursor")
+    inner class EraseScreenToCursorTests {
+
+        @Test
+        fun `eraseScreenToCursor clears from start of screen through cursor`() {
+            val state = createState(width = 3, height = 3)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AAA")
+            seedLine(state, 1, "BBB")
+            seedLine(state, 2, "CCC")
+            state.cursor.row = 1
+            state.cursor.col = 1
+
+            writer.eraseScreenToCursor()
+
+            assertAll(
+                {
+                    assertLineCodepoints(
+                        state,
+                        0,
+                        intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+                    )
+                },
+                {
+                    assertLineCodepoints(
+                        state,
+                        1,
+                        intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, 'B'.code)
+                    )
+                },
+                { assertLineCodepoints(state, 2, intArrayOf('C'.code, 'C'.code, 'C'.code)) }
+            )
+        }
+
+        @Test
+        fun `eraseScreenToCursor at row 0 col 0 clears only that cell`() {
+            val state = createState(width = 2, height = 3)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AA")
+            seedLine(state, 1, "BB")
+            seedLine(state, 2, "CC")
+            state.cursor.row = 0
+            state.cursor.col = 0
+
+            writer.eraseScreenToCursor()
+
+            assertAll(
+                { assertLineCodepoints(state, 0, intArrayOf(TerminalConstants.EMPTY, 'A'.code)) },
+                { assertLineCodepoints(state, 1, intArrayOf('B'.code, 'B'.code)) },
+                { assertLineCodepoints(state, 2, intArrayOf('C'.code, 'C'.code)) }
+            )
+        }
+
+        @Test
+        fun `eraseScreenToCursor at last row last col clears entire screen`() {
+            val state = createState(width = 3, height = 3)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AAA")
+            seedLine(state, 1, "BBB")
+            seedLine(state, 2, "CCC")
+            state.cursor.row = 2
+            state.cursor.col = 2
+
+            writer.eraseScreenToCursor()
+
+            assertAll(
+                {
+                    assertLineCodepoints(
+                        state,
+                        0,
+                        intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+                    )
+                },
+                {
+                    assertLineCodepoints(
+                        state,
+                        1,
+                        intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+                    )
+                },
+                {
+                    assertLineCodepoints(
+                        state,
+                        2,
+                        intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+                    )
+                }
+            )
+        }
+
+        @Test
+        fun `eraseScreenToCursor does not change cursor position`() {
+            val state = createState(width = 3, height = 3)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AAA")
+            seedLine(state, 1, "BBB")
+            seedLine(state, 2, "CCC")
+            state.cursor.row = 1
+            state.cursor.col = 1
+
+            writer.eraseScreenToCursor()
+
+            assertAll(
+                { assertEquals(1, state.cursor.col) },
+                { assertEquals(1, state.cursor.row) }
+            )
+        }
+
+        @Test
+        fun `eraseScreenToCursor is no-op when cursor is out of bounds`() {
+            val state = createState(width = 3, height = 3)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AAA")
+            seedLine(state, 1, "BBB")
+            seedLine(state, 2, "CCC")
+            state.cursor.row = 99
+
+            writer.eraseScreenToCursor()
+
+            assertAll(
+                { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
+                { assertLineCodepoints(state, 1, intArrayOf('B'.code, 'B'.code, 'B'.code)) },
+                { assertLineCodepoints(state, 2, intArrayOf('C'.code, 'C'.code, 'C'.code)) }
+            )
+        }
+
+        @Test
+        fun `eraseScreenToCursor uses current pen attribute`() {
+            val state = createState(width = 3, height = 2)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AAA", attr = 10)
+            seedLine(state, 1, "BBB", attr = 10)
+            state.pen.setAttributes(fg = 1, bg = 6, underline = true)
+            val clearAttr = state.pen.currentAttr
+            state.cursor.row = 1
+            state.cursor.col = 1
+
+            writer.eraseScreenToCursor()
+
+            assertLineAttrs(state, 0, intArrayOf(clearAttr, clearAttr, clearAttr))
+            assertLineAttrs(state, 1, intArrayOf(clearAttr, clearAttr, 10))
+        }
+
+        @Test
+        fun `eraseScreenToCursor with wide character on cursor annihilates it`() {
+            val state = createState(width = 4, height = 2)
+            val writer = MutationEngine(state)
+            writer.printCodepoint(0x1F600, 2)
+            writer.printCodepoint('C'.code, 1)
+            writer.printCodepoint('D'.code, 1)
+            seedLine(state, 1, "EFGH")
+            state.cursor.row = 1
+            state.cursor.col = 2
+
+            writer.eraseScreenToCursor()
+
+            assertAll(
+                {
+                    assertLineCodepoints(
+                        state,
+                        0,
+                        intArrayOf(
+                            TerminalConstants.EMPTY,
+                            TerminalConstants.EMPTY,
+                            TerminalConstants.EMPTY,
+                            TerminalConstants.EMPTY
+                        )
+                    )
+                },
+                {
+                    assertLineCodepoints(
+                        state,
+                        1,
+                        intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY, 'H'.code)
+                    )
+                }
+            )
+        }
+    }
+
+    @Nested
+    @DisplayName("eraseScreenAndHistory")
+    inner class EraseScreenAndHistoryTests {
+
+        @Test
+        fun `eraseScreenAndHistory clears visible screen and history without moving cursor`() {
+            val state = createState(width = 2, height = 2, history = 4)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AA")
+            seedLine(state, 1, "BB")
+            writer.scrollUp()
+            seedLine(state, 0, "CC")
+            seedLine(state, 1, "DD")
+            state.cursor.row = 1
+            state.cursor.col = 1
+            assertEquals(1, state.ring.size - state.dimensions.height, "Should have history before erase")
+
+            writer.eraseScreenAndHistory()
+
+            assertAll(
+                { assertEquals(state.dimensions.height, state.ring.size, "Ring should have only viewport height") },
+                { assertLineCodepoints(state, 0, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
+                { assertLineCodepoints(state, 1, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
+                { assertEquals(1, state.cursor.col, "Cursor column must not change") },
+                { assertEquals(1, state.cursor.row, "Cursor row must not change") }
+            )
+        }
+
+        @Test
+        fun `eraseScreenAndHistory uses current pen attribute`() {
+            val state = createState(width = 2, height = 2, history = 2)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AA")
+            seedLine(state, 1, "BB")
+            state.pen.setAttributes(fg = 7, bg = 6, underline = true)
+            val clearAttr = state.pen.currentAttr
+
+            writer.eraseScreenAndHistory()
+
+            assertLineAttrs(state, 0, intArrayOf(clearAttr, clearAttr))
+            assertLineAttrs(state, 1, intArrayOf(clearAttr, clearAttr))
         }
     }
 }

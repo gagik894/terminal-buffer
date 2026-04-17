@@ -335,6 +335,48 @@ internal class MutationEngine(
         getLine(cRow).clear(state.pen.currentAttr)
     }
 
+    /**
+     * Erases from the cursor to the end of the visible screen (ED 0).
+     * The cursor position is not changed.
+     */
+    fun eraseScreenToEnd() {
+        val cRow = state.cursor.row
+        if (cRow !in 0 until height) return
+
+        // Clear the remainder of the current line
+        eraseLineToEnd()
+
+        // Clear all subsequent lines
+        for (row in cRow + 1 until height) {
+            getLine(row).clear(state.pen.currentAttr)
+        }
+    }
+
+    /**
+     * Erases from the start of the visible screen through the cursor (ED 1).
+     * The cursor position is not changed.
+     */
+    fun eraseScreenToCursor() {
+        val cRow = state.cursor.row
+        if (cRow !in 0 until height) return
+
+        // Clear all preceding lines
+        for (row in 0 until cRow) {
+            getLine(row).clear(state.pen.currentAttr)
+        }
+
+        // Clear the beginning of the current line through the cursor
+        eraseLineToCursor()
+    }
+
+    /**
+     * Erases the entire visible screen and all scrollback history (xterm ED 3).
+     * The cursor position is not changed.
+     */
+    fun eraseScreenAndHistory() {
+        clearAllHistory()
+    }
+
     fun clearViewport() {
         for (row in 0 until height.coerceAtMost(state.ring.size)) {
             getLine(row).clear(state.pen.currentAttr)

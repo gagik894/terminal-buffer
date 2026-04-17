@@ -129,11 +129,13 @@ internal class TerminalBuffer(
     override fun eraseLineToEnd() = mutationEngine.eraseLineToEnd()
     override fun eraseLineToCursor() = mutationEngine.eraseLineToCursor()
     override fun eraseCurrentLine() = mutationEngine.eraseCurrentLine()
-
     override fun insertLines(count: Int) = mutationEngine.insertLines(count)
     override fun deleteLines(count: Int) = mutationEngine.deleteLines(count)
 
-    // --- Rendering API (Zero Allocation - Critical Path) ---
+    override fun eraseScreenToEnd() = mutationEngine.eraseScreenToEnd()
+    override fun eraseScreenToCursor() = mutationEngine.eraseScreenToCursor()
+    override fun eraseEntireScreen() = mutationEngine.clearViewport()
+    override fun eraseScreenAndHistory() = mutationEngine.eraseScreenAndHistory()
 
     override fun getLine(row: Int): TerminalLineApi = getVisibleLine(row) ?: VoidLine
 

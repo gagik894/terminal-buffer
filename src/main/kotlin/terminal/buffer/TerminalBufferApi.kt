@@ -246,9 +246,24 @@ interface TerminalBufferApi {
     /** Erases the entire current line (ANSI EL 2). */
     fun eraseCurrentLine()
 
+    // --- Erase in Display (CSI n J) ---
+
+    /** Erases from the cursor to the end of the visible screen (ANSI ED 0). */
+    fun eraseScreenToEnd()
+
+    /** Erases from the start of the visible screen through the cursor (ANSI ED 1). */
+    fun eraseScreenToCursor()
+
+    /** Erases the entire visible screen. Cursor position is not changed (ANSI ED 2). */
+    fun eraseEntireScreen()
+
+    /** Erases the entire visible screen and the scrollback history (xterm ED 3). */
+    fun eraseScreenAndHistory()
+
     /**
      * Clears the visible screen using the current pen attributes and resets the
      * cursor to home. Scrollback history is preserved.
+     * (Equivalent to ED 2 + CUP, i.e. what the shell `clear` command sends.)
      */
     fun clearScreen()
 

@@ -636,135 +636,365 @@ class TerminalBufferTest {
 	}
 
 	@Nested
-	@DisplayName("Viewport & History")
-	inner class ViewportTests {
+	@DisplayName("Display Erase Commands")
+	inner class DisplayEraseTests {
 
 		@Test
-		fun `scrollUp with zero maxHistory still works but history remains zero`() {
-			val buffer = TerminalBuffer(2, 2, maxHistory = 0)
-			buffer.writeText("AB")
-			buffer.scrollUp()
+		fun `eraseScreenToEnd clears from cursor to end of visible screen`() {
+			val buffer = newBuffer(width = 3, height = 3, maxHistory = 0)
+			buffer.writeText("ABCDEF")
+			buffer.setCursor(1, 0)
+
+			buffer.eraseScreenToEnd()
+
+			assertAll(
+				{ assertEquals("A", buffer.getLineAsString(0)) },
+				{ assertEquals("", buffer.getLineAsString(1)) },
+				{ assertEquals("", buffer.getLineAsString(2)) }
+			)
+		}
+
+		@Test
+		fun `eraseScreenToEnd at home clears entire screen`() {
+			val buffer = newBuffer(width = 2, height = 2, maxHistory = 0)
+			buffer.writeText("ABCD")
+			buffer.setCursor(0, 0)
+
+			buffer.eraseScreenToEnd()
+
+			assertAll(
+				{ assertEquals("", buffer.getLineAsString(0)) },
+				{ assertEquals("", buffer.getLineAsString(1)) }
+			)
+		}
+
+		@Test
+		fun `eraseScreenToEnd at end clears only last cell`() {
+			val buffer = newBuffer(width = 2, height = 3, maxHistory = 0)
+			buffer.writeText("ABCD")
+			buffer.setCursor(1, 1)
+
+			buffer.eraseScreenToEnd()
+
+			assertAll(
+				{ assertEquals("AB", buffer.getLineAsString(0)) },
+				{ assertEquals("C", buffer.getLineAsString(1)) },
+				{ assertEquals("", buffer.getLineAsString(2)) }
+			)
+		}
+
+		@Test
+		fun `eraseScreenToEnd uses current pen attribute`() {
+			val buffer = newBuffer(width = 3, height = 3, maxHistory = 0)
+			buffer.writeText("ABCDEF")
+			buffer.setPenAttributes(fg = 2, bg = 3, bold = true)
+			buffer.setCursor(1, 0)
+
+			buffer.eraseScreenToEnd()
+
+			val clearAttr = Attributes(2, 3, bold = true, italic = false, underline = false)
+			assertAll(
+				{ assertEquals('A'.code, buffer.getCodepointAt(0, 0)) },
+				{ assertEquals(TerminalConstants.EMPTY, buffer.getCodepointAt(1, 0)) },
+				{ assertEquals(clearAttr, buffer.getAttrAt(1, 0)) },
+				{ assertEquals(clearAttr, buffer.getAttrAt(0, 1)) }
+			)
+		}
+
+		@Test
+		fun `eraseScreenToEnd does not move cursor`() {
+			val buffer = newBuffer(width = 4, height = 2, maxHistory = 0)
+			buffer.writeText("ABCD")
+			buffer.setCursor(2, 1)
+
+			buffer.eraseScreenToEnd()
+
+			assertCursor(buffer, 2, 1)
+		}
+
+		@Test
+		fun `eraseScreenToCursor clears from start of screen through cursor`() {
+			val buffer = newBuffer(width = 3, height = 4, maxHistory = 0)
+			buffer.writeText("ABCDEFGHI")
+			buffer.setCursor(1, 1)
+
+			buffer.eraseScreenToCursor()
+
+			assertAll(
+				{ assertEquals("", buffer.getLineAsString(0)) },
+				{ assertEquals("D", buffer.getLineAsString(1)) },
+				{ assertEquals("GHI", buffer.getLineAsString(2)) }
+			)
+		}
+
+		@Test
+		fun `eraseScreenToCursor at home clears only home cell`() {
+			val buffer = newBuffer(width = 2, height = 3, maxHistory = 0)
+			buffer.writeText("ABCD")
+			// rows: "AB" / "CD" / "" — no scroll occurred
+			buffer.setCursor(0, 0)
+
+			buffer.eraseScreenToCursor()
+
+			assertAll(
+				{ assertEquals(" B", buffer.getLineAsString(0)) },
+				{ assertEquals("CD", buffer.getLineAsString(1)) }
+			)
+		}
+
+		@Test
+		fun `eraseScreenToCursor at end clears entire screen`() {
+			val buffer = newBuffer(width = 2, height = 2, maxHistory = 0)
+			buffer.writeText("ABCD")
+			buffer.setCursor(1, 1)
+
+			buffer.eraseScreenToCursor()
+
+			assertAll(
+				{ assertEquals("", buffer.getLineAsString(0)) },
+				{ assertEquals("", buffer.getLineAsString(1)) }
+			)
+		}
+
+		@Test
+		fun `eraseScreenToCursor uses current pen attribute`() {
+			val buffer = newBuffer(width = 3, height = 2, maxHistory = 0)
+			buffer.writeText("ABCDEF")
+			buffer.setPenAttributes(fg = 5, bg = 1, italic = true)
+			buffer.setCursor(1, 1)
+
+			buffer.eraseScreenToCursor()
+
+			val clearAttr = Attributes(5, 1, bold = false, italic = true, underline = false)
+			assertAll(
+				{ assertEquals(clearAttr, buffer.getAttrAt(0, 0)) },
+				{ assertEquals(clearAttr, buffer.getAttrAt(1, 0)) },
+				{ assertEquals(TerminalConstants.EMPTY, buffer.getCodepointAt(2, 1)) }
+			)
+		}
+
+		@Test
+		fun `eraseScreenToCursor does not move cursor`() {
+			val buffer = newBuffer(width = 4, height = 2, maxHistory = 0)
+			buffer.writeText("ABCD")
+			buffer.setCursor(1, 0)
+
+			buffer.eraseScreenToCursor()
+
+			assertCursor(buffer, 1, 0)
+		}
+
+		@Test
+		fun `eraseScreenToEnd and eraseScreenToCursor with history preserved`() {
+			val buffer = newBuffer(width = 2, height = 2, maxHistory = 4)
+			buffer.writeText("ABCD")
+			// History: "AB" (row 0), Screen: "CD" (row 1)
+			assertEquals(1, buffer.historySize)
+
+			buffer.setCursor(0, 0)
+			buffer.eraseScreenToEnd()
+
+			// History should be untouched
+			assertEquals(1, buffer.historySize)
+			assertEquals("", buffer.getLineAsString(0))
+			assertEquals("", buffer.getLineAsString(1))
+		}
+
+		@Test
+		fun `eraseEntireScreen clears entire visible screen without moving cursor`() {
+			val buffer = newBuffer(width = 3, height = 3, maxHistory = 0)
+			buffer.writeText("ABCDEFGHI")
+			buffer.setCursor(1, 1)
+			buffer.setPenAttributes(fg = 2, bg = 3, bold = true)
+
+			buffer.eraseEntireScreen()
+
+			assertAll(
+				{ assertEquals("", buffer.getLineAsString(0)) },
+				{ assertEquals("", buffer.getLineAsString(1)) },
+				{ assertEquals("", buffer.getLineAsString(2)) },
+				{ assertCursor(buffer, 1, 1) }
+			)
+		}
+
+		@Test
+		fun `eraseEntireScreen uses current pen attribute`() {
+			val buffer = newBuffer(width = 2, height = 2, maxHistory = 0)
+			buffer.writeText("ABCD")
+			buffer.setPenAttributes(fg = 4, bg = 5, italic = true, underline = true)
+
+			buffer.eraseEntireScreen()
+
+			val clearAttr = Attributes(4, 5, bold = false, italic = true, underline = true)
+			assertAll(
+				{ assertEquals(clearAttr, buffer.getAttrAt(0, 0)) },
+				{ assertEquals(clearAttr, buffer.getAttrAt(1, 1)) },
+				{ assertEquals(TerminalConstants.EMPTY, buffer.getCodepointAt(0, 0)) }
+			)
+		}
+
+		@Test
+		fun `eraseEntireScreen preserves history`() {
+			val buffer = newBuffer(width = 2, height = 2, maxHistory = 4)
+			buffer.writeText("ABCD")
+			// History: "AB", Screen: "CD"
+			val historyBefore = buffer.historySize
+
+			buffer.eraseEntireScreen()
+
+			assertAll(
+				{ assertEquals(historyBefore, buffer.historySize) },
+				{ assertEquals("", buffer.getLineAsString(0)) },
+				{ assertEquals("", buffer.getLineAsString(1)) }
+			)
+		}
+
+		@Test
+		fun `eraseEntireScreen at all cursor positions`() {
+			val buffer = newBuffer(width = 2, height = 2, maxHistory = 0)
+			buffer.writeText("ABCD")
+
+			// Test at home
+			buffer.setCursor(0, 0)
+			buffer.eraseEntireScreen()
+			assertAll(
+				{ assertEquals("", buffer.getLineAsString(0)) },
+				{ assertCursor(buffer, 0, 0) }
+			)
+
+			// Refill and test at end
+			buffer.writeText("ABCD")
+			buffer.setCursor(1, 1)
+			buffer.eraseEntireScreen()
+			assertAll(
+				{ assertEquals("", buffer.getLineAsString(1)) },
+				{ assertCursor(buffer, 1, 1) }
+			)
+		}
+
+		@Test
+		fun `eraseScreenAndHistory clears screen, history, and leaves cursor unchanged`() {
+			val buffer = newBuffer(width = 2, height = 2, maxHistory = 4)
+			buffer.writeText("ABCDEF")
+			// History: "AB", "CD"; Screen: "EF"
+			assertEquals(2, buffer.historySize)
+			buffer.setCursor(1, 1)
+
+			buffer.eraseScreenAndHistory()
 
 			assertAll(
 				{ assertEquals(0, buffer.historySize) },
-				{ assertEquals("\n", buffer.getScreenAsString()) },
-				{ assertEquals("\n", buffer.getAllAsString()) }
+				{ assertEquals("", buffer.getLineAsString(0)) },
+				{ assertEquals("", buffer.getLineAsString(1)) },
+				{ assertCursor(buffer, 1, 1) }
 			)
 		}
 
 		@Test
-		fun `scrollUp adds a blank line and moves the old top line into history`() {
-			val buffer = newBuffer(width = 2, height = 2, maxHistory = 4)
+		fun `eraseScreenAndHistory uses current pen attribute`() {
+			val buffer = newBuffer(width = 3, height = 2, maxHistory = 2)
+			buffer.writeText("ABCDEF")
+			buffer.setPenAttributes(fg = 1, bg = 6, bold = true, underline = true)
 
-			buffer.setPenAttributes(6, 7, bold = true)
-			buffer.writeText("AB")
-			buffer.scrollUp()
+			buffer.eraseScreenAndHistory()
 
+			val clearAttr = Attributes(1, 6, bold = true, italic = false, underline = true)
 			assertAll(
-				{ assertEquals(1, buffer.historySize) },
-				{ assertEquals("\n", buffer.getScreenAsString()) },
-				{ assertCursor(buffer, 0, 1) },
-				{ assertEquals(Attributes(6, 7, true, false, false), buffer.getAttrAt(0, 1)) }
+				{ assertEquals(clearAttr, buffer.getAttrAt(0, 0)) },
+				{ assertEquals(clearAttr, buffer.getAttrAt(2, 1)) },
+				{ assertEquals(TerminalConstants.EMPTY, buffer.getCodepointAt(0, 0)) }
 			)
 		}
 
 		@Test
-		fun `clearScreen preserves history and resets the cursor`() {
-			val buffer = newBuffer(width = 2, height = 2, maxHistory = 4)
-
+		fun `eraseScreenAndHistory with zero history`() {
+			val buffer = newBuffer(width = 2, height = 2, maxHistory = 0)
 			buffer.writeText("ABCD")
-			buffer.setPenAttributes(3, 4, bold = true)
-			buffer.clearScreen()
+			buffer.setCursor(0, 0)
 
-			assertAll(
-				{ assertEquals(1, buffer.historySize) },
-				{ assertCursor(buffer, 0, 0) },
-				{ assertEquals("\n", buffer.getScreenAsString()) },
-				{ assertEquals(Attributes(3, 4, true, false, false), buffer.getAttrAt(0, 0)) },
-				{ assertEquals(Attributes(3, 4, true, false, false), buffer.getAttrAt(1, 1)) }
-			)
-		}
-
-		@Test
-		fun `clearAll removes history and resets pen and cursor`() {
-			val buffer = newBuffer(width = 2, height = 2, maxHistory = 2)
-
-			buffer.setPenAttributes(8, 9, bold = true, italic = true, underline = true)
-			buffer.writeText("ABCD")
-			buffer.clearAll()
+			buffer.eraseScreenAndHistory()
 
 			assertAll(
 				{ assertEquals(0, buffer.historySize) },
-				{ assertCursor(buffer, 0, 0) },
-				{ assertEquals(blankScreen(2), buffer.getScreenAsString()) },
-				{ assertEquals(blankScreen(2), buffer.getAllAsString()) },
-				{ assertEquals(defaultAttributes(), buffer.getAttrAt(0, 0)) },
-				{ assertEquals(0, buffer.getPackedAttrAt(-1, 0)) }
+				{ assertEquals("", buffer.getLineAsString(0)) },
+				{ assertEquals("", buffer.getLineAsString(1)) },
+				{ assertCursor(buffer, 0, 0) }
 			)
-
-			buffer.writeCodepoint('Z'.code)
-			assertEquals(defaultAttributes(), buffer.getAttrAt(0, 0))
 		}
 
 		@Test
-		fun `reset leaves the buffer in the same observable state as a fresh instance`() {
-			val dirty = newBuffer(width = 3, height = 2, maxHistory = 1)
+		fun `eraseScreenAndHistory at various cursor positions`() {
+			val buffer = newBuffer(width = 2, height = 2, maxHistory = 3)
+			buffer.writeText("ABCDE")
 
-			dirty.setPenAttributes(5, 6, bold = true)
-			dirty.writeText("ABCDEF")
-			dirty.reset()
-
+			// Test at home
+			buffer.setCursor(0, 0)
+			buffer.eraseScreenAndHistory()
 			assertAll(
-				{ assertEquals(0, dirty.historySize) },
-				{ assertCursor(dirty, 0, 0) },
-				{ assertEquals(blankScreen(2), dirty.getScreenAsString()) },
-				{ assertEquals(blankScreen(2), dirty.getAllAsString()) },
-				{ assertEquals(defaultAttributes(), dirty.getAttrAt(0, 0)) }
+				{ assertEquals(0, buffer.historySize) },
+				{ assertCursor(buffer, 0, 0) }
 			)
 
-			dirty.setPenAttributes(1, 1, underline = true)
-			dirty.writeCodepoint('X'.code)
-			dirty.reset()
+			// Refill and test at bottom-right
+			buffer.writeText("ABCDE")
+			buffer.setCursor(1, 1)
+			buffer.eraseScreenAndHistory()
+			assertAll(
+				{ assertEquals(0, buffer.historySize) },
+				{ assertCursor(buffer, 1, 1) }
+			)
+		}
+
+		@Test
+		fun `eraseScreenAndHistory completely clears a large scrollback`() {
+			val buffer = newBuffer(width = 2, height = 2, maxHistory = 20)
+			// Fill up a lot of history
+			repeat(15) {
+				buffer.writeText("AB")
+				buffer.newLine()
+			}
+			val historyAfterWrite = buffer.historySize
+			assertTrue(historyAfterWrite > 10, "Should have significant history")
+
+			buffer.eraseScreenAndHistory()
 
 			assertAll(
-				{ assertEquals(0, dirty.historySize) },
-				{ assertCursor(dirty, 0, 0) },
-				{ assertEquals(blankScreen(2), dirty.getScreenAsString()) },
-				{ assertEquals(blankScreen(2), dirty.getAllAsString()) },
-				{ assertEquals(defaultAttributes(), dirty.getAttrAt(0, 0)) }
+				{ assertEquals(0, buffer.historySize) },
+				{ assertEquals("", buffer.getLineAsString(0)) },
+				{ assertEquals("", buffer.getLineAsString(1)) }
 			)
 		}
 	}
 
-	@Nested
-	@DisplayName("Resize")
-	inner class ResizeTests {
+    @Nested
+    @DisplayName("Resize")
+    inner class ResizeTests {
 
-		@Test
-		fun `resize is exposed through the public API`() {
-			val buffer = newApiBuffer(width = 4, height = 2, maxHistory = 3)
-			buffer.writeText("ABCD")
+        @Test
+        fun `resize is exposed through the public API`() {
+            val buffer = newApiBuffer(width = 4, height = 2, maxHistory = 3)
+            buffer.writeText("ABCD")
 
-			buffer.resize(newWidth = 2, newHeight = 3)
+            buffer.resize(newWidth = 2, newHeight = 3)
 
-			assertAll(
-				{ assertEquals(2, buffer.width) },
-				{ assertEquals(3, buffer.height) },
-				{ assertTrue(buffer.cursorCol in 0 until buffer.width) },
-				{ assertTrue(buffer.cursorRow in 0 until buffer.height) }
-			)
-		}
+            assertAll(
+                { assertEquals(2, buffer.width) },
+                { assertEquals(3, buffer.height) },
+                { assertTrue(buffer.cursorCol in 0 until buffer.width) },
+                { assertTrue(buffer.cursorRow in 0 until buffer.height) }
+            )
+        }
 
-		@Test
-		fun `resize rejects non-positive dimensions through the public API`() {
-			val buffer = newApiBuffer()
+        @Test
+        fun `resize rejects non-positive dimensions through the public API`() {
+            val buffer = newApiBuffer()
 
-			assertThrows<IllegalArgumentException> { buffer.resize(0, 2) }
-			assertThrows<IllegalArgumentException> { buffer.resize(2, 0) }
-			assertThrows<IllegalArgumentException> { buffer.resize(-1, 2) }
-			assertThrows<IllegalArgumentException> { buffer.resize(2, -1) }
-		}
-	}
+            assertThrows<IllegalArgumentException> { buffer.resize(0, 2) }
+            assertThrows<IllegalArgumentException> { buffer.resize(2, 0) }
+            assertThrows<IllegalArgumentException> { buffer.resize(-1, 2) }
+            assertThrows<IllegalArgumentException> { buffer.resize(2, -1) }
+        }
+    }
 
 	@Nested
 	@DisplayName("Rendering & Query API")
