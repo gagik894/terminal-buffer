@@ -77,6 +77,7 @@ internal class TerminalBuffer(
         require(newHeight > 0) { "newHeight must be > 0, was $newHeight" }
 
         TerminalResizer.resize(state, newWidth, newHeight)
+        state.resetScrollRegion()
     }
 
     // --- Writing API ---
@@ -129,6 +130,7 @@ internal class TerminalBuffer(
     override fun eraseLineToCursor() = mutationEngine.eraseLineToCursor()
     override fun eraseCurrentLine() = mutationEngine.eraseCurrentLine()
 
+
     // --- Rendering API (Zero Allocation - Critical Path) ---
 
     override fun getLine(row: Int): TerminalLineApi = getVisibleLine(row) ?: VoidLine
@@ -173,7 +175,7 @@ internal class TerminalBuffer(
     }
 
     override fun reset() {
-        // clearAll already resets pen + cursor and rebuilds a blank viewport.
         clearAll()
+        state.resetScrollRegion()
     }
 }
