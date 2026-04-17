@@ -382,8 +382,9 @@ internal class MutationEngine(
 
     fun eraseLineToCursor() {
         val cRow = state.cursor.row
-        val cCol = state.cursor.col
-        if (cRow !in 0 until height || cCol !in 0 until width) return
+        val cCol = state.cursor.col.coerceAtMost(width - 1)
+        if (cRow !in 0 until height || cCol < 0) return
+
         annihilateAt(cRow, cCol)
         getLine(cRow).clearToColumn(cCol, state.pen.currentAttr)
     }

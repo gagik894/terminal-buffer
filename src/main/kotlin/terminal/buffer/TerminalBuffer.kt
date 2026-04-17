@@ -150,7 +150,6 @@ internal class TerminalBuffer(
         mutationEngine.clearAllHistory()
         resetCursor()
         state.savedCursor.clear()
-        state.tabStops.resetToDefault()
     }
 
     override fun eraseLineToEnd() = mutationEngine.eraseLineToEnd()
@@ -206,7 +205,11 @@ internal class TerminalBuffer(
     }
 
     override fun reset() {
-        clearAll()
+        clearAll() // Wipe the memory
+
+        // Restore all hardware state to factory defaults (RIS)
         state.resetScrollRegion()
+        state.modes.reset()
+        state.tabStops.resetToDefault()
     }
 }
