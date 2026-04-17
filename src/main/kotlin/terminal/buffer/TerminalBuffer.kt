@@ -128,9 +128,7 @@ internal class TerminalBuffer(
 
     // --- Rendering API (Zero Allocation - Critical Path) ---
 
-    override fun getLine(row: Int): TerminalLineApi {
-        return getVisibleLine(row) ?: VoidLine
-    }
+    override fun getLine(row: Int): TerminalLineApi = getVisibleLine(row) ?: VoidLine
 
     override fun getCodepointAt(col: Int, row: Int): Int {
         if (!state.dimensions.isValidCol(col)) return TerminalConstants.EMPTY
@@ -155,14 +153,11 @@ internal class TerminalBuffer(
         return getVisibleLine(row)?.toTextTrimmed() ?: ""
     }
 
-    override fun getScreenAsString(): String {
-        val sb = StringBuilder()
-        val lineCount = height.coerceAtMost(state.ring.size)
-        for (i in 0 until lineCount) {
-            if (i > 0) sb.append('\n')
-            sb.append(getLineAsString(i))
+    override fun getScreenAsString(): String = buildString {
+        for (i in 0 until height) {
+            if (i > 0) append('\n')
+            append(getLineAsString(i))
         }
-        return sb.toString()
     }
 
     override fun getAllAsString(): String {

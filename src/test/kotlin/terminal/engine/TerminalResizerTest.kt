@@ -13,29 +13,9 @@ import org.junit.jupiter.params.provider.CsvSource
 // Helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Builds a minimal TerminalState for test purposes.
- *
- * @param cols   screen width in columns
- * @param rows   screen height in rows
- * @param history extra scrollback lines above the screen
- */
-private fun buildState(cols: Int, rows: Int, history: Int = 0): TerminalState {
-    val state = TerminalState(
-        maxHistory = history,
-        initialWidth = cols,
-        initialHeight = rows
-    )
-    return state
-}
+private fun buildState(cols: Int, rows: Int, history: Int = 0): TerminalState =
+    TerminalState(maxHistory = history, initialWidth = cols, initialHeight = rows)
 
-/**
- * Writes an ASCII string into the given screen row (0 = top of visible screen),
- * starting at column 0.  Attributes are left at zero.
- *
- * HistoryRing.get(i) returns lines oldest-first, so the top of the visible
- * screen is at index (ring.size - height) and the bottom is at (ring.size - 1).
- */
 private fun TerminalState.writeLine(screenRow: Int, text: String) {
     val top = (ring.size - dimensions.height).coerceAtLeast(0)
     val line = ring[top + screenRow]
@@ -45,25 +25,10 @@ private fun TerminalState.writeLine(screenRow: Int, text: String) {
     }
 }
 
-/**
- * Returns the visible screen as a list of trimmed strings, one per row,
- * ordered top-to-bottom.
- */
 private fun TerminalState.screenLines(): List<String> {
     val top = (ring.size - dimensions.height).coerceAtLeast(0)
-    return (0 until dimensions.height).map { r ->
-        ring[top + r].toTextTrimmed()
-    }
+    return (0 until dimensions.height).map { r -> ring[top + r].toTextTrimmed() }
 }
-
-/**
- * Returns the visible screen content as a single string with all rows
- * concatenated in order, without any separator.  Useful for checking that
- * content is present somewhere across a reflowed screen regardless of how
- * it was split across physical lines.
- */
-private fun TerminalState.screenText(): String =
-    screenLines().joinToString("")
 
 // ---------------------------------------------------------------------------
 // Test suite
@@ -72,17 +37,16 @@ private fun TerminalState.screenText(): String =
 @DisplayName("TerminalResizer Test Suite")
 class TerminalResizerTest {
 
-    // -----------------------------------------------------------------------
-    // No-op resize
-    // -----------------------------------------------------------------------
+    // =========================================================================
+    // Same-size resize
+    // =========================================================================
 
     @Nested
     @DisplayName("Same-size resize")
     inner class SameSizeTests {
 
         @Test
-        @DisplayName("Resize to identical dimensions leaves content and cursor unchanged")
-        fun `resize to same size is a no-op`() {
+        fun `resize to same size preserves content and cursor`() {
             val state = buildState(cols = 10, rows = 5)
             state.writeLine(4, "Hello")
             state.cursor.col = 3
@@ -98,24 +62,37 @@ class TerminalResizerTest {
                 { assertEquals("Hello", state.screenLines()[4]) }
             )
         }
+
+        @Test
+        fun `resize to same size with multiple content rows preserves all rows`() {
+            val state = buildState(cols = 10, rows = 5)
+            state.writeLine(2, "Foo")
+            state.writeLine(3, "Bar")
+            state.writeLine(4, "Baz")
+            state.cursor.row = 4
+
+            TerminalResizer.resize(state, 10, 5)
+
+            val lines = state.screenLines()
+            assertAll(
+                { assertEquals("Foo", lines[2]) },
+                { assertEquals("Bar", lines[3]) },
+                { assertEquals("Baz", lines[4]) }
+            )
+        }
     }
 
-    // -----------------------------------------------------------------------
-    // Width changes — content reflow
-    // -----------------------------------------------------------------------
+    // =========================================================================
+    // Width changes — reflow
+    // =========================================================================
 
     @Nested
     @DisplayName("Width changes (reflow)")
     inner class WidthChangeTests {
 
         @Test
-        @DisplayName("Narrowing splits a long line into two wrapped physical lines")
-        fun `narrow splits line`() {
+        fun `narrowing splits a long line into two physical lines`() {
             val state = buildState(cols = 10, rows = 5)
-            // Write on the last row so no blank lines follow it through the resizer.
-            // The resizer processes all ring rows; blank trailing rows each push an
-            // extra empty line into the new ring, which shifts reflow output above
-            // the live screen window if content is written to an earlier row.
             state.writeLine(4, "HelloWorld")
             state.cursor.row = 4
 
@@ -129,24 +106,21 @@ class TerminalResizerTest {
         }
 
         @Test
-        @DisplayName("Widening merges two previously wrapped lines back into one")
-        fun `widen merges wrapped lines`() {
+        fun `widening merges two wrapped physical lines into one`() {
             val state = buildState(cols = 5, rows = 5)
-            // Use the last two rows so no blank lines follow them through the resizer.
             val top = (state.ring.size - 5).coerceAtLeast(0)
             state.ring[top + 3].apply {
-                for ((i, ch) in "Hello".withIndex()) setCell(i, ch.code, 0)
+                "Hello".forEachIndexed { i, c -> setCell(i, c.code, 0) }
                 wrapped = true
             }
             state.ring[top + 4].apply {
-                for ((i, ch) in "World".withIndex()) setCell(i, ch.code, 0)
+                "World".forEachIndexed { i, c -> setCell(i, c.code, 0) }
                 wrapped = false
             }
             state.cursor.row = 4
 
             TerminalResizer.resize(state, 10, 5)
 
-            // Two physical lines merged into one, so the result lands one row higher.
             assertEquals("HelloWorld", state.screenLines()[3])
         }
 
@@ -154,15 +128,11 @@ class TerminalResizerTest {
         @CsvSource("1", "3", "7", "20", "80")
         fun `content is preserved across arbitrary width changes`(newWidth: Int) {
             val state = buildState(cols = 10, rows = 5)
-            // Write on the last row so the content is not pushed out of the live
-            // screen window by blank lines that follow it through the resizer.
             state.writeLine(4, "ABCDE")
             state.cursor.row = 4
 
             TerminalResizer.resize(state, newWidth, 5)
 
-            // Join using untrimmed rows so characters split across physical lines
-            // by the reflow still appear contiguous when concatenated.
             val top = (state.ring.size - state.dimensions.height).coerceAtLeast(0)
             val allText = (0 until state.dimensions.height)
                 .joinToString("") { state.ring[top + it].toText() }
@@ -171,8 +141,54 @@ class TerminalResizerTest {
         }
 
         @Test
-        @DisplayName("Wide character clusters are kept together when a resize would split them")
-        fun `wide character does not split across rows`() {
+        fun `narrowing to width 1 spreads each character onto its own row`() {
+            val state = buildState(cols = 4, rows = 5)
+            state.writeLine(4, "ABCD")
+            state.cursor.row = 4
+
+            TerminalResizer.resize(state, 1, 5)
+
+            val top = (state.ring.size - state.dimensions.height).coerceAtLeast(0)
+            val allText = (0 until state.dimensions.height)
+                .joinToString("") { state.ring[top + it].toTextTrimmed() }
+            assertEquals("ABCD", allText)
+        }
+
+        @Test
+        fun `multiple adjacent content lines each reflow independently`() {
+            val state = buildState(cols = 6, rows = 5)
+            val top = (state.ring.size - 5).coerceAtLeast(0)
+            state.ring[top + 3].apply {
+                "AAABBB".forEachIndexed { i, c -> setCell(i, c.code, 0) }
+            }
+            state.ring[top + 4].apply {
+                "CCCDDD".forEachIndexed { i, c -> setCell(i, c.code, 0) }
+            }
+            state.cursor.row = 4
+
+            TerminalResizer.resize(state, 3, 5)
+
+            val newTop = (state.ring.size - 5).coerceAtLeast(0)
+            // 4 chunks: AAA, BBB, CCC, DDD land in rows 1..4
+            assertAll(
+                { assertEquals("AAA", state.ring[newTop + 1].toTextTrimmed()) },
+                { assertEquals("BBB", state.ring[newTop + 2].toTextTrimmed()) },
+                { assertEquals("CCC", state.ring[newTop + 3].toTextTrimmed()) },
+                { assertEquals("DDD", state.ring[newTop + 4].toTextTrimmed()) }
+            )
+        }
+    }
+
+    // =========================================================================
+    // Wide character boundary handling
+    // =========================================================================
+
+    @Nested
+    @DisplayName("Wide character boundary handling")
+    inner class WideCharTests {
+
+        @Test
+        fun `wide character is not split across physical lines on resize`() {
             val state = buildState(cols = 6, rows = 2)
             val top = (state.ring.size - state.dimensions.height).coerceAtLeast(0)
             state.ring[top + 1].apply {
@@ -187,50 +203,193 @@ class TerminalResizerTest {
 
             TerminalResizer.resize(state, 4, 2)
 
-            val visibleTop = (state.ring.size - state.dimensions.height).coerceAtLeast(0)
-            val first = state.ring[visibleTop]
-            val second = state.ring[visibleTop + 1]
+            val visTop = (state.ring.size - state.dimensions.height).coerceAtLeast(0)
+            val first  = state.ring[visTop]
+            val second = state.ring[visTop + 1]
 
             assertAll(
+                // First chunk: ABC + empty (wide leader bumped to next line)
                 { assertEquals('A'.code, first.getCodepoint(0)) },
                 { assertEquals('B'.code, first.getCodepoint(1)) },
                 { assertEquals('C'.code, first.getCodepoint(2)) },
                 { assertEquals(TerminalConstants.EMPTY, first.getCodepoint(3)) },
+                // Second chunk: 你 + spacer + D
                 { assertEquals('你'.code, second.getCodepoint(0)) },
                 { assertEquals(TerminalConstants.WIDE_CHAR_SPACER, second.getCodepoint(1)) },
                 { assertEquals('D'.code, second.getCodepoint(2)) },
                 { assertEquals(TerminalConstants.EMPTY, second.getCodepoint(3)) }
             )
         }
+
+        @Test
+        fun `wide character at exact boundary is bumped to next row and not duplicated`() {
+            val state = buildState(cols = 4, rows = 2)
+            val top = (state.ring.size - 2).coerceAtLeast(0)
+            state.ring[top + 1].apply {
+                setCell(0, 'A'.code, 0)
+                setCell(1, 'B'.code, 0)
+                setCell(2, '你'.code, 0)           // wide leader at col 2
+                setCell(3, TerminalConstants.WIDE_CHAR_SPACER, 0) // spacer at col 3
+            }
+            state.cursor.row = 1
+
+            TerminalResizer.resize(state, 3, 2)
+
+            val visTop = (state.ring.size - 2).coerceAtLeast(0)
+            val first  = state.ring[visTop]
+            val second = state.ring[visTop + 1]
+
+            assertAll(
+                // First line: AB + empty (wide char bumped)
+                { assertEquals('A'.code, first.getCodepoint(0)) },
+                { assertEquals('B'.code, first.getCodepoint(1)) },
+                { assertEquals(TerminalConstants.EMPTY, first.getCodepoint(2)) },
+                // Second line: 你 + spacer
+                { assertEquals('你'.code, second.getCodepoint(0)) },
+                { assertEquals(TerminalConstants.WIDE_CHAR_SPACER, second.getCodepoint(1)) },
+                { assertEquals(TerminalConstants.EMPTY, second.getCodepoint(2)) }
+            )
+        }
+
+        @Test
+        fun `wide char not at boundary is not disturbed`() {
+            val state = buildState(cols = 6, rows = 2)
+            val top = (state.ring.size - 2).coerceAtLeast(0)
+            state.ring[top + 1].apply {
+                setCell(0, '你'.code, 0)
+                setCell(1, TerminalConstants.WIDE_CHAR_SPACER, 0)
+                setCell(2, 'A'.code, 0)
+            }
+            state.cursor.row = 1
+
+            TerminalResizer.resize(state, 4, 2)
+
+            val visTop = (state.ring.size - 2).coerceAtLeast(0)
+            val line = state.ring[visTop + 1]
+
+            assertAll(
+                { assertEquals('你'.code, line.getCodepoint(0)) },
+                { assertEquals(TerminalConstants.WIDE_CHAR_SPACER, line.getCodepoint(1)) },
+                { assertEquals('A'.code, line.getCodepoint(2)) }
+            )
+        }
     }
 
-    // -----------------------------------------------------------------------
+    // =========================================================================
+    // Cluster cell preservation
+    // =========================================================================
+
+    @Nested
+    @DisplayName("Cluster cell deep-copy on resize")
+    inner class ClusterCellTests {
+
+        @Test
+        fun `ZWJ cluster survives resize with all codepoints intact`() {
+            val state = buildState(cols = 6, rows = 2)
+            val top = (state.ring.size - 2).coerceAtLeast(0)
+            // Family emoji: man + ZWJ + woman
+            state.ring[top + 1].setCluster(
+                0,
+                intArrayOf(0x1F468, 0x200D, 0x1F469),
+                3,
+                42
+            )
+            state.cursor.row = 1
+
+            TerminalResizer.resize(state, 6, 2)
+
+            val visTop = (state.ring.size - 2).coerceAtLeast(0)
+            val line = state.ring[visTop + 1]
+            val dest = IntArray(4)
+            val written = line.readCluster(0, dest)
+
+            assertAll(
+                { assertTrue(line.isCluster(0), "Cell must still be a cluster after resize") },
+                { assertEquals(3, written) },
+                { assertEquals(0x1F468, dest[0]) },
+                { assertEquals(0x200D,  dest[1]) },
+                { assertEquals(0x1F469, dest[2]) },
+                { assertEquals(42, line.getPackedAttr(0)) }
+            )
+        }
+
+        @Test
+        fun `cluster handle in new ring points into new store not old store`() {
+            val state = buildState(cols = 6, rows = 2)
+            val top = (state.ring.size - 2).coerceAtLeast(0)
+            state.ring[top + 1].setCluster(0, intArrayOf(0xAAAA, 0xBBBB), 2, 0)
+            val oldStore = state.clusterStore
+            state.cursor.row = 1
+
+            TerminalResizer.resize(state, 6, 2)
+
+            assertNotSame(oldStore, state.clusterStore,
+                "State must reference the new store after resize")
+
+            // New store must serve the handle correctly
+            val visTop = (state.ring.size - 2).coerceAtLeast(0)
+            val dest = IntArray(4)
+            val written = state.ring[visTop + 1].readCluster(0, dest)
+            assertAll(
+                { assertEquals(2, written) },
+                { assertEquals(0xAAAA, dest[0]) },
+                { assertEquals(0xBBBB, dest[1]) }
+            )
+        }
+
+        @Test
+        fun `cluster split across resize boundary lands intact on new row`() {
+            val state = buildState(cols = 4, rows = 2)
+            val top = (state.ring.size - 2).coerceAtLeast(0)
+            state.ring[top + 1].apply {
+                setCell(0, 'A'.code, 0)
+                setCell(1, 'B'.code, 0)
+                setCell(2, 'C'.code, 0)
+                // Cluster at col 3 gets split to next line when narrowing to 3
+                setCluster(3, intArrayOf(0x1F600, 0x200D), 2, 7)
+            }
+            state.cursor.row = 1
+
+            TerminalResizer.resize(state, 3, 2)
+
+            val visTop = (state.ring.size - 2).coerceAtLeast(0)
+            val secondRow = state.ring[visTop + 1]
+            val dest = IntArray(4)
+            val written = secondRow.readCluster(0, dest)
+
+            assertAll(
+                { assertTrue(secondRow.isCluster(0)) },
+                { assertEquals(2, written) },
+                { assertEquals(0x1F600, dest[0]) },
+                { assertEquals(0x200D, dest[1]) },
+                { assertEquals(7, secondRow.getPackedAttr(0)) }
+            )
+        }
+    }
+
+    // =========================================================================
     // Height changes
-    // -----------------------------------------------------------------------
+    // =========================================================================
 
     @Nested
     @DisplayName("Height changes")
     inner class HeightChangeTests {
 
         @Test
-        @DisplayName("Shrinking height trims blank rows at the bottom")
-        fun `shrink height removes blank rows`() {
+        fun `shrinking height keeps content visible in bottom rows`() {
             val state = buildState(cols = 10, rows = 10)
-            // Write content near the bottom of the screen so it stays visible
-            // after shrinking — the live screen is always the bottom N rows.
-            state.writeLine(9, "Top")
+            state.writeLine(9, "Bottom")
 
             TerminalResizer.resize(state, 10, 5)
 
             assertAll(
                 { assertEquals(5, state.dimensions.height) },
-                { assertEquals("Top", state.screenLines()[4]) }
+                { assertEquals("Bottom", state.screenLines()[4]) }
             )
         }
 
         @Test
-        @DisplayName("Growing height adds blank rows and keeps existing content intact")
-        fun `grow height adds blank rows`() {
+        fun `growing height adds blank rows and retains existing content`() {
             val state = buildState(cols = 10, rows = 5)
             state.writeLine(4, "Content")
             state.cursor.row = 4
@@ -242,19 +401,29 @@ class TerminalResizerTest {
                 { assertTrue(state.screenLines().any { it == "Content" }) }
             )
         }
+
+        @Test
+        fun `growing height fills new rows with blank lines`() {
+            val state = buildState(cols = 10, rows = 5)
+            state.cursor.row = 4
+
+            TerminalResizer.resize(state, 10, 8)
+
+            assertEquals(8, state.dimensions.height)
+            assertTrue(state.ring.size >= 8)
+        }
     }
 
-    // -----------------------------------------------------------------------
+    // =========================================================================
     // Cursor tracking
-    // -----------------------------------------------------------------------
+    // =========================================================================
 
     @Nested
-    @DisplayName("Cursor position after resize")
+    @DisplayName("Cursor tracking")
     inner class CursorTrackingTests {
 
         @Test
-        @DisplayName("Cursor column is clamped to new width when narrowing")
-        fun `cursor col clamped on narrow`() {
+        fun `cursor col is clamped to new width when narrowing`() {
             val state = buildState(cols = 20, rows = 5)
             state.cursor.col = 15
             state.cursor.row = 0
@@ -262,31 +431,28 @@ class TerminalResizerTest {
             TerminalResizer.resize(state, 10, 5)
 
             assertTrue(state.cursor.col < 10,
-                "Cursor column ${state.cursor.col} should be < new width 10")
+                "Cursor col ${state.cursor.col} should be < new width 10")
         }
 
         @Test
-        @DisplayName("Cursor moves to correct physical line when its logical line is split by narrowing")
-        fun `cursor tracked across line split`() {
+        fun `cursor is tracked to correct physical line when its logical line is split`() {
             val state = buildState(cols = 10, rows = 5)
-            // Write on the last row and place the cursor at col 7 on that row.
             state.writeLine(4, "AAABBBCCC")
             state.cursor.col = 7
             state.cursor.row = 4
 
             TerminalResizer.resize(state, 5, 5)
 
-            // "AAABBBCCC" splits into "AAABB" (row 3) and "BCCC " (row 4).
-            // Col 7 in the original maps to col 2 on the second physical chunk.
+            // "AAABBBCCC" → "AAABB" + "BCCC"
+            // col 7 maps to col 2 on the second chunk
             assertAll(
                 { assertEquals(2, state.cursor.col, "cursor col after split") },
-                { assertTrue(state.cursor.row in 0 until 5, "cursor row in bounds") }
+                { assertTrue(state.cursor.row in 0 until 5) }
             )
         }
 
         @Test
-        @DisplayName("Cursor row stays within screen bounds after any resize")
-        fun `cursor row always in bounds`() {
+        fun `cursor row is always within screen bounds after resize`() {
             val state = buildState(cols = 80, rows = 24)
             state.cursor.row = 20
             state.cursor.col = 5
@@ -294,41 +460,14 @@ class TerminalResizerTest {
             TerminalResizer.resize(state, 40, 10)
 
             assertAll(
-                { assertTrue(state.cursor.row in 0 until 10,
-                    "cursor row ${state.cursor.row} out of bounds for height 10") },
-                { assertTrue(state.cursor.col in 0 until 40,
-                    "cursor col ${state.cursor.col} out of bounds for width 40") }
+                { assertTrue(state.cursor.row in 0 until 10) },
+                { assertTrue(state.cursor.col in 0 until 40) }
             )
         }
 
         @Test
-        @DisplayName("Cursor on blank virtual row below ring content is preserved (Bug 2 regression)")
-        fun `cursor on virtual blank row below ring content`() {
-            // Fresh state: ring has only a few lines, but the cursor is on
-            // screen row 5 which is beyond the actual ring content.
-            val state = buildState(cols = 80, rows = 24)
-            state.writeLine(0, "Line0")
-            state.writeLine(1, "Line1")
-            // Place cursor on screen row 5 — beyond the two real lines.
-            state.cursor.row = 5
-            state.cursor.col = 10
-
-            // Resize should not crash and the cursor should end up in-bounds.
-            TerminalResizer.resize(state, 80, 24)
-
-            assertAll(
-                { assertTrue(state.cursor.row in 0 until 24,
-                    "cursor row ${state.cursor.row} out of bounds") },
-                { assertTrue(state.cursor.col in 0 until 80,
-                    "cursor col ${state.cursor.col} out of bounds") }
-            )
-        }
-
-        @Test
-        @DisplayName("Cursor on empty line at col 0 is preserved (Bug 1 regression)")
-        fun `cursor on empty logical line is preserved`() {
+        fun `cursor on empty line at col 0 is preserved`() {
             val state = buildState(cols = 10, rows = 5)
-            // Leave row 0 completely blank; put the cursor at (0, 0).
             state.cursor.row = 0
             state.cursor.col = 0
 
@@ -339,93 +478,139 @@ class TerminalResizerTest {
                 { assertEquals(0, state.cursor.col) }
             )
         }
-    }
-
-    // -----------------------------------------------------------------------
-    // Scrollback / history
-    // -----------------------------------------------------------------------
-
-    @Nested
-    @DisplayName("Scrollback history")
-    inner class ScrollbackTests {
 
         @Test
-        @DisplayName("History lines are preserved after resize")
-        fun `history is preserved after resize`() {
-            val state = buildState(cols = 10, rows = 3, history = 5)
-            // Fill the ring so we have scrollback.
-            for (r in 0 until 3) state.writeLine(r, "Row$r")
-            // Push a couple more lines into history by scrolling.
-            repeat(2) {
-                state.ring.push().clear(0)
+        fun `cursor on virtual blank row below ring content stays in bounds`() {
+            val state = buildState(cols = 80, rows = 24)
+            state.writeLine(0, "Line0")
+            state.writeLine(1, "Line1")
+            state.cursor.row = 5
+            state.cursor.col = 10
+
+            TerminalResizer.resize(state, 80, 24)
+
+            assertAll(
+                { assertTrue(state.cursor.row in 0 until 24) },
+                { assertTrue(state.cursor.col in 0 until 80) }
+            )
+        }
+
+        @Test
+        fun `cursor at last col of wide char leader stays valid after resize`() {
+            val state = buildState(cols = 4, rows = 2)
+            val top = (state.ring.size - 2).coerceAtLeast(0)
+            state.ring[top + 1].apply {
+                setCell(0, '你'.code, 0)
+                setCell(1, TerminalConstants.WIDE_CHAR_SPACER, 0)
             }
+            state.cursor.row = 1
+            state.cursor.col = 0
 
-            TerminalResizer.resize(state, 10, 3)
+            TerminalResizer.resize(state, 4, 2)
 
-            // Ring should still have content; screen should render without error.
-            assertTrue(state.ring.size >= 3)
-        }
-
-        @Test
-        @DisplayName("New ring capacity honours maxHistory + newHeight")
-        fun `ring capacity after resize`() {
-            val state = buildState(cols = 10, rows = 5, history = 100)
-
-            TerminalResizer.resize(state, 10, 10)
-
-            // The ring was created with capacity maxHistory + newHeight = 110.
-            // After filling just one screen, size should be exactly newHeight.
-            assertTrue(state.ring.size >= 10,
-                "Ring should hold at least one screen of lines")
+            assertAll(
+                { assertTrue(state.cursor.row in 0 until 2) },
+                { assertTrue(state.cursor.col in 0 until 4) }
+            )
         }
     }
 
-    // -----------------------------------------------------------------------
-    // Wrapped-flag correctness
-    // -----------------------------------------------------------------------
+    // =========================================================================
+    // Wrapped flag correctness
+    // =========================================================================
 
     @Nested
     @DisplayName("Wrapped flag handling")
     inner class WrappedFlagTests {
 
         @Test
-        @DisplayName("Last physical chunk of a reflowed logical line is not marked as wrapped")
-        fun `last chunk not wrapped`() {
+        fun `last physical chunk of a reflowed logical line is not wrapped`() {
             val state = buildState(cols = 10, rows = 5)
-            // Write on the last row so the two reflow chunks land at the bottom of
-            // the new ring with no blank lines pushing them above the screen window.
             state.writeLine(4, "HelloWorld")
             state.cursor.row = 4
 
             TerminalResizer.resize(state, 5, 5)
 
             val top = (state.ring.size - 5).coerceAtLeast(0)
-            // The last two rows are the two chunks; row 3 is wrapped, row 4 is not.
             assertAll(
-                { assertTrue(state.ring[top + 3].wrapped, "first chunk should be wrapped") },
+                { assertTrue(state.ring[top + 3].wrapped,  "first chunk should be wrapped") },
                 { assertFalse(state.ring[top + 4].wrapped, "last chunk must not be wrapped") }
             )
         }
 
         @Test
-        @DisplayName("Orphaned wrap flag (empty line marked wrapped) does not cause phantom content")
-        fun `orphaned wrap flag is benign`() {
-            val state = buildState(cols = 10, rows = 5)
-            // Artificially create an orphaned wrap flag: empty line with wrapped=true.
-            val top = (state.ring.size - 5).coerceAtLeast(0)
-            state.ring[top].wrapped = true   // no content, wrapped=true
+        fun `a logical line split into three chunks has first two wrapped`() {
+            val state = buildState(cols = 9, rows = 5)
+            state.writeLine(4, "AAABBBCCC")
+            state.cursor.row = 4
 
-            // Should not throw and should not produce content.
+            TerminalResizer.resize(state, 3, 5)
+
+            val top = (state.ring.size - 5).coerceAtLeast(0)
+            assertAll(
+                { assertTrue(state.ring[top + 2].wrapped,  "chunk 1 should be wrapped") },
+                { assertTrue(state.ring[top + 3].wrapped,  "chunk 2 should be wrapped") },
+                { assertFalse(state.ring[top + 4].wrapped, "chunk 3 must not be wrapped") }
+            )
+        }
+
+        @Test
+        fun `single-line content that fits in new width is not wrapped`() {
+            val state = buildState(cols = 5, rows = 5)
+            state.writeLine(4, "Hi")
+            state.cursor.row = 4
+
             TerminalResizer.resize(state, 10, 5)
 
-            assertEquals("", state.screenLines()[0],
-                "Orphaned-wrapped empty line should produce no visible content")
+            val top = (state.ring.size - 5).coerceAtLeast(0)
+            assertFalse(state.ring[top + 4].wrapped,
+                "A line that fits entirely in the new width must not be wrapped")
+        }
+
+        @Test
+        fun `orphaned wrap flag on empty line does not produce phantom content`() {
+            val state = buildState(cols = 10, rows = 5)
+            val top = (state.ring.size - 5).coerceAtLeast(0)
+            state.ring[top].wrapped = true  // empty line with orphan wrap flag
+
+            TerminalResizer.resize(state, 10, 5)
+
+            assertEquals("", state.screenLines()[0])
         }
     }
 
-    // -----------------------------------------------------------------------
+    // =========================================================================
+    // Scrollback history
+    // =========================================================================
+
+    @Nested
+    @DisplayName("Scrollback history")
+    inner class ScrollbackTests {
+
+        @Test
+        fun `history lines are preserved after resize`() {
+            val state = buildState(cols = 10, rows = 3, history = 5)
+            for (r in 0 until 3) state.writeLine(r, "Row$r")
+            repeat(2) { state.ring.push().clear(0) }
+
+            TerminalResizer.resize(state, 10, 3)
+
+            assertTrue(state.ring.size >= 3)
+        }
+
+        @Test
+        fun `ring capacity honours maxHistory + newHeight`() {
+            val state = buildState(cols = 10, rows = 5, history = 100)
+
+            TerminalResizer.resize(state, 10, 10)
+
+            assertTrue(state.ring.size >= 10)
+        }
+    }
+
+    // =========================================================================
     // Dimensions update
-    // -----------------------------------------------------------------------
+    // =========================================================================
 
     @Nested
     @DisplayName("Dimensions update")
@@ -435,8 +620,8 @@ class TerminalResizerTest {
         @CsvSource(
             "80, 24, 40, 12",
             "40, 12, 80, 24",
-            "10, 5,  1,  1",
-            "1,  1, 80, 24"
+            "10,  5,  1,  1",
+            " 1,  1, 80, 24"
         )
         fun `dimensions are updated correctly`(
             oldW: Int, oldH: Int, newW: Int, newH: Int
@@ -446,9 +631,20 @@ class TerminalResizerTest {
             TerminalResizer.resize(state, newW, newH)
 
             assertAll(
-                { assertEquals(newW, state.dimensions.width,  "width after resize") },
-                { assertEquals(newH, state.dimensions.height, "height after resize") }
+                { assertEquals(newW, state.dimensions.width) },
+                { assertEquals(newH, state.dimensions.height) }
             )
+        }
+
+        @Test
+        fun `state clusterStore is replaced with a new instance after resize`() {
+            val state = buildState(cols = 10, rows = 5)
+            val oldStore = state.clusterStore
+
+            TerminalResizer.resize(state, 10, 5)
+
+            assertNotSame(oldStore, state.clusterStore,
+                "clusterStore must be a new instance after resize")
         }
     }
 }

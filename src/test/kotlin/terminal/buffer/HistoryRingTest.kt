@@ -1,6 +1,7 @@
 package com.gagik.terminal.buffer
 
 import com.gagik.terminal.model.Line
+import com.gagik.terminal.store.ClusterStore
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -14,7 +15,7 @@ class HistoryRingTest {
 
     // Helper factory to create distinct lines for identity testing
     private fun createLineFactory(width: Int = 10): () -> Line {
-        return { Line(width) }
+        return { Line(width, ClusterStore()) }
     }
 
     @Nested
