@@ -613,7 +613,7 @@ class ClusterStoreTest {
             val handles = IntArray(20) { store.alloc(intArrayOf(it + 1)) }
 
             handles.forEach { h ->
-                assert(h <= TerminalConstants.CLUSTER_HANDLE_MAX) {
+                assertTrue(h <= TerminalConstants.CLUSTER_HANDLE_MAX) {
                     "Handle $h is not <= CLUSTER_HANDLE_MAX (${TerminalConstants.CLUSTER_HANDLE_MAX})"
                 }
             }
