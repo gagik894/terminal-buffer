@@ -164,8 +164,7 @@ internal class MutationEngine(
         if (widthInCells == 2 && cCol == width - 1) {
             annihilateAt(cRow, cCol)
             cCol = 0
-            cRow++
-            if (cRow >= height) { scrollUp(); cRow = height - 1 }
+            cRow = advanceRow(cRow)
             line = getLine(cRow)
         }
 
@@ -203,8 +202,7 @@ internal class MutationEngine(
         if (cCol >= width) {
             line.wrapped = true
             cCol = 0
-            cRow++
-            if (cRow >= height) { scrollUp(); cRow = height - 1 }
+            cRow = advanceRow(cRow)
         }
 
         state.cursor.col = cCol
@@ -230,13 +228,12 @@ internal class MutationEngine(
         if (!state.modes.isInsertMode && charWidth != 2
             && cRow in 0 until height && cCol in 0 until width) {
             val line = getLine(cRow)
-            if (line.getCodepoint(cCol) == TerminalConstants.EMPTY) {
+            if (line.rawCodepoint   (cCol) == TerminalConstants.EMPTY) {
                 line.setCell(cCol, codepoint, attr)
                 if (cCol == width - 1) {
                     line.wrapped = true
                     state.cursor.col = 0
-                    state.cursor.row = cRow + 1
-                    if (state.cursor.row >= height) { scrollUp(); state.cursor.row = height - 1 }
+                    state.cursor.row = advanceRow(cRow)
                 } else {
                     state.cursor.col = cCol + 1
                 }
