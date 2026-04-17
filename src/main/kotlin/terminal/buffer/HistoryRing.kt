@@ -50,7 +50,7 @@ internal class HistoryRing(
 
     /**
      * Rotates lines in the logical range [fromLogical, toLogical] upward by one slot.
-     * The line at [fromLogical] is moved to [toLogical]; everything else shifts down by one.
+     * The line at [fromLogical] is moved to [toLogical]; everything else shifts toward [fromLogical] by one.
      * After this call, the line now at [toLogical] is the one that was at [fromLogical] —
      * caller is responsible for clearing it to create a blank scroll-in line.
      */
@@ -64,7 +64,7 @@ internal class HistoryRing(
 
     /**
      * Rotates lines in the logical range [fromLogical, toLogical] downward by one slot.
-     * The line at [toLogical] is moved to [fromLogical]; everything else shifts up by one.
+     * The line at [toLogical] is moved to [fromLogical]; everything else shifts toward [toLogical] by one.
      * After this call, the line now at [fromLogical] is the one that was at [toLogical] —
      * caller is responsible for clearing it to create a blank scroll-in line.
      */
