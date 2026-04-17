@@ -199,6 +199,32 @@ interface TerminalBufferApi {
      */
     fun scrollDown()
 
+    /**
+     * Inserts blank lines at the current cursor row within the active scroll region (ANSI IL).
+     *
+     * Lines at and below the cursor row are shifted downward inside the active
+     * region. Lines shifted past the bottom margin are discarded. If the cursor
+     * is outside the active scroll region, the operation is ignored.
+     *
+     * The cursor position is preserved.
+     *
+     * @param count Number of lines to insert. Non-positive values are ignored.
+     */
+    fun insertLines(count: Int)
+
+    /**
+     * Deletes lines starting at the current cursor row within the active scroll region (ANSI DL).
+     *
+     * Lines below the deleted area are shifted upward inside the active region,
+     * and blank lines are exposed at the bottom margin. If the cursor is outside
+     * the active scroll region, the operation is ignored.
+     *
+     * The cursor position is preserved.
+     *
+     * @param count Number of lines to delete. Non-positive values are ignored.
+     */
+    fun deleteLines(count: Int)
+
     // --- Line & Screen Editing API ---
 
     /**

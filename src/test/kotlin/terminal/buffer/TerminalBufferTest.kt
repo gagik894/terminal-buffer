@@ -493,6 +493,88 @@ class TerminalBufferTest {
         }
 
 		@Test
+		fun `insertLines inserts blank row at cursor within active scroll region`() {
+			val buffer = newBuffer(width = 3, height = 4, maxHistory = 2)
+			buffer.setCursor(0, 0); buffer.writeText("T0")
+			buffer.setCursor(0, 1); buffer.writeText("A1")
+			buffer.setCursor(0, 2); buffer.writeText("B2")
+			buffer.setCursor(0, 3); buffer.writeText("Z3")
+			buffer.setScrollRegion(2, 3) // rows [1..2]
+			buffer.setPenAttributes(4, 5, bold = true)
+			buffer.setCursor(0, 1)
+
+			buffer.insertLines(1)
+
+			assertAll(
+				{ assertEquals("T0", buffer.getLineAsString(0)) },
+				{ assertEquals("", buffer.getLineAsString(1)) },
+				{ assertEquals("A1", buffer.getLineAsString(2)) },
+				{ assertEquals("Z3", buffer.getLineAsString(3)) },
+				{ assertEquals(Attributes(4, 5, true, false, false), buffer.getAttrAt(0, 1)) },
+				{ assertCursor(buffer, 0, 1) }
+			)
+		}
+
+		@Test
+		fun `deleteLines removes cursor row and pulls lines up within active scroll region`() {
+			val buffer = newBuffer(width = 3, height = 4, maxHistory = 2)
+			buffer.setCursor(0, 0); buffer.writeText("T0")
+			buffer.setCursor(0, 1); buffer.writeText("A1")
+			buffer.setCursor(0, 2); buffer.writeText("B2")
+			buffer.setCursor(0, 3); buffer.writeText("Z3")
+			buffer.setScrollRegion(2, 3) // rows [1..2]
+			buffer.setCursor(0, 1)
+
+			buffer.deleteLines(1)
+
+			assertAll(
+				{ assertEquals("T0", buffer.getLineAsString(0)) },
+				{ assertEquals("B2", buffer.getLineAsString(1)) },
+				{ assertEquals("", buffer.getLineAsString(2)) },
+				{ assertEquals("Z3", buffer.getLineAsString(3)) },
+				{ assertCursor(buffer, 0, 1) }
+			)
+		}
+
+		@Test
+		fun `insertLines and deleteLines are ignored when cursor is outside scroll region`() {
+			val buffer = newBuffer(width = 3, height = 4, maxHistory = 2)
+			buffer.setCursor(0, 0); buffer.writeText("T0")
+			buffer.setCursor(0, 1); buffer.writeText("A1")
+			buffer.setCursor(0, 2); buffer.writeText("B2")
+			buffer.setCursor(0, 3); buffer.writeText("Z3")
+			buffer.setScrollRegion(2, 3) // rows [1..2]
+			val before = buffer.getScreenAsString()
+
+			buffer.setCursor(0, 0)
+			buffer.insertLines(1)
+			buffer.setCursor(0, 3)
+			buffer.deleteLines(1)
+
+			assertEquals(before, buffer.getScreenAsString())
+		}
+
+		@Test
+		fun `insertLines and deleteLines clamp count to remaining region`() {
+			val buffer = newBuffer(width = 3, height = 4, maxHistory = 2)
+			buffer.setCursor(0, 0); buffer.writeText("T0")
+			buffer.setCursor(0, 1); buffer.writeText("A1")
+			buffer.setCursor(0, 2); buffer.writeText("B2")
+			buffer.setCursor(0, 3); buffer.writeText("Z3")
+			buffer.setScrollRegion(2, 3) // rows [1..2]
+
+			buffer.setCursor(0, 1)
+			buffer.insertLines(99)
+			assertEquals("", buffer.getLineAsString(1))
+			assertEquals("", buffer.getLineAsString(2))
+
+			buffer.setCursor(0, 1)
+			buffer.deleteLines(99)
+			assertEquals("", buffer.getLineAsString(1))
+			assertEquals("", buffer.getLineAsString(2))
+		}
+
+		@Test
 		fun `carriageReturn resets only the column`() {
 			val buffer = newBuffer(width = 4, height = 3)
 

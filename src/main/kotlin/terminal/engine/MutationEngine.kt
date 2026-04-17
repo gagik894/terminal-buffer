@@ -9,7 +9,7 @@ import com.gagik.terminal.state.TerminalState
  *
  * Owns all overwrite physics so callers cannot leave orphaned wide-character spacers.
  * All ring-index translation is delegated to [TerminalState.resolveRingIndex].
- * All circular-buffer arithmetic is encapsulated inside [HistoryRing].
+ * All circular-buffer arithmetic is encapsulated inside [com.gagik.terminal.buffer.HistoryRing].
  */
 internal class MutationEngine(
     private val state: TerminalState
@@ -240,6 +240,64 @@ internal class MutationEngine(
     }
 
     // ----- Editing -----------------------------------------------------------
+    /**
+     * Applies a vertical line mutation inside the active scroll region.
+     *
+     * Returns immediately if the cursor is outside the region or the count is non-positive.
+     * The callback receives the resolved ring indices for the cursor row and bottom margin,
+     * plus the clamped number of repetitions.
+     */
+    private inline fun mutateLines(
+        count: Int,
+        onMutate: (absCursorRow: Int, absBottom: Int, times: Int) -> Unit
+    ) {
+        if (count <= 0) return
+
+        val cRow = state.cursor.row
+        val top = state.scrollTop
+        val bottom = state.scrollBottom
+        if (cRow !in top..bottom) return
+
+        val times = count.coerceAtMost(bottom - cRow + 1)
+        val absCursorRow = state.resolveRingIndex(cRow)
+        val absBottom = state.resolveRingIndex(bottom)
+
+        onMutate(absCursorRow, absBottom, times)
+    }
+
+    /**
+     * Inserts [count] blank lines at the current cursor row (IL sequence).
+     *
+     * Lines at and below the cursor are shifted down inside the active scroll
+     * region. Lines shifted past the bottom margin are dropped.
+     *
+     * Ignored when the cursor is outside the scroll region.
+     */
+    fun insertLines(count: Int) {
+        mutateLines(count) { absCursorRow, absBottom, times ->
+            repeat(times) {
+                state.ring.rotateDown(absCursorRow, absBottom)
+                state.ring[absCursorRow].clear(state.pen.currentAttr)
+            }
+        }
+    }
+
+    /**
+     * Deletes [count] lines starting at the current cursor row (DL sequence).
+     *
+     * Lines below the deleted region are shifted up inside the active scroll
+     * region. Newly exposed lines at the bottom margin are cleared.
+     *
+     * Ignored when the cursor is outside the scroll region.
+     */
+    fun deleteLines(count: Int) {
+        mutateLines(count) { absCursorRow, absBottom, times ->
+            repeat(times) {
+                state.ring.rotateUp(absCursorRow, absBottom)
+                state.ring[absBottom].clear(state.pen.currentAttr)
+            }
+        }
+    }
 
     fun insertBlankCharacters(count: Int) {
         if (count <= 0) return
