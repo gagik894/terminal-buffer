@@ -425,6 +425,149 @@ class MutationEngineTest {
     }
 
     @Nested
+    @DisplayName("deleteCharacters")
+    inner class DeleteCharactersTests {
+
+        @Test
+        fun `non-positive count is no-op`() {
+            val state = createState(width = 5, height = 1)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "ABCDE")
+            state.cursor.col = 2
+
+            writer.deleteCharacters(0)
+            writer.deleteCharacters(-2)
+
+            assertLineCodepoints(state, 0, intArrayOf('A'.code, 'B'.code, 'C'.code, 'D'.code, 'E'.code))
+        }
+
+        @Test
+        fun `is no-op when cursor is out of bounds`() {
+            val state = createState(width = 5, height = 2)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "ABCDE")
+
+            state.cursor.col = 99
+            writer.deleteCharacters(1)
+            assertLineCodepoints(state, 0, intArrayOf('A'.code, 'B'.code, 'C'.code, 'D'.code, 'E'.code))
+
+            state.cursor.col = 1
+            state.cursor.row = 99
+            writer.deleteCharacters(1)
+            assertLineCodepoints(state, 0, intArrayOf('A'.code, 'B'.code, 'C'.code, 'D'.code, 'E'.code))
+        }
+
+        @Test
+        fun `deletes from cursor, shifts left, and fills trailing cells with pen attr`() {
+            val state = createState(width = 6, height = 1)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "ABCDEF", attr = 10)
+            state.pen.setAttributes(fg = 3, bg = 4, underline = true)
+            val fillAttr = state.pen.currentAttr
+            state.cursor.col = 1
+
+            writer.deleteCharacters(2)
+
+            assertAll(
+                { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'D'.code, 'E'.code, 'F'.code, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
+                { assertLineAttrs(state, 0, intArrayOf(10, 10, 10, 10, fillAttr, fillAttr)) },
+                { assertEquals(1, state.cursor.col) },
+                { assertEquals(0, state.cursor.row) }
+            )
+        }
+
+        @Test
+        fun `count larger than remaining width is clamped`() {
+            val state = createState(width = 5, height = 1)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "ABCDE")
+            state.cursor.col = 3
+
+            writer.deleteCharacters(99)
+
+            assertLineCodepoints(
+                state,
+                0,
+                intArrayOf('A'.code, 'B'.code, 'C'.code, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+            )
+        }
+
+        @Test
+        fun `cursor on wide leader annihilates full cluster before delete`() {
+            val state = createState(width = 6, height = 1)
+            val writer = MutationEngine(state)
+            writer.printCodepoint('A'.code, 1)
+            writer.printCodepoint(0x1F600, 2)
+            writer.printCodepoint('B'.code, 1)
+            state.cursor.col = 1
+
+            writer.deleteCharacters(1)
+
+            assertLineCodepoints(
+                state,
+                0,
+                intArrayOf('A'.code, TerminalConstants.EMPTY, 'B'.code, TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+            )
+        }
+
+        @Test
+        fun `cursor on wide spacer annihilates owning leader before delete`() {
+            val state = createState(width = 6, height = 1)
+            val writer = MutationEngine(state)
+            writer.printCodepoint('A'.code, 1)
+            writer.printCodepoint(0x1F600, 2)
+            writer.printCodepoint('B'.code, 1)
+            state.cursor.col = 2
+
+            writer.deleteCharacters(1)
+
+            assertLineCodepoints(
+                state,
+                0,
+                intArrayOf('A'.code, TerminalConstants.EMPTY, 'B'.code, TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+            )
+        }
+
+        @Test
+        fun `right-boundary spacer is annihilated to prevent orphaned wide leader`() {
+            val state = createState(width = 6, height = 1)
+            val writer = MutationEngine(state)
+            writer.printCodepoint('A'.code, 1)
+            writer.printCodepoint('B'.code, 1)
+            writer.printCodepoint(0x1F600, 2)
+            writer.printCodepoint('C'.code, 1)
+            state.cursor.col = 1
+
+            writer.deleteCharacters(2)
+
+            assertLineCodepoints(
+                state,
+                0,
+                intArrayOf('A'.code, TerminalConstants.EMPTY, 'C'.code, TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+            )
+        }
+
+        @Test
+        fun `ordinary right-boundary character is preserved and shifted`() {
+            val state = createState(width = 6, height = 1)
+            val writer = MutationEngine(state)
+            writer.printCodepoint('A'.code, 1)
+            writer.printCodepoint('B'.code, 1)
+            writer.printCodepoint(0x1F600, 2)
+            writer.printCodepoint('C'.code, 1)
+            state.cursor.col = 1
+
+            writer.deleteCharacters(1)
+
+            assertLineCodepoints(
+                state,
+                0,
+                intArrayOf('A'.code, 0x1F600, TerminalConstants.WIDE_CHAR_SPACER, 'C'.code, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+            )
+        }
+    }
+
+    @Nested
     @DisplayName("insertLines")
     inner class InsertLinesTests {
 

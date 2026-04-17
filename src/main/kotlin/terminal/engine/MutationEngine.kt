@@ -313,6 +313,45 @@ internal class MutationEngine(
         line.insertCells(cCol, count, state.pen.currentAttr)
     }
 
+    /**
+     * Deletes [count] characters starting at the cursor column, shifting the
+     * remainder of the line left and filling the vacated cells on the right
+     * with blanks using the current pen attribute. The cursor position is not
+     * changed. Corresponds to ANSI DCH (CSI n P).
+     *
+     * Wide-character safety:
+     * - The cluster at the cursor is annihilated before the shift so the left
+     *   boundary is never left with an orphaned spacer.
+     * - The cell immediately after the deleted region is checked: if it is a
+     *   wide-character spacer the owning leader would be shifted in without its
+     *   spacer, so the entire cluster is annihilated before the shift proceeds.
+     *   Ordinary characters at the right boundary are never touched.
+     *
+     * @param count Number of characters to delete. Non-positive values are ignored.
+     *              Values larger than the remaining columns from the cursor are
+     *              clamped to the line's right edge.
+     */
+    fun deleteCharacters(count: Int) {
+        if (count <= 0) return
+
+        val cRow = state.cursor.row
+        val cCol = state.cursor.col
+        if (cRow !in 0 until height || cCol !in 0 until width) return
+
+        val safeCount = count.coerceAtMost(width - cCol)
+
+        annihilateAt(cRow, cCol)
+
+        if (safeCount < width - cCol) {
+            val rightEdge = cCol + safeCount
+            if (getLine(cRow).rawCodepoint(rightEdge) == TerminalConstants.WIDE_CHAR_SPACER) {
+                annihilateAt(cRow, rightEdge)
+            }
+        }
+
+        getLine(cRow).deleteCells(cCol, safeCount, state.pen.currentAttr)
+    }
+
     fun eraseLineToEnd() {
         val cRow = state.cursor.row
         val cCol = state.cursor.col
