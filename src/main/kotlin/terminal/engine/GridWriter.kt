@@ -7,9 +7,9 @@ import com.gagik.terminal.state.TerminalState
 /**
  * Dedicated mutation engine for grid writes and line-level erase/edit operations.
  *
- * This class owns overwrite physics so callers cannot leave orphaned wide spacers.
- *
- * @param state Shared terminal state for dimensions, cursor, pen attributes, and ring storage.
+ * Owns all overwrite physics so callers cannot leave orphaned wide-character spacers.
+ * All ring-index translation is delegated to [TerminalState.resolveRingIndex].
+ * All circular-buffer arithmetic is encapsulated inside [HistoryRing].
  */
 internal class GridWriter(
     private val state: TerminalState
@@ -18,32 +18,85 @@ internal class GridWriter(
     private val width: Int get() = state.dimensions.width
     private val height: Int get() = state.dimensions.height
 
+    // ----- Line access --------------------------------------------------------
+
     /**
-     * Resolves a visible viewport row to its backing line in the ring.
-     *
-     * @param row Viewport row (0-based).
-     * @return Mutable line for the given viewport row.
+     * Returns the mutable Line for a given viewport row.
+     * Single source of truth for viewport→ring translation.
      */
-    private fun getLine(row: Int): Line {
-        val startIndex = state.ring.size - height
-        return state.ring[startIndex + row]
+    private fun getLine(row: Int): Line = state.ring[state.resolveRingIndex(row)]
+
+    // ----- Scroll -------------------------------------------------------------
+
+    /**
+     * Scrolls the active scroll region up by [count] lines.
+     *
+     * - Full-viewport scroll: pushes new blank lines into the history ring (cheap O(1) each).
+     * - Partial-region scroll: rotates line references in place, no history is written.
+     *
+     * In both cases the newly exposed line at the bottom of the region is cleared with
+     * the current pen attribute *after* rotation so the correct slot receives the fill.
+     */
+    fun scrollUp(count: Int = 1) {
+        val top    = state.scrollTop
+        val bottom = state.scrollBottom
+        val n      = count.coerceIn(0, bottom - top + 1)
+        if (n == 0) return
+
+        if (state.isFullViewportScroll) {
+            repeat(n) {
+                state.ring.push().clear(state.pen.currentAttr)
+            }
+        } else {
+            val absTop    = state.resolveRingIndex(top)
+            val absBottom = state.resolveRingIndex(bottom)
+            repeat(n) {
+                state.ring.rotateUp(absTop, absBottom)
+                state.ring[absBottom].clear(state.pen.currentAttr)
+            }
+        }
     }
 
     /**
-     * Pushes one new blank line and scrolls the viewport up by one row.
+     * Scrolls the active scroll region down by [count] lines.
+     *
+     * Always rotates in place — scroll-down never writes to history.
+     * The newly exposed line at the top of the region is cleared after rotation.
      */
-    fun scrollUp() {
-        state.ring.push().clear(state.pen.currentAttr)
+    fun scrollDown(count: Int = 1) {
+        val top    = state.scrollTop
+        val bottom = state.scrollBottom
+        val n      = count.coerceIn(0, bottom - top + 1)
+        if (n == 0) return
+
+        val absTop    = state.resolveRingIndex(top)
+        val absBottom = state.resolveRingIndex(bottom)
+        repeat(n) {
+            state.ring.rotateDown(absTop, absBottom)
+            state.ring[absTop].clear(state.pen.currentAttr)
+        }
     }
 
+    // ----- Cursor row advancement helper -------------------------------------
+
     /**
-     * Returns the canonical owner cell for the cluster that covers [col].
-     * For now, clusters are either 1-cell codepoints or 2-cell wide leaders + spacer.
+     * Advances a viewport row by one, triggering [scrollUp] if the cursor is
+     * sitting on [state.scrollBottom], otherwise simply clamping to [height]-1.
      *
-     * @param line Target line.
-     * @param col Column within [line] to resolve.
-     * @return Cluster owner column; for spacer cells this is the wide leader column.
+     * Used by [writeToGrid], [printCodepoint], and [newLine] to keep wrap/scroll
+     * logic in one place.
      */
+    private fun advanceRow(row: Int): Int {
+        return if (row == state.scrollBottom) {
+            scrollUp()
+            state.scrollBottom
+        } else {
+            (row + 1).coerceAtMost(height - 1)
+        }
+    }
+
+    // ----- Wide-character helpers --------------------------------------------
+
     private fun findClusterStart(line: Line, col: Int): Int {
         if (col !in 0 until width) return col
 
@@ -88,15 +141,16 @@ internal class GridWriter(
         line.setCell(start, TerminalConstants.EMPTY, attr)
     }
 
+    // ----- Core write engine -------------------------------------------------
+
     /**
      * Core write engine shared by [printCodepoint] and [printCluster].
      *
-     * Executes edge-wrap, annihilation, the caller-supplied write, spacer placement,
-     * standard-wrap, and scroll — then commits the new cursor position.
+     * Executes: edge-wrap → annihilation → caller write → spacer placement →
+     * standard-wrap → scroll, then commits the cursor.
      *
-     * @param charWidth  Visual cell width (1 or 2).
-     * @param writeCell  Lambda that writes the leader cell at column [col] on [line].
-     *                   Called exactly once, after annihilation and edge-wrap are resolved.
+     * ARCHITECTURAL WARNING: do NOT split into smaller helpers. Edge-wrap
+     * requires interleaved clears and moves; splitting destroys the JIT fast path.
      */
     private inline fun writeToGrid(charWidth: Int, writeCell: (line: Line, col: Int) -> Unit) {
         var cCol = state.cursor.col
@@ -110,8 +164,7 @@ internal class GridWriter(
         if (widthInCells == 2 && cCol == width - 1) {
             annihilateAt(cRow, cCol)
             cCol = 0
-            cRow++
-            if (cRow >= height) { scrollUp(); cRow = height - 1 }
+            cRow = advanceRow(cRow)
             line = getLine(cRow)
         }
 
@@ -133,58 +186,35 @@ internal class GridWriter(
         if (cCol >= width) {
             line.wrapped = true
             cCol = 0
-            cRow++
-            if (cRow >= height) { scrollUp(); cRow = height - 1 }
+            cRow = advanceRow(cRow)
         }
 
         state.cursor.col = cCol
         state.cursor.row = cRow
     }
 
+    // ----- Public write API --------------------------------------------------
+
     /**
      * Writes a Unicode codepoint to the grid and manages wide-character physics.
      *
-     * ARCHITECTURAL WARNING:
-     * Do NOT split this method into smaller `clear()`, `write()`, and `move()` helpers.
-     * Terminal writing is not linear. Handling the "Edge Wrap" requires interleaving
-     * clears and moves. Splitting this method will destroy the JIT-optimized fast path
-     * and introduce severe state-mutation overhead.
-     *
-     * --- Overwrite Physics ---
-     * If the write targets or overlaps an existing wide-character cluster (leader or spacer),
-     * the entire existing cluster is annihilated (set to EMPTY) before the write occurs.
-     * This guarantees that no orphaned halves or "ghost" emojis remain on the grid.
-     *
-     * --- Fast-Path Optimization ---
-     * 99% of terminal output is 1-cell ASCII appended to empty space. If the target
-     * cell is EMPTY and the incoming char is width = 1, the engine bypasses all collision
-     * checks, writes directly.
-     *
-     * --- Wrap Logic ---
-     * - Edge Wrap: A 2-cell char at the final column cannot fit. The final column is
-     * cleared, the cursor wraps, and the character is printed on the next line.
-     * - Standard Wrap: Any write that exceeds the line width triggers a soft wrap.
-     * - Bottom Wrap: Wrapping past the bottom row triggers a History Ring allocation (scrollUp).
-     *
-     * @param codepoint The Unicode codepoint to write.
-     * @param charWidth The visual width of the character. A value of 2 triggers wide
-     * character logic; all other values are treated as 1.
+     * Fast path: 1-cell write into an empty cell bypasses all collision checks.
+     * Slow path: delegates to [writeToGrid] for full physics.
      */
     fun printCodepoint(codepoint: Int, charWidth: Int) {
         val attr = state.pen.currentAttr
-
-        // Fast path: 1-cell write into empty space.
         val cCol = state.cursor.col
         val cRow = state.cursor.row
+
+        // Fast path: 1-cell write into empty space.
         if (charWidth != 2 && cRow in 0 until height && cCol in 0 until width) {
             val line = getLine(cRow)
-            if (line.getCodepoint(cCol) == TerminalConstants.EMPTY) {
+            if (line.rawCodepoint(cCol) == TerminalConstants.EMPTY) {
                 line.setCell(cCol, codepoint, attr)
                 if (cCol == width - 1) {
                     line.wrapped = true
                     state.cursor.col = 0
-                    state.cursor.row = cRow + 1
-                    if (state.cursor.row >= height) { scrollUp(); state.cursor.row = height - 1 }
+                    state.cursor.row = advanceRow(cRow)
                 } else {
                     state.cursor.col = cCol + 1
                 }
@@ -209,14 +239,8 @@ internal class GridWriter(
         }
     }
 
-    /**
-     * Inserts blank cells at the current cursor column on the active row.
-     *
-     * If the cursor is on a wide spacer, the owning wide cluster is annihilated first
-     * to avoid leaving an orphaned spacer before the block shift happens.
-     *
-     * @param count Number of blank cells to insert. Non-positive values are ignored.
-     */
+    // ----- Editing -----------------------------------------------------------
+
     fun insertBlankCharacters(count: Int) {
         if (count <= 0) return
 
@@ -231,76 +255,58 @@ internal class GridWriter(
         line.insertCells(cCol, count, state.pen.currentAttr)
     }
 
-    /**
-     * Erases from the cursor to the end of the active row (EL 0 semantics).
-     *
-     * The current cell is annihilated first so clearing from a spacer also clears
-     * its wide-character leader.
-     */
     fun eraseLineToEnd() {
         val cRow = state.cursor.row
         val cCol = state.cursor.col
         if (cRow !in 0 until height || cCol !in 0 until width) return
-
         annihilateAt(cRow, cCol)
         getLine(cRow).clearFromColumn(cCol, state.pen.currentAttr)
     }
 
-    /**
-     * Erases from the start of the active row through the cursor (EL 1 semantics).
-     *
-     * The current cell is annihilated first so clearing through a spacer also clears
-     * its wide-character leader.
-     */
     fun eraseLineToCursor() {
         val cRow = state.cursor.row
         val cCol = state.cursor.col
         if (cRow !in 0 until height || cCol !in 0 until width) return
-
         annihilateAt(cRow, cCol)
         getLine(cRow).clearToColumn(cCol, state.pen.currentAttr)
     }
 
-    /**
-     * Erases the entire active row (EL 2 semantics) using the current pen attribute
-     * as the fill attribute for cleared cells.
-     */
     fun eraseCurrentLine() {
         val cRow = state.cursor.row
         if (cRow !in 0 until height) return
-
         getLine(cRow).clear(state.pen.currentAttr)
     }
 
-    /**
-     * Clears all currently visible lines in the viewport.
-     */
     fun clearViewport() {
-        val lineCount = height.coerceAtMost(state.ring.size)
-        for (row in 0 until lineCount) {
+        for (row in 0 until height.coerceAtMost(state.ring.size)) {
             getLine(row).clear(state.pen.currentAttr)
         }
     }
 
-    /**
-     * Nukes the entire history ring and repopulates the viewport with blank lines.
-     */
     fun clearAllHistory() {
         state.ring.clear()
-        repeat(height) {
-            state.ring.push().clear(state.pen.currentAttr)
-        }
+        repeat(height) { state.ring.push().clear(state.pen.currentAttr) }
+    }
+
+    // ----- Cursor movement ---------------------------------------------------
+
+    /**
+     * Advances the cursor to the next line, scrolling the active region if needed.
+     */
+    fun newLine() {
+        state.cursor.row = advanceRow(state.cursor.row)
     }
 
     /**
-     * Advances the cursor to the next line. If the cursor is on the last line,
-     * the viewport scrolls up by one row.
+     * Moves the cursor up one line (reverse index), scrolling the active region
+     * downward if the cursor is already at [state.scrollTop].
      */
-    fun newLine() {
-        state.cursor.row++
-        if (state.cursor.row >= state.dimensions.height) {
-            state.cursor.row = state.dimensions.height - 1
-            scrollUp()
+    fun reverseLineFeed() {
+        val cRow = state.cursor.row
+        if (cRow == state.scrollTop) {
+            scrollDown()
+        } else {
+            state.cursor.row = (cRow - 1).coerceAtLeast(0)
         }
     }
 }
