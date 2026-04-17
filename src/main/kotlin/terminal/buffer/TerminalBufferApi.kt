@@ -54,6 +54,25 @@ interface TerminalBufferApi {
     // --- Cursor API ---
 
     /**
+     * Saves the current cursor position and pen attributes (DECSC, ESC 7).
+     *
+     * The saved state can be restored with [restoreCursor]. Calling this multiple
+     * times overwrites the previous save — only one slot exists per screen.
+     */
+    fun saveCursor()
+
+    /**
+     * Restores the cursor position and pen attributes previously saved by [saveCursor]
+     * (DECRC, ESC 8).
+     *
+     * If no cursor has been saved, homes the cursor to (0, 0) and resets the pen
+     * to the default attribute — matching xterm behaviour.
+     * The restored position is clamped to the current grid bounds in case the
+     * terminal was resized since the save.
+     */
+    fun restoreCursor()
+
+    /**
      * Moves the cursor to an absolute position, clamped to visible bounds.
      *
      * @param col Target column, 0-based.

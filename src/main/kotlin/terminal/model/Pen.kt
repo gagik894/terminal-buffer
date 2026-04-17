@@ -41,6 +41,14 @@ internal class Pen {
     }
 
     /**
+     * Restores the pen to a previously packed attribute value.
+     * Called exclusively by DECRC to reinstate a saved pen state.
+     */
+    fun restoreAttr(packedAttr: Int) {
+        currentAttr = packedAttr
+    }
+
+    /**
      * Resets the current attributes to the default state.
      */
     fun reset() {

@@ -1,10 +1,7 @@
 package com.gagik.terminal.state
 
 import com.gagik.terminal.buffer.HistoryRing
-import com.gagik.terminal.model.Cursor
-import com.gagik.terminal.model.GridDimensions
-import com.gagik.terminal.model.Line
-import com.gagik.terminal.model.Pen
+import com.gagik.terminal.model.*
 import com.gagik.terminal.store.ClusterStore
 
 /**
@@ -27,6 +24,7 @@ internal class TerminalState(
 ) {
     val dimensions = GridDimensions(initialWidth, initialHeight)
     val cursor = Cursor()
+    val savedCursor = SavedCursorState()
     val pen = Pen()
 
     // NOTE: clusterStore must be declared before ring because ring's factory

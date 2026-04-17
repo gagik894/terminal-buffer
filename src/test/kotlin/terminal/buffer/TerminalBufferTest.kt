@@ -171,6 +171,53 @@ class TerminalBufferTest {
 
 			assertCursor(buffer, 0, 0)
 		}
+
+		@Test
+		fun `saveCursor and restoreCursor round-trip cursor position and pen attributes through the API`() {
+			val buffer = newApiBuffer(width = 4, height = 3)
+			buffer.setCursor(2, 1)
+			buffer.setPenAttributes(3, 7, bold = true, italic = true, underline = false)
+			val savedAttr = buffer.getPackedAttrAt(0, 0)
+
+			buffer.saveCursor()
+			buffer.setCursor(0, 0)
+			buffer.setPenAttributes(1, 2, bold = false, italic = false, underline = true)
+			buffer.restoreCursor()
+
+			assertAll(
+				{ assertEquals(2, buffer.cursorCol) },
+				{ assertEquals(1, buffer.cursorRow) }
+			)
+
+			buffer.writeCodepoint('X'.code)
+
+			assertAll(
+				{ assertEquals(3, buffer.cursorCol) },
+				{ assertEquals(1, buffer.cursorRow) },
+				{ assertEquals('X'.code, buffer.getCodepointAt(2, 1)) }
+			)
+		}
+
+		@Test
+		fun `restoreCursor without a prior save homes the cursor and resets the pen through the API`() {
+			val buffer = newApiBuffer(width = 4, height = 3)
+			buffer.setCursor(3, 2)
+			buffer.setPenAttributes(4, 5, bold = true, italic = true, underline = true)
+
+			buffer.restoreCursor()
+
+			assertAll(
+				{ assertEquals(0, buffer.cursorCol) },
+				{ assertEquals(0, buffer.cursorRow) }
+			)
+
+			buffer.writeCodepoint('A'.code)
+
+			assertAll(
+				{ assertEquals(defaultAttributes(), buffer.getAttrAt(0, 0)) },
+				{ assertEquals('A'.code, buffer.getCodepointAt(0, 0)) }
+			)
+		}
 	}
 
 	@Nested

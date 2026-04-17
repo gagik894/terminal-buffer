@@ -1,6 +1,7 @@
 package com.gagik.terminal.buffer
 
 import com.gagik.terminal.codec.AttributeCodec
+import com.gagik.terminal.engine.CursorEngine
 import com.gagik.terminal.engine.MutationEngine
 import com.gagik.terminal.engine.TerminalResizer
 import com.gagik.terminal.model.Attributes
@@ -24,7 +25,7 @@ internal class TerminalBuffer(
 
     internal val state = TerminalState(initialWidth, initialHeight, maxHistory)
     private val mutationEngine = MutationEngine(state)
-
+    private val cursorEngine = CursorEngine(state)
 
     // --- Viewport Math Helpers ---
 
@@ -54,15 +55,12 @@ internal class TerminalBuffer(
 
     // --- Cursor API ---
 
-    override fun setCursor(col: Int, row: Int) {
-        state.cursor.col = state.dimensions.clampCol(col)
-        state.cursor.row = state.dimensions.clampRow(row)
-    }
-
+    override fun saveCursor() = cursorEngine.saveCursor()
+    override fun restoreCursor() = cursorEngine.restoreCursor()
+    override fun setCursor(col: Int, row: Int) = cursorEngine.setCursor(col, row)
     override fun moveCursor(dx: Int, dy: Int) {
         setCursor(cursorCol + dx, cursorRow + dy)
     }
-
     override fun cursorUp(n: Int) = moveCursor(0, -n)
     override fun cursorDown(n: Int) = moveCursor(0, n)
     override fun cursorLeft(n: Int) = moveCursor(-n, 0)
@@ -109,9 +107,7 @@ internal class TerminalBuffer(
 
     override fun reverseLineFeed() = mutationEngine.reverseLineFeed()
 
-    override fun carriageReturn() {
-        state.cursor.col = 0
-    }
+    override fun carriageReturn()  = cursorEngine.carriageReturn()
 
     // --- Viewport API ---
 
@@ -130,6 +126,7 @@ internal class TerminalBuffer(
         resetPen()
         mutationEngine.clearAllHistory()
         resetCursor()
+        state.savedCursor.clear()
     }
 
     override fun eraseLineToEnd() = mutationEngine.eraseLineToEnd()
