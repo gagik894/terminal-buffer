@@ -169,6 +169,7 @@ internal object TerminalResizer {
         state.ring              = newRing
         state.cursor.col        = newCursorCol
         state.cursor.row        = newRelativeRow
+        state.tabStops.resize(newWidth)
     }
 
     // Private helpers

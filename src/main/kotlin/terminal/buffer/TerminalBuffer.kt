@@ -70,6 +70,11 @@ internal class TerminalBuffer(
         setCursor(0, 0)
     }
 
+    override fun setTabStop() = state.tabStops.setStop(state.cursor.col)
+    override fun clearTabStop() = state.tabStops.clearStop(state.cursor.col)
+    override fun clearAllTabStops() = state.tabStops.clearAll()
+    override fun horizontalTab() = cursorEngine.horizontalTab()
+
     override fun resize(newWidth: Int, newHeight: Int) {
         require(newWidth > 0) { "newWidth must be > 0, was $newWidth" }
         require(newHeight > 0) { "newHeight must be > 0, was $newHeight" }
@@ -131,6 +136,7 @@ internal class TerminalBuffer(
         mutationEngine.clearAllHistory()
         resetCursor()
         state.savedCursor.clear()
+        state.tabStops.resetToDefault()
     }
 
     override fun eraseLineToEnd() = mutationEngine.eraseLineToEnd()

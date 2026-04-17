@@ -47,6 +47,7 @@ internal class TerminalState(
      * Default: height - 1 (bottom of screen).
      */
     var scrollBottom: Int = initialHeight - 1
+    val tabStops = TabStops(dimensions.width)
 
     init {
         repeat(initialHeight) {

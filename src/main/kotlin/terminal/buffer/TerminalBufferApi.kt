@@ -128,6 +128,42 @@ interface TerminalBufferApi {
     fun resetCursor()
 
     /**
+     * Sets a tab stop at the current cursor column.
+     *
+     * Called when the parser receives **HTS** (`ESC H`).
+     * The stop persists until explicitly cleared by [clearTabStop],
+     * [clearAllTabStops], or a hard reset.
+     */
+    fun setTabStop()
+
+    /**
+     * Clears the tab stop at the current cursor column.
+     *
+     * Called when the parser receives **TBC 0** (`CSI 0 g`).
+     * Has no effect if no stop exists at the current column.
+     */
+    fun clearTabStop()
+
+    /**
+     * Clears all tab stops.
+     *
+     * Called when the parser receives **TBC 3** (`CSI 3 g`).
+     * After this call, [horizontalTab] will always advance the cursor
+     * directly to the right margin until stops are restored.
+     */
+    fun clearAllTabStops()
+
+    /**
+     * Advances the cursor to the next tab stop (HT, U+0009).
+     *
+     * If no tab stop exists to the right of the current column, the cursor
+     * clamps to the right margin (`width - 1`). Tab never triggers a line wrap.
+     *
+     * Called when the parser receives the horizontal tab byte (`0x09`).
+     */
+    fun horizontalTab()
+
+    /**
      * Resizes the terminal to [newWidth] × [newHeight].
      *
      * Existing content is reflowed to the new width, the cursor is relocated to

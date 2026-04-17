@@ -536,6 +536,73 @@ class TerminalBufferTest {
 	inner class EditingTests {
 
 		@Test
+		fun `horizontalTab advances cursor to next default and custom tab stops`() {
+			val buffer = newBuffer(width = 20, height = 1)
+
+			// Default stops at 0, 8, 16.
+			assertEquals(0, buffer.cursorCol)
+			buffer.horizontalTab()
+			assertEquals(8, buffer.cursorCol)
+
+			// Set custom stop at 10
+			buffer.setCursor(10, 0)
+			buffer.setTabStop()
+
+			buffer.resetCursor()
+			buffer.horizontalTab()
+			assertEquals(8, buffer.cursorCol)
+			buffer.horizontalTab()
+			assertEquals(10, buffer.cursorCol)
+			buffer.horizontalTab()
+			assertEquals(16, buffer.cursorCol)
+		}
+
+		@Test
+		fun `horizontalTab clamps to right margin when no more stops exist`() {
+			val buffer = newBuffer(width = 10, height = 1)
+			// Stops at 0, 8.
+			buffer.setCursor(8, 0)
+			buffer.horizontalTab()
+			assertEquals(9, buffer.cursorCol) // Width - 1
+
+			buffer.horizontalTab()
+			assertEquals(9, buffer.cursorCol)
+		}
+
+		@Test
+		fun `clearTabStop removes stop at current column`() {
+			val buffer = newBuffer(width = 20, height = 1)
+			// Default stop at 8
+			buffer.setCursor(8, 0)
+			buffer.clearTabStop()
+
+			buffer.resetCursor()
+			buffer.horizontalTab()
+			assertEquals(16, buffer.cursorCol) // Jumped over 8 to 16
+		}
+
+		@Test
+		fun `clearAllTabStops removes all stops including defaults`() {
+			val buffer = newBuffer(width = 20, height = 1)
+			buffer.clearAllTabStops()
+
+			buffer.resetCursor()
+			buffer.horizontalTab()
+			assertEquals(19, buffer.cursorCol) // Directly to right margin
+		}
+
+		@Test
+		fun `clearAll resets tab stops to defaults`() {
+			val buffer = newBuffer(width = 20, height = 1)
+			buffer.clearAllTabStops()
+			buffer.clearAll() // Should reset to default rhythm
+
+			buffer.resetCursor()
+			buffer.horizontalTab()
+			assertEquals(8, buffer.cursorCol)
+		}
+
+		@Test
 		fun `insertBlankCharacters shifts content and uses current attr for blanks`() {
 			val buffer = newBuffer(width = 6, height = 2)
 

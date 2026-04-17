@@ -66,4 +66,13 @@ internal class CursorEngine(private val state: TerminalState) {
         state.cursor.row = state.savedCursor.row.coerceIn(0, height - 1)
         state.pen.restoreAttr(state.savedCursor.attr)
     }
+
+    /**
+     * Advances the cursor to the next tab stop (HT, U+0009).
+     * Clamps to the right margin if no further stops exist.
+     * Tab never triggers a line wrap.
+     */
+    fun horizontalTab() {
+        state.cursor.col = state.tabStops.getNextStop(state.cursor.col)
+    }
 }
