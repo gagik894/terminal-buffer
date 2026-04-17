@@ -1,7 +1,7 @@
 package com.gagik.terminal.buffer
 
 import com.gagik.terminal.codec.AttributeCodec
-import com.gagik.terminal.engine.GridWriter
+import com.gagik.terminal.engine.MutationEngine
 import com.gagik.terminal.engine.TerminalResizer
 import com.gagik.terminal.model.Attributes
 import com.gagik.terminal.model.Line
@@ -14,7 +14,7 @@ import com.gagik.terminal.util.UnicodeWidth
  * The primary entry point and public API for the terminal emulator.
  * Implements [TerminalBufferApi] to provide a strict, zero-allocation contract.
  * * Architecturally, this class contains NO physics and NO memory.
- * It coordinates the [GridWriter] and reads from the [TerminalState].
+ * It coordinates the [MutationEngine] and reads from the [TerminalState].
  */
 internal class TerminalBuffer(
     initialWidth: Int,
@@ -23,7 +23,7 @@ internal class TerminalBuffer(
 ) : TerminalBufferApi {
 
     internal val state = TerminalState(initialWidth, initialHeight, maxHistory)
-    private val gridWriter = GridWriter(state)
+    private val mutationEngine = MutationEngine(state)
 
 
     // --- Viewport Math Helpers ---
@@ -77,13 +77,14 @@ internal class TerminalBuffer(
         require(newHeight > 0) { "newHeight must be > 0, was $newHeight" }
 
         TerminalResizer.resize(state, newWidth, newHeight)
+        state.resetScrollRegion()
     }
 
     // --- Writing API ---
 
     override fun writeCodepoint(codepoint: Int) {
         val charWidth = UnicodeWidth.calculate(codepoint, state.treatAmbiguousAsWide)
-        gridWriter.printCodepoint(codepoint, charWidth)
+        mutationEngine.printCodepoint(codepoint, charWidth)
     }
 
     override fun writeText(text: String) {
@@ -91,16 +92,16 @@ internal class TerminalBuffer(
         while (i < text.length) {
             val cp = text.codePointAt(i)
             val charWidth = UnicodeWidth.calculate(cp, state.treatAmbiguousAsWide)
-            gridWriter.printCodepoint(cp, charWidth)
+            mutationEngine.printCodepoint(cp, charWidth)
             i += Character.charCount(cp)
         }
     }
 
     override fun insertBlankCharacters(count: Int) {
-        gridWriter.insertBlankCharacters(count)
+        mutationEngine.insertBlankCharacters(count)
     }
 
-    override fun newLine() = gridWriter.newLine()
+    override fun newLine() = mutationEngine.newLine()
 
     override fun carriageReturn() {
         state.cursor.col = 0
@@ -108,23 +109,27 @@ internal class TerminalBuffer(
 
     // --- Viewport API ---
 
-    override fun scrollUp() = gridWriter.scrollUp()
+    override fun setScrollRegion(top: Int, bottom: Int) = state.setScrollRegion(top, bottom)
+    override fun resetScrollRegion() = state.resetScrollRegion()
 
+    override fun scrollUp() = mutationEngine.scrollUp()
+    override fun scrollDown() = mutationEngine.scrollDown()
 
     override fun clearScreen() {
-        gridWriter.clearViewport()
+        mutationEngine.clearViewport()
         resetCursor()
     }
 
     override fun clearAll() {
         resetPen()
-        gridWriter.clearAllHistory()
+        mutationEngine.clearAllHistory()
         resetCursor()
     }
 
-    override fun eraseLineToEnd() = gridWriter.eraseLineToEnd()
-    override fun eraseLineToCursor() = gridWriter.eraseLineToCursor()
-    override fun eraseCurrentLine() = gridWriter.eraseCurrentLine()
+    override fun eraseLineToEnd() = mutationEngine.eraseLineToEnd()
+    override fun eraseLineToCursor() = mutationEngine.eraseLineToCursor()
+    override fun eraseCurrentLine() = mutationEngine.eraseCurrentLine()
+
 
     // --- Rendering API (Zero Allocation - Critical Path) ---
 
@@ -170,7 +175,7 @@ internal class TerminalBuffer(
     }
 
     override fun reset() {
-        // clearAll already resets pen + cursor and rebuilds a blank viewport.
         clearAll()
+        state.resetScrollRegion()
     }
 }

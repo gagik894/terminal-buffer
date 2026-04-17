@@ -212,4 +212,299 @@ class HistoryRingTest {
             assertEquals(99, ring[0].getCodepoint(0), "Should be able to push and access new line after clear")
         }
     }
+
+    @Nested
+    @DisplayName("rotateUp Operation")
+    inner class RotateUpTests {
+        @Test
+        @DisplayName("rotateUp with single-line region")
+        fun testRotateUpSingleLine() {
+            val ring = HistoryRing(3, createLineFactory())
+            val l0 = ring.push(); l0.setCell(0, 'A'.code, 0)
+            val l1 = ring.push(); l1.setCell(0, 'B'.code, 0)
+            val l2 = ring.push(); l2.setCell(0, 'C'.code, 0)
+
+            ring.rotateUp(1, 1)
+
+            // After rotating single-line region [1,1], nothing should change
+            assertEquals(l0, ring[0])
+            assertEquals(l1, ring[1])
+            assertEquals(l2, ring[2])
+        }
+
+        @Test
+        @DisplayName("rotateUp with two-line region")
+        fun testRotateUpTwoLines() {
+            val ring = HistoryRing(4, createLineFactory())
+            val l0 = ring.push(); l0.setCell(0, 'A'.code, 0)
+            val l1 = ring.push(); l1.setCell(0, 'B'.code, 0)
+            val l2 = ring.push(); l2.setCell(0, 'C'.code, 0)
+            val l3 = ring.push(); l3.setCell(0, 'D'.code, 0)
+
+            // Rotate up [1, 2]: l2 moves to l1, l1 moves to position 2
+            ring.rotateUp(1, 2)
+
+            assertEquals(l0, ring[0], "Line at 0 should remain unchanged")
+            assertEquals(l2, ring[1], "Line at 1 should be from old position 2")
+            assertEquals(l1, ring[2], "Line at 2 should be from old position 1")
+            assertEquals(l3, ring[3], "Line at 3 should remain unchanged")
+        }
+
+        @Test
+        @DisplayName("rotateUp full range moves oldest to newest")
+        fun testRotateUpFullRange() {
+            val ring = HistoryRing(3, createLineFactory())
+            val l0 = ring.push(); l0.setCell(0, 'A'.code, 0)
+            val l1 = ring.push(); l1.setCell(0, 'B'.code, 0)
+            val l2 = ring.push(); l2.setCell(0, 'C'.code, 0)
+
+            ring.rotateUp(0, 2)
+
+            assertEquals(l1, ring[0], "Index 0 should now have old l1")
+            assertEquals(l2, ring[1], "Index 1 should now have old l2")
+            assertEquals(l0, ring[2], "Index 2 should now have old l0")
+        }
+
+        @Test
+        @DisplayName("rotateUp after ring wrap maintains order")
+        fun testRotateUpAfterWrap() {
+            val ring = HistoryRing(3, createLineFactory())
+            repeat(3) { i -> ring.push().setCell(0, i, 0) }
+            // Push one more to wrap: [1, 2, 3] logically
+            ring.push().setCell(0, 3, 0)
+
+            assertEquals(1, ring[0].getCodepoint(0))
+            assertEquals(2, ring[1].getCodepoint(0))
+            assertEquals(3, ring[2].getCodepoint(0))
+
+            ring.rotateUp(0, 2)
+
+            assertEquals(2, ring[0].getCodepoint(0))
+            assertEquals(3, ring[1].getCodepoint(0))
+            assertEquals(1, ring[2].getCodepoint(0))
+        }
+
+        @Test
+        @DisplayName("rotateUp three times cycles full range")
+        fun testRotateUpMultiple() {
+            val ring = HistoryRing(3, createLineFactory())
+            val l0 = ring.push(); l0.setCell(0, 'A'.code, 0)
+            val l1 = ring.push(); l1.setCell(0, 'B'.code, 0)
+            val l2 = ring.push(); l2.setCell(0, 'C'.code, 0)
+
+            ring.rotateUp(0, 2)
+            ring.rotateUp(0, 2)
+            ring.rotateUp(0, 2)
+
+            // After 3 rotations on 3-element range, should return to original
+            assertEquals(l0, ring[0])
+            assertEquals(l1, ring[1])
+            assertEquals(l2, ring[2])
+        }
+    }
+
+    @Nested
+    @DisplayName("rotateDown Operation")
+    inner class RotateDownTests {
+        @Test
+        @DisplayName("rotateDown with single-line region")
+        fun testRotateDownSingleLine() {
+            val ring = HistoryRing(3, createLineFactory())
+            val l0 = ring.push(); l0.setCell(0, 'A'.code, 0)
+            val l1 = ring.push(); l1.setCell(0, 'B'.code, 0)
+            val l2 = ring.push(); l2.setCell(0, 'C'.code, 0)
+
+            ring.rotateDown(1, 1)
+
+            // After rotating single-line region [1,1], nothing should change
+            assertEquals(l0, ring[0])
+            assertEquals(l1, ring[1])
+            assertEquals(l2, ring[2])
+        }
+
+        @Test
+        @DisplayName("rotateDown with two-line region")
+        fun testRotateDownTwoLines() {
+            val ring = HistoryRing(4, createLineFactory())
+            val l0 = ring.push(); l0.setCell(0, 'A'.code, 0)
+            val l1 = ring.push(); l1.setCell(0, 'B'.code, 0)
+            val l2 = ring.push(); l2.setCell(0, 'C'.code, 0)
+            val l3 = ring.push(); l3.setCell(0, 'D'.code, 0)
+
+            // Rotate down [1, 2]: l1 moves to l2, l2 moves to position 1
+            ring.rotateDown(1, 2)
+
+            assertEquals(l0, ring[0], "Line at 0 should remain unchanged")
+            assertEquals(l2, ring[1], "Line at 1 should be from old position 2")
+            assertEquals(l1, ring[2], "Line at 2 should be from old position 1")
+            assertEquals(l3, ring[3], "Line at 3 should remain unchanged")
+        }
+
+        @Test
+        @DisplayName("rotateDown full range moves newest to oldest")
+        fun testRotateDownFullRange() {
+            val ring = HistoryRing(3, createLineFactory())
+            val l0 = ring.push(); l0.setCell(0, 'A'.code, 0)
+            val l1 = ring.push(); l1.setCell(0, 'B'.code, 0)
+            val l2 = ring.push(); l2.setCell(0, 'C'.code, 0)
+
+            ring.rotateDown(0, 2)
+
+            assertEquals(l2, ring[0], "Index 0 should now have old l2")
+            assertEquals(l0, ring[1], "Index 1 should now have old l0")
+            assertEquals(l1, ring[2], "Index 2 should now have old l1")
+        }
+
+        @Test
+        @DisplayName("rotateDown after ring wrap maintains order")
+        fun testRotateDownAfterWrap() {
+            val ring = HistoryRing(3, createLineFactory())
+            repeat(3) { i -> ring.push().setCell(0, i, 0) }
+            ring.push().setCell(0, 3, 0)
+
+            assertEquals(1, ring[0].getCodepoint(0))
+            assertEquals(2, ring[1].getCodepoint(0))
+            assertEquals(3, ring[2].getCodepoint(0))
+
+            ring.rotateDown(0, 2)
+
+            assertEquals(3, ring[0].getCodepoint(0))
+            assertEquals(1, ring[1].getCodepoint(0))
+            assertEquals(2, ring[2].getCodepoint(0))
+        }
+
+        @Test
+        @DisplayName("rotateDown multiple times cycles through")
+        fun testRotateDownMultiple() {
+            val ring = HistoryRing(3, createLineFactory())
+            val l0 = ring.push(); l0.setCell(0, 'A'.code, 0)
+            val l1 = ring.push(); l1.setCell(0, 'B'.code, 0)
+            val l2 = ring.push(); l2.setCell(0, 'C'.code, 0)
+
+            ring.rotateDown(0, 2)
+            ring.rotateDown(0, 2)
+
+            assertEquals(l1, ring[0])
+            assertEquals(l2, ring[1])
+            assertEquals(l0, ring[2])
+        }
+    }
+
+    @Nested
+    @DisplayName("rotateUp and rotateDown symmetry")
+    inner class RotateSymmetryTests {
+        @Test
+        @DisplayName("rotateUp then rotateDown returns to original")
+        fun testRotateUpThenDown() {
+            val ring = HistoryRing(4, createLineFactory())
+            val l0 = ring.push()
+            val l1 = ring.push()
+            val l2 = ring.push()
+            val l3 = ring.push()
+
+            ring.rotateUp(0, 3)
+            ring.rotateDown(0, 3)
+
+            assertEquals(l0, ring[0])
+            assertEquals(l1, ring[1])
+            assertEquals(l2, ring[2])
+            assertEquals(l3, ring[3])
+        }
+
+        @Test
+        @DisplayName("rotateDown then rotateUp returns to original")
+        fun testRotateDownThenUp() {
+            val ring = HistoryRing(4, createLineFactory())
+            val l0 = ring.push()
+            val l1 = ring.push()
+            val l2 = ring.push()
+            val l3 = ring.push()
+
+            ring.rotateDown(0, 3)
+            ring.rotateUp(0, 3)
+
+            assertEquals(l0, ring[0])
+            assertEquals(l1, ring[1])
+            assertEquals(l2, ring[2])
+            assertEquals(l3, ring[3])
+        }
+    }
+
+    @Nested
+    @DisplayName("Complex scenarios")
+    inner class ComplexScenarios {
+        @Test
+        @DisplayName("Multiple operations interleaved")
+        fun testMultipleOperationsInterleaved() {
+            val ring = HistoryRing(5, createLineFactory())
+
+            // Build [0, 1, 2, 3, 4]
+            repeat(5) { i -> ring.push().setCell(0, i, 0) }
+
+            // Rotate up [1, 3]
+            ring.rotateUp(1, 3)
+            // Expected: [0, 2, 3, 1, 4]
+            assertEquals(0, ring[0].getCodepoint(0))
+            assertEquals(2, ring[1].getCodepoint(0))
+            assertEquals(3, ring[2].getCodepoint(0))
+            assertEquals(1, ring[3].getCodepoint(0))
+            assertEquals(4, ring[4].getCodepoint(0))
+
+            // Rotate down [0, 2]
+            ring.rotateDown(0, 2)
+            // Expected: [3, 0, 2, 1, 4]
+            assertEquals(3, ring[0].getCodepoint(0))
+            assertEquals(0, ring[1].getCodepoint(0))
+            assertEquals(2, ring[2].getCodepoint(0))
+            assertEquals(1, ring[3].getCodepoint(0))
+            assertEquals(4, ring[4].getCodepoint(0))
+        }
+
+        @Test
+        @DisplayName("Push after rotate maintains consistency")
+        fun testPushAfterRotate() {
+            val ring = HistoryRing(3, createLineFactory())
+            val l0 = ring.push(); l0.setCell(0, 'A'.code, 0)
+            val l1 = ring.push(); l1.setCell(0, 'B'.code, 0)
+            val l2 = ring.push(); l2.setCell(0, 'C'.code, 0)
+
+            // After rotateUp(0,2): [l1, l2, l0]
+            ring.rotateUp(0, 2)
+            val l3 = ring.push(); l3.setCell(0, 'D'.code, 0)
+
+            // Push when full: l1 is recycled, becomes l3
+            // Result: [l2, l0, l3]
+            assertEquals(l2, ring[0])
+            assertEquals(l0, ring[1])
+            assertEquals(l3, ring[2])
+            assertEquals(3, ring.size)
+        }
+
+        @Test
+        @DisplayName("Clear after rotate resets state correctly")
+        fun testClearAfterRotate() {
+            val ring = HistoryRing(3, createLineFactory())
+            repeat(3) { i -> ring.push().setCell(0, i, 0) }
+
+            ring.rotateUp(0, 2)
+            ring.clear()
+
+            assertEquals(0, ring.size)
+            assertThrows<IndexOutOfBoundsException> { ring[0] }
+        }
+
+        @Test
+        @DisplayName("Capacity 1 edge case with rotations")
+        fun testCapacityOneRotation() {
+            val ring = HistoryRing(1, createLineFactory())
+            val l0 = ring.push()
+
+            // Rotating a single-element ring should be safe
+            ring.rotateUp(0, 0)
+            ring.rotateDown(0, 0)
+
+            assertEquals(1, ring.size)
+            assertEquals(l0, ring[0])
+        }
+    }
 }

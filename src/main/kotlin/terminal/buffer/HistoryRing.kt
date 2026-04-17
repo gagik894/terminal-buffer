@@ -24,41 +24,56 @@ internal class HistoryRing(
     var size: Int = 0 // number of logical lines currently in the ring
         private set
 
-
     /**
-     * Gets the Line at the specified logical index.
-     *
-     * @param i The logical index of the line to retrieve (0 is oldest, size-1 is newest)
-     * @return The Line at the specified logical index
-     * @throws IndexOutOfBoundsException if i is not in the range [0, size-1]
+     * Gets the Line at the specified logical index (0 = oldest, size-1 = newest).
      */
     operator fun get(i: Int): Line {
-        if (i !in 0 until size) {
-            throw IndexOutOfBoundsException("index $i out of bounds (size=$size)")
-        }
-        val physical = (head + i) % capacity
-        return data[physical]
+        if (i !in 0 until size) throw IndexOutOfBoundsException("index $i out of bounds (size=$size)")
+        return data[(head + i) % capacity]
     }
 
     /**
      * Pushes a new line into the ring.
-     * If the ring is not full, it returns the next available slot for the new line.
-     * If the ring is full, it recycles the oldest line (at head) and returns it for reuse.
-     *
-     * @return A Line that can be used for the new entry. This may be a new Line or a recycled one.
+     * If full, the oldest line is recycled and returned for reuse.
      */
     fun push(): Line {
-        if (size < capacity) {
-            // Use the next available slot
-            val tailPhysical = (head + size) % capacity
+        return if (size < capacity) {
+            val slot = (head + size) % capacity
             size++
-            return data[tailPhysical]
+            data[slot]
         } else {
-            // Buffer full. Recycle the oldest line (head).
-            val recycledLine = data[head]
+            val recycled = data[head]
             head = (head + 1) % capacity
-            return recycledLine
+            recycled
         }
+    }
+
+    /**
+     * Rotates lines in the logical range [fromLogical, toLogical] upward by one slot.
+     * The line at [fromLogical] is moved to [toLogical]; everything else shifts toward [fromLogical] by one.
+     * After this call, the line now at [toLogical] is the one that was at [fromLogical] —
+     * caller is responsible for clearing it to create a blank scroll-in line.
+     */
+    internal fun rotateUp(fromLogical: Int, toLogical: Int) {
+        val evicted = data[(head + fromLogical) % capacity]
+        for (i in fromLogical until toLogical) {
+            data[(head + i) % capacity] = data[(head + i + 1) % capacity]
+        }
+        data[(head + toLogical) % capacity] = evicted
+    }
+
+    /**
+     * Rotates lines in the logical range [fromLogical, toLogical] downward by one slot.
+     * The line at [toLogical] is moved to [fromLogical]; everything else shifts toward [toLogical] by one.
+     * After this call, the line now at [fromLogical] is the one that was at [toLogical] —
+     * caller is responsible for clearing it to create a blank scroll-in line.
+     */
+    internal fun rotateDown(fromLogical: Int, toLogical: Int) {
+        val evicted = data[(head + toLogical) % capacity]
+        for (i in toLogical downTo fromLogical + 1) {
+            data[(head + i) % capacity] = data[(head + i - 1) % capacity]
+        }
+        data[(head + fromLogical) % capacity] = evicted
     }
 
     /**

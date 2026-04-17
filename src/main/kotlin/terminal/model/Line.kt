@@ -24,7 +24,7 @@ import com.gagik.terminal.store.ClusterStore
  * ## Mutability
  *
  * All mutation methods are `internal` and called exclusively by
- * [com.gagik.terminal.engine.GridWriter]. The [TerminalLineApi] surface exposed to
+ * [com.gagik.terminal.engine.MutationEngine]. The [TerminalLineApi] surface exposed to
  * the renderer is strictly read-only.
  *
  * @param width The number of columns in this line. Immutable after construction.
@@ -48,7 +48,7 @@ internal class Line(
 
     /**
      * True when this line's content continues on the next physical line.
-     * Set by [com.gagik.terminal.engine.GridWriter] during soft-wrap events.
+     * Set by [com.gagik.terminal.engine.MutationEngine] during soft-wrap events.
      */
     var wrapped: Boolean = false
 
