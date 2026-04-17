@@ -210,6 +210,41 @@ internal class Line(
     }
 
     /**
+     * Deletes [count] cells starting at [col], shifting the tail of the line
+     * left to fill the gap. The [count] trailing cells are then overwritten with
+     * [TerminalConstants.EMPTY] codepoints and [defaultAttr] attributes.
+     *
+     * [count] is clamped to the number of cells remaining from [col] to the end
+     * of the line, so callers do not need to pre-clamp.
+     *
+     * @param col        First cell to delete (0-based). Out-of-range values are ignored.
+     * @param count      Number of cells to delete. Non-positive values are ignored.
+     * @param defaultAttr Packed attribute used to fill the vacated trailing cells.
+     */
+    fun deleteCells(col: Int, count: Int, defaultAttr: Int) {
+        if (col !in 0 until width || count <= 0) return
+
+        val safeCount = count.coerceAtMost(width - col)
+        val shiftCount = width - col - safeCount
+
+        // Free cluster handles for the cells being deleted before the shift overwrites them.
+        store.freeRange(codepoints, col, col + safeCount)
+
+        // Shift surviving cells left to close the gap.
+        if (shiftCount > 0) {
+            System.arraycopy(codepoints, col + safeCount, codepoints, col, shiftCount)
+            System.arraycopy(attrs,      col + safeCount, attrs,      col, shiftCount)
+        }
+
+        // Fill the vacated trailing cells with blanks.
+        // Do NOT call store.freeRange() here: the cluster handles that previously
+        // occupied these slots were shifted left above and are still live.
+        val clearStart = width - safeCount
+        codepoints.fill(TerminalConstants.EMPTY, clearStart, width)
+        attrs.fill(defaultAttr, clearStart, width)
+    }
+
+    /**
      * Fills every cell with [codepoint] and [attr], freeing all cluster handles first.
      * Used for bulk background-color fills (e.g. erase-display operations).
      */

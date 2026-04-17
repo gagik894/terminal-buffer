@@ -563,6 +563,158 @@ class LineTest {
     }
 
     // =========================================================================
+    // deleteCells()
+    // =========================================================================
+
+    @Nested
+    @DisplayName("deleteCells()")
+    inner class DeleteCellsTests {
+
+        @Test
+        fun `deletes middle range, shifts tail left, and fills trailing attrs`() {
+            val l = line(6)
+            l.setCell(0, 'A'.code, 10)
+            l.setCell(1, 'B'.code, 11)
+            l.setCell(2, 'C'.code, 12)
+            l.setCell(3, 'D'.code, 13)
+            l.setCell(4, 'E'.code, 14)
+            l.setCell(5, 'F'.code, 15)
+
+            l.deleteCells(col = 1, count = 2, defaultAttr = 99)
+
+            assertAll(
+                { assertEquals('A'.code, l.getCodepoint(0)) },
+                { assertEquals('D'.code, l.getCodepoint(1)) },
+                { assertEquals('E'.code, l.getCodepoint(2)) },
+                { assertEquals('F'.code, l.getCodepoint(3)) },
+                { assertEquals(TerminalConstants.EMPTY, l.getCodepoint(4)) },
+                { assertEquals(TerminalConstants.EMPTY, l.getCodepoint(5)) },
+                { assertEquals(13, l.getPackedAttr(1)) },
+                { assertEquals(14, l.getPackedAttr(2)) },
+                { assertEquals(15, l.getPackedAttr(3)) },
+                { assertEquals(99, l.getPackedAttr(4)) },
+                { assertEquals(99, l.getPackedAttr(5)) }
+            )
+        }
+
+        @Test
+        fun `delete from col zero shifts whole line left`() {
+            val l = line(5)
+            l.setCell(0, 'A'.code, 1)
+            l.setCell(1, 'B'.code, 2)
+            l.setCell(2, 'C'.code, 3)
+
+            l.deleteCells(col = 0, count = 1, defaultAttr = 77)
+
+            assertAll(
+                { assertEquals('B'.code, l.getCodepoint(0)) },
+                { assertEquals('C'.code, l.getCodepoint(1)) },
+                { assertEquals(TerminalConstants.EMPTY, l.getCodepoint(2)) },
+                { assertEquals(TerminalConstants.EMPTY, l.getCodepoint(3)) },
+                { assertEquals(TerminalConstants.EMPTY, l.getCodepoint(4)) },
+                { assertEquals(77, l.getPackedAttr(4)) }
+            )
+        }
+
+        @Test
+        fun `delete at last column only clears that cell`() {
+            val l = line(4)
+            l.setCell(0, 'A'.code, 1)
+            l.setCell(1, 'B'.code, 2)
+            l.setCell(2, 'C'.code, 3)
+            l.setCell(3, 'D'.code, 4)
+
+            l.deleteCells(col = 3, count = 1, defaultAttr = 55)
+
+            assertAll(
+                { assertEquals('A'.code, l.getCodepoint(0)) },
+                { assertEquals('B'.code, l.getCodepoint(1)) },
+                { assertEquals('C'.code, l.getCodepoint(2)) },
+                { assertEquals(TerminalConstants.EMPTY, l.getCodepoint(3)) },
+                { assertEquals(55, l.getPackedAttr(3)) }
+            )
+        }
+
+        @Test
+        fun `count larger than remaining cells is clamped`() {
+            val l = line(5)
+            l.setCell(0, 'A'.code, 0)
+            l.setCell(1, 'B'.code, 0)
+            l.setCell(2, 'C'.code, 0)
+            l.setCell(3, 'D'.code, 0)
+
+            l.deleteCells(col = 2, count = 99, defaultAttr = 42)
+
+            assertAll(
+                { assertEquals('A'.code, l.getCodepoint(0)) },
+                { assertEquals('B'.code, l.getCodepoint(1)) },
+                { assertEquals(TerminalConstants.EMPTY, l.getCodepoint(2)) },
+                { assertEquals(TerminalConstants.EMPTY, l.getCodepoint(3)) },
+                { assertEquals(TerminalConstants.EMPTY, l.getCodepoint(4)) },
+                { assertEquals(42, l.getPackedAttr(2)) },
+                { assertEquals(42, l.getPackedAttr(4)) }
+            )
+        }
+
+        @Test
+        fun `no-op for invalid arguments`() {
+            val l = line(4)
+            l.setCell(0, 'X'.code, 7)
+            l.setCell(1, 'Y'.code, 8)
+
+            l.deleteCells(col = -1, count = 1, defaultAttr = 99)
+            l.deleteCells(col = 4, count = 1, defaultAttr = 99)
+            l.deleteCells(col = 0, count = 0, defaultAttr = 99)
+            l.deleteCells(col = 0, count = -2, defaultAttr = 99)
+
+            assertAll(
+                { assertEquals('X'.code, l.getCodepoint(0)) },
+                { assertEquals('Y'.code, l.getCodepoint(1)) },
+                { assertEquals(7, l.getPackedAttr(0)) },
+                { assertEquals(8, l.getPackedAttr(1)) }
+            )
+        }
+
+        @Test
+        fun `cluster handle in deleted range is freed`() {
+            val store = store()
+            val l = Line(5, store)
+            l.setCell(0, 'A'.code, 0)
+            l.setCluster(1, intArrayOf(0x1F600, 0x200D), 2, 0) // handle -2
+
+            l.deleteCells(col = 1, count = 1, defaultAttr = 0)
+
+            val reused = store.alloc(intArrayOf(1234))
+            assertEquals(-2, reused, "Deleted cluster handle must be returned to free list")
+        }
+
+        @Test
+        fun `shifted cluster handle remains live after delete`() {
+            val store = store()
+            val l = Line(5, store)
+            l.setCluster(1, intArrayOf(0xAAAA), 1, 0) // handle -2 (to be deleted)
+            l.setCluster(3, intArrayOf(0xBBBB, 0x200D), 2, 0) // handle -3 (should shift left)
+
+            l.deleteCells(col = 1, count = 1, defaultAttr = 0)
+
+            // Deleted handle is reusable.
+            val first = store.alloc(intArrayOf(1))
+            assertEquals(-2, first)
+
+            // Shifted handle remains readable at its new column.
+            val shiftedCol = 2
+            assertTrue(l.isCluster(shiftedCol))
+            val dest = IntArray(4)
+            val len = l.readCluster(shiftedCol, dest)
+            assertAll(
+                { assertEquals(2, len) },
+                { assertEquals(0xBBBB, dest[0]) },
+                { assertEquals(0x200D, dest[1]) }
+            )
+        }
+    }
+
+    // =========================================================================
     // toText / toTextTrimmed
     // =========================================================================
 
