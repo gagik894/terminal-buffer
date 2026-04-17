@@ -11,7 +11,7 @@ import com.gagik.terminal.state.TerminalState
  * All ring-index translation is delegated to [TerminalState.resolveRingIndex].
  * All circular-buffer arithmetic is encapsulated inside [HistoryRing].
  */
-internal class GridWriter(
+internal class MutationEngine(
     private val state: TerminalState
 ) {
     // width and height are cached for performance
