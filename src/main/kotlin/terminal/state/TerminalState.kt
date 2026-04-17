@@ -40,8 +40,16 @@ internal class TerminalState(
      * even when history is full.
      */
     var ring = HistoryRing(maxHistory + initialHeight) { Line(initialWidth, clusterStore) }
-
-
+    /**
+     * Top row of the active scroll region, 0-based, inclusive.
+     * Default: 0 (top of screen).
+     */
+    var scrollTop: Int = 0
+    /**
+     * Bottom row of the active scroll region, 0-based, inclusive.
+     * Default: height - 1 (bottom of screen).
+     */
+    var scrollBottom: Int = initialHeight - 1
 
     init {
         repeat(initialHeight) {
@@ -57,5 +65,36 @@ internal class TerminalState(
     fun resolveRingIndex(viewportRow: Int): Int {
         val startIndex = (ring.size - dimensions.height).coerceAtLeast(0)
         return startIndex + viewportRow
+    }
+
+
+    /** True when the scroll region covers the entire viewport. */
+    val isFullViewportScroll: Boolean
+        get() = scrollTop == 0 && scrollBottom == dimensions.height - 1
+
+    /**
+     * Sets the scroll region, clamping and validating inputs.
+     * Resets the cursor to (0, 0) as required by the VT spec.
+     *
+     * @param top 1-based top row from the DECSTBM escape (converted to 0-based internally).
+     * @param bottom 1-based bottom row from the DECSTBM escape (converted to 0-based internally).
+     */
+    fun setScrollRegion(top: Int, bottom: Int) {
+        val t = (top - 1).coerceIn(0, dimensions.height - 1)
+        val b = (bottom - 1).coerceIn(0, dimensions.height - 1)
+        if (t >= b) return   // degenerate region — ignore per spec
+        scrollTop    = t
+        scrollBottom = b
+        cursor.col   = 0
+        cursor.row   = 0
+    }
+
+    /**
+     * Resets the scroll region to the full viewport.
+     * Called on resize and terminal reset.
+     */
+    fun resetScrollRegion() {
+        scrollTop    = 0
+        scrollBottom = dimensions.height - 1
     }
 }
