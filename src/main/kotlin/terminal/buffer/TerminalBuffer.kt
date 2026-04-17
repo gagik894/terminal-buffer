@@ -130,6 +130,8 @@ internal class TerminalBuffer(
     override fun eraseLineToCursor() = mutationEngine.eraseLineToCursor()
     override fun eraseCurrentLine() = mutationEngine.eraseCurrentLine()
 
+    override fun insertLines(count: Int) = mutationEngine.insertLines(count)
+    override fun deleteLines(count: Int) = mutationEngine.deleteLines(count)
 
     // --- Rendering API (Zero Allocation - Critical Path) ---
 

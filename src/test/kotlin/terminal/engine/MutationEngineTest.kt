@@ -33,6 +33,13 @@ class MutationEngineTest {
         }
     }
 
+    private fun assertLineAttrs(state: TerminalState, row: Int, expected: IntArray) {
+        val line = lineAt(state, row)
+        for (i in expected.indices) {
+            assertEquals(expected[i], line.getPackedAttr(i), "Attr mismatch at row=$row col=$i")
+        }
+    }
+
     private fun seedLine(state: TerminalState, row: Int, text: String, attr: Int = 0) {
         val line = lineAt(state, row)
         for ((i, ch) in text.withIndex()) {
@@ -410,6 +417,306 @@ class MutationEngineTest {
             writer.insertBlankCharacters(99)
 
             assertLineCodepoints(state, 0, intArrayOf('A'.code, 'B'.code, 'C'.code, TerminalConstants.EMPTY, TerminalConstants.EMPTY))
+        }
+    }
+
+    @Nested
+    @DisplayName("insertLines")
+    inner class InsertLinesTests {
+
+        @Test
+        fun `insertLines non-positive count is no-op`() {
+            val state = createState(width = 3, height = 3)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AAA")
+            seedLine(state, 1, "BBB")
+            seedLine(state, 2, "CCC")
+            state.cursor.row = 1
+
+            writer.insertLines(0)
+            writer.insertLines(-10)
+
+            assertAll(
+                { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
+                { assertLineCodepoints(state, 1, intArrayOf('B'.code, 'B'.code, 'B'.code)) },
+                { assertLineCodepoints(state, 2, intArrayOf('C'.code, 'C'.code, 'C'.code)) }
+            )
+        }
+
+        @Test
+        fun `insertLines is ignored when cursor is outside active scroll region`() {
+            val state = createState(width = 3, height = 4)
+            val writer = MutationEngine(state)
+            state.scrollTop = 1
+            state.scrollBottom = 2
+            seedLine(state, 0, "AAA")
+            seedLine(state, 1, "BBB")
+            seedLine(state, 2, "CCC")
+            seedLine(state, 3, "DDD")
+
+            state.cursor.row = 0
+            writer.insertLines(1)
+            state.cursor.row = 3
+            writer.insertLines(1)
+
+            assertAll(
+                { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
+                { assertLineCodepoints(state, 1, intArrayOf('B'.code, 'B'.code, 'B'.code)) },
+                { assertLineCodepoints(state, 2, intArrayOf('C'.code, 'C'.code, 'C'.code)) },
+                { assertLineCodepoints(state, 3, intArrayOf('D'.code, 'D'.code, 'D'.code)) }
+            )
+        }
+
+        @Test
+        fun `insertLines shifts down from cursor through bottom and clears inserted row`() {
+            val state = createState(width = 3, height = 5)
+            val writer = MutationEngine(state)
+            state.scrollTop = 1
+            state.scrollBottom = 3
+            seedLine(state, 0, "AAA")
+            seedLine(state, 1, "BBB")
+            seedLine(state, 2, "CCC")
+            seedLine(state, 3, "DDD")
+            seedLine(state, 4, "EEE")
+            state.cursor.row = 2
+
+            writer.insertLines(1)
+
+            assertAll(
+                { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
+                { assertLineCodepoints(state, 1, intArrayOf('B'.code, 'B'.code, 'B'.code)) },
+                { assertLineCodepoints(state, 2, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
+                { assertLineCodepoints(state, 3, intArrayOf('C'.code, 'C'.code, 'C'.code)) },
+                { assertLineCodepoints(state, 4, intArrayOf('E'.code, 'E'.code, 'E'.code)) }
+            )
+        }
+
+        @Test
+        fun `insertLines count is clamped to remaining region height`() {
+            val state = createState(width = 3, height = 4)
+            val writer = MutationEngine(state)
+            state.scrollTop = 1
+            state.scrollBottom = 3
+            seedLine(state, 0, "AAA")
+            seedLine(state, 1, "BBB")
+            seedLine(state, 2, "CCC")
+            seedLine(state, 3, "DDD")
+            state.cursor.row = 2
+
+            writer.insertLines(99)
+
+            assertAll(
+                { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
+                { assertLineCodepoints(state, 1, intArrayOf('B'.code, 'B'.code, 'B'.code)) },
+                { assertLineCodepoints(state, 2, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
+                { assertLineCodepoints(state, 3, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) }
+            )
+        }
+
+        @Test
+        fun `insertLines at bottom margin clears only bottom row`() {
+            val state = createState(width = 3, height = 3)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AAA")
+            seedLine(state, 1, "BBB")
+            seedLine(state, 2, "CCC")
+            state.cursor.row = 2
+
+            writer.insertLines(5)
+
+            assertAll(
+                { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
+                { assertLineCodepoints(state, 1, intArrayOf('B'.code, 'B'.code, 'B'.code)) },
+                { assertLineCodepoints(state, 2, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) }
+            )
+        }
+
+        @Test
+        fun `insertLines clears inserted rows using current pen attribute`() {
+            val state = createState(width = 3, height = 3)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AAA", attr = 11)
+            seedLine(state, 1, "BBB", attr = 11)
+            seedLine(state, 2, "CCC", attr = 11)
+            state.pen.setAttributes(fg = 5, bg = 2, bold = true)
+            val clearAttr = state.pen.currentAttr
+            state.cursor.row = 1
+
+            writer.insertLines(1)
+
+            assertLineAttrs(state, 1, intArrayOf(clearAttr, clearAttr, clearAttr))
+            assertLineCodepoints(state, 2, intArrayOf('B'.code, 'B'.code, 'B'.code))
+        }
+
+        @Test
+        fun `insertLines uses resolveRingIndex when viewport has history offset`() {
+            val state = createState(width = 2, height = 2, history = 4)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AA")
+            seedLine(state, 1, "BB")
+            writer.scrollUp() // grow ring so viewport start index is no longer zero
+            seedLine(state, 0, "CC")
+            seedLine(state, 1, "DD")
+            state.cursor.row = 0
+            val oldSize = state.ring.size
+
+            writer.insertLines(1)
+
+            assertAll(
+                { assertEquals(oldSize, state.ring.size, "insertLines must not push to history") },
+                { assertLineCodepoints(state, 0, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
+                { assertLineCodepoints(state, 1, intArrayOf('C'.code, 'C'.code)) }
+            )
+        }
+    }
+
+    @Nested
+    @DisplayName("deleteLines")
+    inner class DeleteLinesTests {
+
+        @Test
+        fun `deleteLines non-positive count is no-op`() {
+            val state = createState(width = 3, height = 3)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AAA")
+            seedLine(state, 1, "BBB")
+            seedLine(state, 2, "CCC")
+            state.cursor.row = 1
+
+            writer.deleteLines(0)
+            writer.deleteLines(-3)
+
+            assertAll(
+                { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
+                { assertLineCodepoints(state, 1, intArrayOf('B'.code, 'B'.code, 'B'.code)) },
+                { assertLineCodepoints(state, 2, intArrayOf('C'.code, 'C'.code, 'C'.code)) }
+            )
+        }
+
+        @Test
+        fun `deleteLines is ignored when cursor is outside active scroll region`() {
+            val state = createState(width = 3, height = 4)
+            val writer = MutationEngine(state)
+            state.scrollTop = 1
+            state.scrollBottom = 2
+            seedLine(state, 0, "AAA")
+            seedLine(state, 1, "BBB")
+            seedLine(state, 2, "CCC")
+            seedLine(state, 3, "DDD")
+
+            state.cursor.row = 0
+            writer.deleteLines(1)
+            state.cursor.row = 3
+            writer.deleteLines(1)
+
+            assertAll(
+                { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
+                { assertLineCodepoints(state, 1, intArrayOf('B'.code, 'B'.code, 'B'.code)) },
+                { assertLineCodepoints(state, 2, intArrayOf('C'.code, 'C'.code, 'C'.code)) },
+                { assertLineCodepoints(state, 3, intArrayOf('D'.code, 'D'.code, 'D'.code)) }
+            )
+        }
+
+        @Test
+        fun `deleteLines shifts up from below cursor and clears bottom margin`() {
+            val state = createState(width = 3, height = 5)
+            val writer = MutationEngine(state)
+            state.scrollTop = 1
+            state.scrollBottom = 3
+            seedLine(state, 0, "AAA")
+            seedLine(state, 1, "BBB")
+            seedLine(state, 2, "CCC")
+            seedLine(state, 3, "DDD")
+            seedLine(state, 4, "EEE")
+            state.cursor.row = 2
+
+            writer.deleteLines(1)
+
+            assertAll(
+                { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
+                { assertLineCodepoints(state, 1, intArrayOf('B'.code, 'B'.code, 'B'.code)) },
+                { assertLineCodepoints(state, 2, intArrayOf('D'.code, 'D'.code, 'D'.code)) },
+                { assertLineCodepoints(state, 3, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
+                { assertLineCodepoints(state, 4, intArrayOf('E'.code, 'E'.code, 'E'.code)) }
+            )
+        }
+
+        @Test
+        fun `deleteLines count is clamped to remaining region height`() {
+            val state = createState(width = 3, height = 4)
+            val writer = MutationEngine(state)
+            state.scrollTop = 1
+            state.scrollBottom = 3
+            seedLine(state, 0, "AAA")
+            seedLine(state, 1, "BBB")
+            seedLine(state, 2, "CCC")
+            seedLine(state, 3, "DDD")
+            state.cursor.row = 2
+
+            writer.deleteLines(99)
+
+            assertAll(
+                { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
+                { assertLineCodepoints(state, 1, intArrayOf('B'.code, 'B'.code, 'B'.code)) },
+                { assertLineCodepoints(state, 2, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
+                { assertLineCodepoints(state, 3, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) }
+            )
+        }
+
+        @Test
+        fun `deleteLines at bottom margin clears only bottom row`() {
+            val state = createState(width = 3, height = 3)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AAA")
+            seedLine(state, 1, "BBB")
+            seedLine(state, 2, "CCC")
+            state.cursor.row = 2
+
+            writer.deleteLines(5)
+
+            assertAll(
+                { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'A'.code, 'A'.code)) },
+                { assertLineCodepoints(state, 1, intArrayOf('B'.code, 'B'.code, 'B'.code)) },
+                { assertLineCodepoints(state, 2, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) }
+            )
+        }
+
+        @Test
+        fun `deleteLines clears bottom rows using current pen attribute`() {
+            val state = createState(width = 3, height = 3)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AAA", attr = 13)
+            seedLine(state, 1, "BBB", attr = 13)
+            seedLine(state, 2, "CCC", attr = 13)
+            state.pen.setAttributes(fg = 1, bg = 6, underline = true)
+            val clearAttr = state.pen.currentAttr
+            state.cursor.row = 0
+
+            writer.deleteLines(1)
+
+            assertLineAttrs(state, 2, intArrayOf(clearAttr, clearAttr, clearAttr))
+            assertLineCodepoints(state, 0, intArrayOf('B'.code, 'B'.code, 'B'.code))
+        }
+
+        @Test
+        fun `deleteLines uses resolveRingIndex when viewport has history offset`() {
+            val state = createState(width = 2, height = 2, history = 4)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AA")
+            seedLine(state, 1, "BB")
+            writer.scrollUp() // grow ring so viewport start index is no longer zero
+            seedLine(state, 0, "CC")
+            seedLine(state, 1, "DD")
+            state.cursor.row = 0
+            val oldSize = state.ring.size
+
+            writer.deleteLines(1)
+
+            assertAll(
+                { assertEquals(oldSize, state.ring.size, "deleteLines must not push to history") },
+                { assertLineCodepoints(state, 0, intArrayOf('D'.code, 'D'.code)) },
+                { assertLineCodepoints(state, 1, intArrayOf(TerminalConstants.EMPTY, TerminalConstants.EMPTY)) }
+            )
         }
     }
 
