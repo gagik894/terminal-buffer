@@ -114,6 +114,10 @@ internal class TerminalBuffer(
     override fun setScrollRegion(top: Int, bottom: Int) = state.setScrollRegion(top, bottom)
     override fun resetScrollRegion() = state.resetScrollRegion()
 
+    override fun setInsertMode(enabled: Boolean) {
+        state.modes.isInsertMode = enabled
+    }
+
     override fun scrollUp() = mutationEngine.scrollUp()
     override fun scrollDown() = mutationEngine.scrollDown()
 

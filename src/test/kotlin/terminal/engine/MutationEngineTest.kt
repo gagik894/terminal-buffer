@@ -2074,4 +2074,194 @@ class MutationEngineTest {
             assertLineAttrs(state, 1, intArrayOf(clearAttr, clearAttr))
         }
     }
+
+    @Nested
+    @DisplayName("insert mode (IRM)")
+    inner class InsertModeTests {
+
+        @Test
+        fun `replace mode default does not shift`() {
+            val state = createState(width = 4, height = 1)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "ABCD")
+            state.cursor.col = 1
+            state.modes.isInsertMode = false
+
+            writer.printCodepoint('X'.code, 1)
+
+            assertLineCodepoints(state, 0, intArrayOf('A'.code, 'X'.code, 'C'.code, 'D'.code))
+            assertEquals(2, state.cursor.col)
+        }
+
+        @Test
+        fun `insert mode single width shifts right before write`() {
+            val state = createState(width = 5, height = 1)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "ABCD")
+            state.cursor.col = 1
+            state.modes.isInsertMode = true
+
+            writer.printCodepoint('X'.code, 1)
+
+            assertLineCodepoints(state, 0, intArrayOf('A'.code, 'X'.code, 'B'.code, 'C'.code, 'D'.code))
+            assertEquals(2, state.cursor.col)
+        }
+
+        @Test
+        fun `insert mode at col zero shifts entire line`() {
+            val state = createState(width = 4, height = 1)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "ABCD")
+            state.cursor.col = 0
+            state.modes.isInsertMode = true
+
+            writer.printCodepoint('X'.code, 1)
+
+            assertLineCodepoints(state, 0, intArrayOf('X'.code, 'A'.code, 'B'.code, 'C'.code))
+            assertEquals(1, state.cursor.col)
+        }
+
+        @Test
+        fun `insert mode at last column wraps cursor after write`() {
+            val state = createState(width = 4, height = 2)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "ABCD")
+            state.cursor.col = 3
+            state.modes.isInsertMode = true
+
+            writer.printCodepoint('X'.code, 1)
+
+            // insertCells(3, 1) at the last column clamps to 0 remaining slots,
+            // so the shift is a no-op and the write overwrites 'D' in place.
+            assertLineCodepoints(state, 0, intArrayOf('A'.code, 'B'.code, 'C'.code, 'X'.code))
+            assertTrue(lineAt(state, 0).wrapped)
+            assertEquals(0, state.cursor.col)
+            assertEquals(1, state.cursor.row)
+        }
+
+        @Test
+        fun `insert mode wide char inserts two cells`() {
+            val state = createState(width = 6, height = 1)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "ABCD")
+            state.cursor.col = 1
+            state.modes.isInsertMode = true
+
+            writer.printCodepoint(0x1F600, 2)
+
+            assertLineCodepoints(
+                state,
+                0,
+                intArrayOf('A'.code, 0x1F600, TerminalConstants.WIDE_CHAR_SPACER, 'B'.code, 'C'.code, 'D'.code)
+            )
+            assertEquals(3, state.cursor.col)
+        }
+
+        @Test
+        fun `insert mode on wide spacer annihilates owner then inserts`() {
+            val state = createState(width = 5, height = 1)
+            val writer = MutationEngine(state)
+            writer.printCodepoint(0x1F600, 2)
+            writer.printCodepoint('C'.code, 1)
+            writer.printCodepoint('D'.code, 1)
+
+            state.cursor.col = 1
+            state.modes.isInsertMode = true
+
+            writer.printCodepoint('X'.code, 1)
+
+            assertLineCodepoints(
+                state,
+                0,
+                intArrayOf(TerminalConstants.EMPTY, 'X'.code, TerminalConstants.EMPTY, 'C'.code, 'D'.code)
+            )
+        }
+
+        @Test
+        fun `insert mode before existing wide leader preserves spacer invariant`() {
+            val state = createState(width = 5, height = 1)
+            val writer = MutationEngine(state)
+            writer.printCodepoint('A'.code, 1)
+            writer.printCodepoint(0x1F600, 2)
+            writer.printCodepoint('B'.code, 1)
+
+            state.cursor.col = 0
+            state.modes.isInsertMode = true
+
+            writer.printCodepoint('X'.code, 1)
+
+            assertLineCodepoints(
+                state,
+                0,
+                intArrayOf('X'.code, 'A'.code, 0x1F600, TerminalConstants.WIDE_CHAR_SPACER, 'B'.code)
+            )
+        }
+
+        @Test
+        fun `insert mode print cluster shifts then stores cluster`() {
+            val state = createState(width = 4, height = 1)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "ABC")
+            state.cursor.col = 1
+            state.modes.isInsertMode = true
+
+            val cpArray = intArrayOf('X'.code, 0x0301)
+            writer.printCluster(cpArray, 2, 1)
+
+            assertLineCodepoints(state, 0, intArrayOf('A'.code, 'X'.code, 'B'.code, 'C'.code))
+            assertTrue(lineAt(state, 0).isCluster(1))
+            assertEquals(2, state.cursor.col)
+        }
+
+        @Test
+        fun `insert mode wide edge wrap mutates wrapped row not old row`() {
+            val state = createState(width = 3, height = 2)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AB")
+            seedLine(state, 1, "CD")
+            state.cursor.row = 0
+            state.cursor.col = 2
+            state.modes.isInsertMode = true
+
+            writer.printCodepoint(0x1F600, 2)
+
+            assertLineCodepoints(state, 0, intArrayOf('A'.code, 'B'.code, TerminalConstants.EMPTY))
+            assertLineCodepoints(state, 1, intArrayOf(0x1F600, TerminalConstants.WIDE_CHAR_SPACER, 'C'.code))
+            assertEquals(2, state.cursor.col)
+            assertEquals(1, state.cursor.row)
+        }
+
+        @Test
+        fun `insert mode wide edge wrap on bottom row scrolls then inserts on new line`() {
+            val state = createState(width = 3, height = 1, history = 4)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "AB")
+            state.cursor.row = 0
+            state.cursor.col = 2
+            state.modes.isInsertMode = true
+
+            writer.printCodepoint(0x1F600, 2)
+
+            assertTrue(state.ring.size >= 2)
+            assertLineCodepoints(state, 0, intArrayOf(0x1F600, TerminalConstants.WIDE_CHAR_SPACER, TerminalConstants.EMPTY))
+            assertEquals(2, state.cursor.col)
+            assertEquals(0, state.cursor.row)
+        }
+
+        @Test
+        fun `insert mode preserves current pen attr on inserted blanks`() {
+            val state = createState(width = 5, height = 1)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "ABCD", attr = 10)
+            state.pen.setAttributes(fg = 5, bg = 2, bold = true)
+            val newAttr = state.pen.currentAttr
+
+            state.cursor.col = 1
+            state.modes.isInsertMode = true
+
+            writer.printCodepoint('X'.code, 1)
+
+            assertLineAttrs(state, 0, intArrayOf(10, newAttr, 10, 10, 10))
+        }
+    }
 }

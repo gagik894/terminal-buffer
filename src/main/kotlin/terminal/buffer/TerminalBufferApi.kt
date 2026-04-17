@@ -205,6 +205,13 @@ interface TerminalBufferApi {
     fun resetScrollRegion()
 
     /**
+     * Enables or disables Insert Mode (IRM).
+     *
+     * @param enabled `true` to enable insert mode, `false` to enable replace mode (default).
+     */
+    fun setInsertMode(enabled: Boolean)
+
+    /**
      * Scrolls the active scroll region upward by one line.
      *
      * If the active region is the full viewport, the top visible line may enter

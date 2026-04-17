@@ -177,7 +177,6 @@ class TerminalBufferTest {
 			val buffer = newApiBuffer(width = 4, height = 3)
 			buffer.setCursor(2, 1)
 			buffer.setPenAttributes(3, 7, bold = true, italic = true, underline = false)
-			val savedAttr = buffer.getPackedAttrAt(0, 0)
 
 			buffer.saveCursor()
 			buffer.setCursor(0, 0)
@@ -1349,4 +1348,6 @@ class TerminalBufferTest {
 		}
 	}
 }
+
+
 

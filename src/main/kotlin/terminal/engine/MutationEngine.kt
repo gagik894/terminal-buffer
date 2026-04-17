@@ -152,7 +152,7 @@ internal class MutationEngine(
      * ARCHITECTURAL WARNING: do NOT split into smaller helpers. Edge-wrap
      * requires interleaved clears and moves; splitting destroys the JIT fast path.
      */
-    private inline fun writeToGrid(charWidth: Int, writeCell: (line: Line, col: Int) -> Unit) {
+    private inline fun writeToGrid(charWidth: Int, crossinline writeCell: (line: Line, col: Int) -> Unit) {
         var cCol = state.cursor.col
         var cRow = state.cursor.row
         val widthInCells = if (charWidth == 2) 2 else 1
@@ -164,11 +164,28 @@ internal class MutationEngine(
         if (widthInCells == 2 && cCol == width - 1) {
             annihilateAt(cRow, cCol)
             cCol = 0
-            cRow = advanceRow(cRow)
+            cRow++
+            if (cRow >= height) { scrollUp(); cRow = height - 1 }
             line = getLine(cRow)
         }
 
-        // Annihilation: clear the blast radius before writing.
+        // ── INSERT MODE: The Memory Shift ────────────────────────────────────
+        // Must happen on the post-edge-wrap (line, cCol) — BEFORE annihilation —
+        // so live content is shifted right, not the emptied blast radius.
+        if (state.modes.isInsertMode) {
+            // Left Boundary Defense: if the cursor sits on a wide spacer,
+            // destroy the owning leader now so we don't push an orphaned
+            // spacer rightward into the shifted content.
+            if (line.rawCodepoint(cCol) == TerminalConstants.WIDE_CHAR_SPACER) {
+                annihilateAt(cRow, cCol)
+            }
+            line.insertCells(cCol, widthInCells, state.pen.currentAttr)
+        }
+
+        // ── REPLACE MODE & CLEANUP: Annihilation ─────────────────────────────
+        // In Replace mode: clears the character being overwritten.
+        // In Insert mode: still required to clear a 1-cell hole before a 2-cell
+        // write, or to clear any partial residue after the shift.
         annihilateAt(cRow, cCol)
         if (widthInCells == 2 && cCol + 1 < width) annihilateAt(cRow, cCol + 1)
 
@@ -186,12 +203,14 @@ internal class MutationEngine(
         if (cCol >= width) {
             line.wrapped = true
             cCol = 0
-            cRow = advanceRow(cRow)
+            cRow++
+            if (cRow >= height) { scrollUp(); cRow = height - 1 }
         }
 
         state.cursor.col = cCol
         state.cursor.row = cRow
     }
+
 
     // ----- Public write API --------------------------------------------------
 
@@ -206,15 +225,18 @@ internal class MutationEngine(
         val cCol = state.cursor.col
         val cRow = state.cursor.row
 
-        // Fast path: 1-cell write into empty space.
-        if (charWidth != 2 && cRow in 0 until height && cCol in 0 until width) {
+        // Fast path: REPLACE mode only.
+        // Insert mode must always go through writeToGrid so the shift runs.
+        if (!state.modes.isInsertMode && charWidth != 2
+            && cRow in 0 until height && cCol in 0 until width) {
             val line = getLine(cRow)
-            if (line.rawCodepoint(cCol) == TerminalConstants.EMPTY) {
+            if (line.getCodepoint(cCol) == TerminalConstants.EMPTY) {
                 line.setCell(cCol, codepoint, attr)
                 if (cCol == width - 1) {
                     line.wrapped = true
                     state.cursor.col = 0
-                    state.cursor.row = advanceRow(cRow)
+                    state.cursor.row = cRow + 1
+                    if (state.cursor.row >= height) { scrollUp(); state.cursor.row = height - 1 }
                 } else {
                     state.cursor.col = cCol + 1
                 }
@@ -222,11 +244,12 @@ internal class MutationEngine(
             }
         }
 
-        // Slow path: delegate all physics to writeToGrid.
+        // Slow path: full physics via writeToGrid.
         writeToGrid(charWidth) { line, col ->
             line.setCell(col, codepoint, attr)
         }
     }
+
 
     fun printCluster(cps: IntArray, cpLen: Int, charWidth: Int) {
         if (cpLen == 1) {
