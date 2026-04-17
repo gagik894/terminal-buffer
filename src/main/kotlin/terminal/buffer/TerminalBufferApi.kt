@@ -406,6 +406,10 @@ interface TerminalBufferApi {
      * Clears all visible content and scrollback history, resets the pen, and
      * homes the cursor. The scroll region is not affected.
      *
+     * This also clears the DECSC saved-cursor state, so a subsequent
+     * `restoreCursor()` has no saved position to restore, and resets tab stops
+     * to the VT100 defaults.
+     *
      * For a complete terminal reset including the scroll region, use [reset].
      */
     fun clearAll()
