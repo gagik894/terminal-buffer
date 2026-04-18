@@ -1,121 +1,96 @@
 package com.gagik.terminal.state
 
-import com.gagik.terminal.buffer.HistoryRing
 import com.gagik.terminal.model.*
-import com.gagik.terminal.store.ClusterStore
 
 /**
- * Encapsulates the entire state of the terminal,
- * including dimensions, cursor position, pen attributes, and the history buffer.
+ * The global hardware context of the terminal.
  *
- * The ring buffer is initialized with enough space for the initial height,
- * plus the maximum number of lines to retain in the history buffer.
+ * Owns the global mode flags, pen, dimensions, and tab stops, and routes all
+ * read/write operations to the correct [ScreenBuffer] via [activeBuffer].
  *
- * @param initialWidth The initial width of the terminal
- * @param initialHeight The initial height of the terminal
- * @param maxHistory The maximum number of lines to retain in the history buffer
+ * [primaryBuffer] and [altBuffer] each own their own memory arenas
+ * ([ScreenBuffer.store] + [ScreenBuffer.ring]) so a resize of one buffer
+ * can never corrupt the other.
  */
 internal class TerminalState(
-    initialWidth: Int,
+    initialWidth:  Int,
     initialHeight: Int,
-    val maxHistory: Int,
+    maxHistory:    Int,
 ) {
-    val modes = TerminalModes()
+    // ── Global hardware state ─────────────────────────────────────────────────
+
+    val modes      = TerminalModes()
+    val tabStops   = TabStops(initialWidth)
+    val pen        = Pen()
     val dimensions = GridDimensions(initialWidth, initialHeight)
-    val cursor = Cursor()
-    val savedCursor = SavedCursorState()
-    val pen = Pen()
 
-    // NOTE: clusterStore must be declared before ring because ring's factory
-    // lambda captures clusterStore by reference during array initialization.
-    var clusterStore: ClusterStore = ClusterStore()
+    // ── Physical screens ──────────────────────────────────────────────────────
+
+    val primaryBuffer = ScreenBuffer(initialWidth, initialHeight, maxHistory)
+        .apply { clearGrid(pen.currentAttr, initialHeight) }
+
+    /** Alternate buffer always has zero scrollback. */
+    val altBuffer = ScreenBuffer(initialWidth, initialHeight, maxHistory = 0)
+        .apply { clearGrid(pen.currentAttr, initialHeight) }
+
+    // ── Hot-swap pointer ──────────────────────────────────────────────────────
+
+    var activeBuffer: ScreenBuffer = primaryBuffer
+        private set
+
+    val isAltScreenActive: Boolean
+        get() = activeBuffer === altBuffer
+
     /**
-     * Circular buffer of physical terminal lines, covering both scrollback history
-     * and the live viewport.
+     * Switches to the alternate screen (`CSI ? 1049 h`).
      *
-     * Capacity = [maxHistory] + [initialHeight], ensuring the viewport always fits
-     * even when history is full.
+     * Callers must invoke [com.gagik.terminal.engine.CursorEngine.saveCursor] **before** this call (DECSC).
+     * No-op when already in the alternate screen.
      */
-    var ring = HistoryRing(maxHistory + initialHeight) { Line(initialWidth, clusterStore) }
-    /**
-     * Top row of the active scroll region, 0-based, inclusive.
-     * Default: 0 (top of screen).
-     */
-    var scrollTop: Int = 0
-    /**
-     * Bottom row of the active scroll region, 0-based, inclusive.
-     * Default: height - 1 (bottom of screen).
-     */
-    var scrollBottom: Int = initialHeight - 1
-    val tabStops = TabStops(dimensions.width)
-
-    init {
-        repeat(initialHeight) {
-            ring.push().clear(pen.currentAttr)
-        }
+    fun enterAltScreen() {
+        if (isAltScreenActive) return
+        altBuffer.clearGrid(pen.currentAttr, dimensions.height)
+        altBuffer.resetScrollRegion(dimensions.height)
+        altBuffer.cursor.col         = 0
+        altBuffer.cursor.row         = 0
+        altBuffer.cursor.pendingWrap = false
+        activeBuffer = altBuffer
     }
 
     /**
-     * Cancels any pending wrap operation.
-     * This is called when the user presses a key that does not trigger a wrap.
-     */
-    fun cancelPendingWrap() {
-        cursor.pendingWrap = false
-    }
-
-    /**
-     * Resets the cursor position to (0, 0).
-     */
-    fun homeCursor() {
-        cursor.col = 0
-        cursor.row = 0
-        cursor.pendingWrap = false
-    }
-
-    /**
-     * Resolves a visible viewport row to its backing line index in the ring.
+     * Returns to the primary screen (`CSI ? 1049 l`).
      *
-     * @param viewportRow Viewport row (0-based).
+     * Callers must invoke [com.gagik.terminal.engine.CursorEngine.restoreCursor] **after** this call (DECRC).
+     * No-op when already on the primary screen.
      */
-    fun resolveRingIndex(viewportRow: Int): Int {
-        val startIndex = (ring.size - dimensions.height).coerceAtLeast(0)
-        return startIndex + viewportRow
+    fun exitAltScreen() {
+        if (!isAltScreenActive) return
+        activeBuffer = primaryBuffer
     }
 
+    // ── Transparent engine accessors ──────────────────────────────────────────
 
-    /** True when the scroll region covers the entire viewport. */
+    val ring
+        get() = activeBuffer.ring
+    val cursor: Cursor
+        get() = activeBuffer.cursor
+    val savedCursor
+        get() = activeBuffer.savedCursor
+    val scrollTop
+        get() = activeBuffer.scrollTop
+    val scrollBottom
+        get() = activeBuffer.scrollBottom
+
     val isFullViewportScroll: Boolean
-        get() = scrollTop == 0 && scrollBottom == dimensions.height - 1
+        get() = activeBuffer.isFullViewportScroll(dimensions.height)
 
-    /**
-     * Sets the scroll region, clamping and validating inputs.
-     * Homes the cursor as required by the VT spec:
-     * - Without DECOM (origin mode off): cursor goes to (col=0, row=0).
-     * - With DECOM (origin mode on): cursor goes to (col=0, row=scrollTop),
-     *   i.e., the top of the newly established scroll region.
-     *
-     * @param top 1-based top row from the DECSTBM escape (converted to 0-based internally).
-     * @param bottom 1-based bottom row from the DECSTBM escape (converted to 0-based internally).
-     */
-    fun setScrollRegion(top: Int, bottom: Int) {
-        val t = (top - 1).coerceIn(0, dimensions.height - 1)
-        val b = (bottom - 1).coerceIn(0, dimensions.height - 1)
-        if (t >= b) return
+    fun resolveRingIndex(viewportRow: Int): Int =
+        (activeBuffer.ring.size - dimensions.height).coerceAtLeast(0) + viewportRow
 
-        scrollTop = t
-        scrollBottom = b
-        cursor.col = 0
-        cursor.row = if (modes.isOriginMode) t else 0
-        cursor.pendingWrap = false
-    }
+    // ── Convenience Helpers ───────────────────────────────────────────────────
 
-    /**
-     * Resets the scroll region to the full viewport.
-     * Called on resize and terminal reset.
-     */
-    fun resetScrollRegion() {
-        scrollTop = 0
-        scrollBottom = dimensions.height - 1
-        homeCursor()
+    /** Clears the phantom-column pending-wrap flag on the active cursor. */
+    fun cancelPendingWrap() {
+        activeBuffer.cursor.pendingWrap = false
     }
 }

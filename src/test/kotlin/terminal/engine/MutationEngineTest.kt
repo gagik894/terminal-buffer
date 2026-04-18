@@ -48,6 +48,15 @@ class MutationEngineTest {
         }
     }
 
+    private fun setScrollRegion(state: TerminalState, top: Int, bottom: Int) {
+        state.activeBuffer.setScrollRegion(
+            top = top + 1,
+            bottom = bottom + 1,
+            isOriginMode = state.modes.isOriginMode,
+            viewportHeight = state.dimensions.height
+        )
+    }
+
     @Nested
     @DisplayName("printCodepoint")
     inner class PrintCodepointTests {
@@ -619,8 +628,7 @@ class MutationEngineTest {
         fun `insertLines is ignored when cursor is outside active scroll region`() {
             val state = createState(width = 3, height = 4)
             val writer = MutationEngine(state)
-            state.scrollTop = 1
-            state.scrollBottom = 2
+            setScrollRegion(state, top = 1, bottom = 2)
             seedLine(state, 0, "AAA")
             seedLine(state, 1, "BBB")
             seedLine(state, 2, "CCC")
@@ -643,8 +651,7 @@ class MutationEngineTest {
         fun `insertLines shifts down from cursor through bottom and clears inserted row`() {
             val state = createState(width = 3, height = 5)
             val writer = MutationEngine(state)
-            state.scrollTop = 1
-            state.scrollBottom = 3
+            setScrollRegion(state, top = 1, bottom = 3)
             seedLine(state, 0, "AAA")
             seedLine(state, 1, "BBB")
             seedLine(state, 2, "CCC")
@@ -673,8 +680,7 @@ class MutationEngineTest {
         fun `insertLines count is clamped to remaining region height`() {
             val state = createState(width = 3, height = 4)
             val writer = MutationEngine(state)
-            state.scrollTop = 1
-            state.scrollBottom = 3
+            setScrollRegion(state, top = 1, bottom = 3)
             seedLine(state, 0, "AAA")
             seedLine(state, 1, "BBB")
             seedLine(state, 2, "CCC")
@@ -793,8 +799,7 @@ class MutationEngineTest {
         fun `deleteLines is ignored when cursor is outside active scroll region`() {
             val state = createState(width = 3, height = 4)
             val writer = MutationEngine(state)
-            state.scrollTop = 1
-            state.scrollBottom = 2
+            setScrollRegion(state, top = 1, bottom = 2)
             seedLine(state, 0, "AAA")
             seedLine(state, 1, "BBB")
             seedLine(state, 2, "CCC")
@@ -1238,8 +1243,7 @@ class MutationEngineTest {
         fun `newLine inside region scrolls region, not full viewport`() {
             val state = createState(width = 3, height = 4, history = 4)
             val writer = MutationEngine(state)
-            state.scrollTop = 1
-            state.scrollBottom = 2
+            setScrollRegion(state, top = 1, bottom = 2)
             seedLine(state, 0, "AAA")
             seedLine(state, 1, "BBB")
             seedLine(state, 2, "CCC")
@@ -1259,8 +1263,7 @@ class MutationEngineTest {
         fun `newLine below scrollBottom just moves cursor down without scroll`() {
             val state = createState(width = 3, height = 4, history = 4)
             val writer = MutationEngine(state)
-            state.scrollTop = 1
-            state.scrollBottom = 2
+            setScrollRegion(state, top = 1, bottom = 2)
             seedLine(state, 3, "DDD")
             state.cursor.row = 3
 
@@ -1276,8 +1279,7 @@ class MutationEngineTest {
         fun `reverseLineFeed inside region but not at scrollTop just moves up`() {
             val state = createState(width = 3, height = 4)
             val writer = MutationEngine(state)
-            state.scrollTop = 1
-            state.scrollBottom = 3
+            setScrollRegion(state, top = 1, bottom = 3)
             state.cursor.row = 2
             state.cursor.col = 1
 
@@ -1293,8 +1295,7 @@ class MutationEngineTest {
         fun `reverseLineFeed at scrollTop scrolls region down, not full viewport`() {
             val state = createState(width = 3, height = 4, history = 4)
             val writer = MutationEngine(state)
-            state.scrollTop = 1
-            state.scrollBottom = 2
+            setScrollRegion(state, top = 1, bottom = 2)
             seedLine(state, 1, "BBB")
             state.cursor.row = 1
 
@@ -1311,8 +1312,7 @@ class MutationEngineTest {
         fun `wide char write at bottom of scroll region triggers region scroll not viewport scroll`() {
             val state = createState(width = 4, height = 4, history = 4)
             val writer = MutationEngine(state)
-            state.scrollTop = 1
-            state.scrollBottom = 2
+            setScrollRegion(state, top = 1, bottom = 2)
             state.cursor.row = 2
             state.cursor.col = 3
 

@@ -3,7 +3,7 @@ package com.gagik.terminal.engine
 import com.gagik.terminal.buffer.HistoryRing
 import com.gagik.terminal.model.Line
 import com.gagik.terminal.model.TerminalConstants
-import com.gagik.terminal.state.TerminalState
+import com.gagik.terminal.state.ScreenBuffer
 import com.gagik.terminal.store.ClusterStore
 
 /**
@@ -12,34 +12,35 @@ import com.gagik.terminal.store.ClusterStore
  * Reflowing a terminal grid on resize is a three-phase operation:
  *
  * 1. **Logical-line reconstruction** — adjacent physical lines that were soft-wrapped
- *    are concatenated into a single logical line of unbounded width.
+ * are concatenated into a single logical line of unbounded width.
  * 2. **Re-wrapping** — each logical line is chopped into new-width physical lines and
- *    pushed into a fresh [HistoryRing].
+ * pushed into a fresh [HistoryRing].
  * 3. **Cursor relocation** — the cursor cell is tracked through reflow so it lands
- *    on the correct row/column in the new grid.
+ * on the correct row/column in the new grid.
  *
  * ## ClusterStore deep-copy
  *
  * A resize creates a brand-new [ClusterStore] alongside a brand-new [HistoryRing].
- * Cluster payloads that survive reflow are **deep-copied** into the new store via
- * [ClusterStore.readInto] + [ClusterStore.alloc]. Cluster payloads belonging to
- * lines that are dropped (history overflow) are simply abandoned; the old store is
- * handed to the JVM GC as a unit once [TerminalState.clusterStore] is overwritten.
- * No per-slot free loop is needed.
+ * Cluster payloads that survive reflow are **deep-copied** into the new store.
+ * Cluster payloads belonging to lines that are dropped (history overflow) are
+ * simply abandoned; the old store is handed to the JVM GC as a unit.
  */
 internal object TerminalResizer {
 
     /**
-     * Resizes the terminal to [newWidth] × [newHeight], reflowing all content and
-     * updating [state] atomically at the end.
+     * Resizes a specific [ScreenBuffer], reflowing all its content and safely
+     * copying surviving grapheme clusters to a new memory arena.
      */
-    fun resize(state: TerminalState, newWidth: Int, newHeight: Int) {
-        val oldWidth  = state.dimensions.width
-        val oldHeight = state.dimensions.height
-
+    fun resizeBuffer(
+        buffer: ScreenBuffer,
+        oldWidth: Int,
+        oldHeight: Int,
+        newWidth: Int,
+        newHeight: Int
+    ) {
         // Allocate the new store and ring together — they are always co-owned.
         val newStore = ClusterStore()
-        val newRing = HistoryRing(state.maxHistory + newHeight) { Line(newWidth, newStore) }
+        val newRing = HistoryRing(buffer.maxHistory + newHeight) { Line(newWidth, newStore) }
 
         // Reusable scratch buffer for cluster codepoint transfer during reflow.
         val clusterBuf = IntArray(MAX_CLUSTER_CODEPOINTS)
@@ -48,7 +49,7 @@ internal object TerminalResizer {
 
         // Absolute index of the cursor in the old ring (0 = oldest history line).
         val absoluteOldCursorRow =
-            (state.ring.size - oldHeight).coerceAtLeast(0) + state.cursor.row
+            (buffer.ring.size - oldHeight).coerceAtLeast(0) + buffer.cursor.row
 
         var newAbsoluteCursorRow = 0
         var newCursorCol = 0
@@ -95,7 +96,7 @@ internal object TerminalResizer {
                     val attr = builder.attrs[srcIndex]
 
                     if (raw <= TerminalConstants.CLUSTER_HANDLE_MAX) {
-                        val cpLen = state.clusterStore.readInto(raw, clusterBuf)
+                        val cpLen = buffer.store.readInto(raw, clusterBuf)
                         newLine.setCluster(i, clusterBuf, cpLen, attr)
                     } else {
                         newLine.setRawCell(i, raw, attr)
@@ -112,22 +113,19 @@ internal object TerminalResizer {
         }
 
         // Traverse every line in the old ring, rebuilding logical lines.
-        for (i in 0 until state.ring.size) {
-            val oldLine    = state.ring[i]
+        for (i in 0 until buffer.ring.size) {
+            val oldLine = buffer.ring[i]
             val logicalLen = getLogicalLength(oldLine)
             val dataLength = if (oldLine.wrapped && logicalLen > 0) oldWidth else logicalLen
-            val hasCursor  = (i == absoluteOldCursorRow)
+            val hasCursor = (i == absoluteOldCursorRow)
 
-            // Only extend readLength past dataLength when the cursor is genuinely
-            // beyond the content. A cursor at col=0 on an empty line must NOT force
-            // a cell read — the empty-builder path in flushBuilder handles it.
-            val readLength = if (hasCursor && state.cursor.col > 0)
-                maxOf(dataLength, state.cursor.col + 1)
+            val readLength = if (hasCursor && buffer.cursor.col > 0)
+                maxOf(dataLength, buffer.cursor.col + 1)
             else
                 dataLength
 
             for (col in 0 until readLength) {
-                val isCursor = hasCursor && (col == state.cursor.col)
+                val isCursor = hasCursor && (col == buffer.cursor.col)
                 builder.append(oldLine.rawCodepoint(col), oldLine.getPackedAttr(col), isCursor)
             }
 
@@ -143,8 +141,7 @@ internal object TerminalResizer {
             }
         }
 
-        // Flush any remaining wrapped content or handle cursor below ring content.
-        if (builder.size > 0 || absoluteOldCursorRow >= state.ring.size) {
+        if (builder.size > 0 || absoluteOldCursorRow >= buffer.ring.size) {
             flushBuilder()
         }
 
@@ -156,22 +153,19 @@ internal object TerminalResizer {
         val liveScreenTop = (newRing.size - newHeight).coerceAtLeast(0)
 
         if (!cursorPlaced) {
-            // Cursor was on a virtual blank row below all ring content.
-            newCursorCol         = state.cursor.col
+            newCursorCol = buffer.cursor.col
             newAbsoluteCursorRow =
-                (liveScreenTop + state.cursor.row).coerceIn(liveScreenTop, newRing.size - 1)
+                (liveScreenTop + buffer.cursor.row).coerceIn(liveScreenTop, newRing.size - 1)
         }
 
         val newRelativeRow = (newAbsoluteCursorRow - liveScreenTop).coerceIn(0, newHeight - 1)
 
-        // Atomic state swap. The old store and old ring are released to the GC here.
-        state.dimensions.width  = newWidth
-        state.dimensions.height = newHeight
-        state.clusterStore      = newStore
-        state.ring              = newRing
-        state.cursor.col        = newCursorCol
-        state.cursor.row        = newRelativeRow
-        state.tabStops.resize(newWidth)
+        // Atomic state swap inside the ScreenBuffer.
+        // The old store and old ring are released to the GC here.
+        buffer.store      = newStore
+        buffer.ring       = newRing
+        buffer.cursor.col = newCursorCol
+        buffer.cursor.row = newRelativeRow
     }
 
     // Private helpers

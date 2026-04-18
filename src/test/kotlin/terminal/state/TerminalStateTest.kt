@@ -6,23 +6,42 @@ import org.junit.jupiter.api.Test
 class TerminalStateTest {
 
     @Test
-    fun `constructor initializes dimensions cursor pen and ring capacity`() {
+    fun `constructor initializes global hardware and both screens`() {
         val state = TerminalState(initialWidth = 10, initialHeight = 3, maxHistory = 7)
 
-        assertEquals(10, state.dimensions.width)
-        assertEquals(3, state.dimensions.height)
-        assertEquals(0, state.cursor.col)
-        assertEquals(0, state.cursor.row)
-        assertEquals(3, state.ring.size)
-        assertEquals(10, state.ring.capacity)
-        assertEquals(0, state.scrollTop)
-        assertEquals(2, state.scrollBottom)
-        assertTrue(state.isFullViewportScroll)
+        assertAll(
+            { assertEquals(10, state.dimensions.width) },
+            { assertEquals(3, state.dimensions.height) },
+            { assertFalse(state.isAltScreenActive) },
+            { assertSame(state.primaryBuffer, state.activeBuffer) },
+            { assertEquals(3, state.primaryBuffer.ring.size) },
+            { assertEquals(10, state.primaryBuffer.ring.capacity) },
+            { assertEquals(3, state.altBuffer.ring.size) },
+            { assertEquals(3, state.altBuffer.ring.capacity) },
+            { assertNotSame(state.primaryBuffer.store, state.altBuffer.store) },
+            { assertSame(state.primaryBuffer.ring, state.ring) },
+            { assertSame(state.primaryBuffer.cursor, state.cursor) },
+            { assertSame(state.primaryBuffer.savedCursor, state.savedCursor) },
+            { assertEquals(0, state.scrollTop) },
+            { assertEquals(2, state.scrollBottom) },
+            { assertTrue(state.isFullViewportScroll) },
+            { assertEquals(8, state.tabStops.getNextStop(1)) }
+        )
     }
 
     @Test
-    fun `resolveRingIndex maps directly when there is no scrollback`() {
+    fun `resolveRingIndex maps against active ring with and without history`() {
         val state = TerminalState(initialWidth = 10, initialHeight = 3, maxHistory = 7)
+
+        repeat(2) { state.primaryBuffer.ring.push().clear(state.pen.currentAttr) }
+
+        assertAll(
+            { assertEquals(2, state.resolveRingIndex(0)) },
+            { assertEquals(3, state.resolveRingIndex(1)) },
+            { assertEquals(4, state.resolveRingIndex(2)) }
+        )
+
+        state.enterAltScreen()
 
         assertAll(
             { assertEquals(0, state.resolveRingIndex(0)) },
@@ -32,76 +51,127 @@ class TerminalStateTest {
     }
 
     @Test
-    fun `resolveRingIndex offsets by live screen top when history exists`() {
-        val state = TerminalState(initialWidth = 10, initialHeight = 3, maxHistory = 7)
+    fun `enterAltScreen switches active accessors and wipes alt state`() {
+        val state = TerminalState(initialWidth = 10, initialHeight = 5, maxHistory = 2)
 
-        repeat(2) { state.ring.push().clear(state.pen.currentAttr) }
+        state.primaryBuffer.cursor.col = 7
+        state.primaryBuffer.cursor.row = 3
+        state.primaryBuffer.cursor.pendingWrap = true
+        state.primaryBuffer.ring[0].setCell(0, 'P'.code, state.pen.currentAttr)
 
-        assertAll(
-            { assertEquals(2, state.resolveRingIndex(0)) },
-            { assertEquals(3, state.resolveRingIndex(1)) },
-            { assertEquals(4, state.resolveRingIndex(2)) }
-        )
-    }
+        state.altBuffer.cursor.col = 4
+        state.altBuffer.cursor.row = 2
+        state.altBuffer.cursor.pendingWrap = true
+        state.altBuffer.setScrollRegion(top = 2, bottom = 4, isOriginMode = false, viewportHeight = 5)
+        state.altBuffer.ring[0].setCell(0, 'A'.code, state.pen.currentAttr)
 
-    @Test
-    fun `setScrollRegion converts from 1-based rows and resets cursor`() {
-        val state = TerminalState(initialWidth = 10, initialHeight = 5, maxHistory = 0)
-        state.cursor.col = 7
-        state.cursor.row = 3
-
-        state.setScrollRegion(top = 2, bottom = 4)
+        state.enterAltScreen()
 
         assertAll(
-            { assertEquals(1, state.scrollTop) },
-            { assertEquals(3, state.scrollBottom) },
+            { assertTrue(state.isAltScreenActive) },
+            { assertSame(state.altBuffer, state.activeBuffer) },
+            { assertSame(state.altBuffer.ring, state.ring) },
+            { assertSame(state.altBuffer.cursor, state.cursor) },
+            { assertSame(state.altBuffer.savedCursor, state.savedCursor) },
             { assertEquals(0, state.cursor.col) },
             { assertEquals(0, state.cursor.row) },
-            { assertFalse(state.isFullViewportScroll) }
-        )
-    }
-
-    @Test
-    fun `setScrollRegion clamps out-of-range bounds`() {
-        val state = TerminalState(initialWidth = 10, initialHeight = 5, maxHistory = 0)
-
-        state.setScrollRegion(top = -50, bottom = 99)
-
-        assertAll(
+            { assertFalse(state.cursor.pendingWrap) },
             { assertEquals(0, state.scrollTop) },
             { assertEquals(4, state.scrollBottom) },
-            { assertTrue(state.isFullViewportScroll) }
+            { assertTrue(state.isFullViewportScroll) },
+            { assertEquals("", state.altBuffer.ring[0].toTextTrimmed()) },
+            { assertEquals("P", state.primaryBuffer.ring[0].toTextTrimmed()) }
         )
     }
 
     @Test
-    fun `setScrollRegion ignores degenerate region`() {
-        val state = TerminalState(initialWidth = 10, initialHeight = 5, maxHistory = 0)
-        state.setScrollRegion(top = 2, bottom = 4)
-        state.cursor.col = 5
-        state.cursor.row = 2
+    fun `enterAltScreen is a no-op when already active`() {
+        val state = TerminalState(initialWidth = 6, initialHeight = 3, maxHistory = 1)
+        state.enterAltScreen()
+        state.altBuffer.ring[0].setCell(0, 'A'.code, state.pen.currentAttr)
 
-        state.setScrollRegion(top = 5, bottom = 5)
+        state.enterAltScreen()
 
         assertAll(
-            { assertEquals(1, state.scrollTop) },
-            { assertEquals(3, state.scrollBottom) },
-            { assertEquals(5, state.cursor.col) },
-            { assertEquals(2, state.cursor.row) }
+            { assertTrue(state.isAltScreenActive) },
+            { assertEquals("A", state.altBuffer.ring[0].toTextTrimmed()) }
         )
     }
 
     @Test
-    fun `resetScrollRegion restores full viewport`() {
-        val state = TerminalState(initialWidth = 10, initialHeight = 5, maxHistory = 0)
-        state.setScrollRegion(top = 2, bottom = 4)
+    fun `exitAltScreen restores primary routing and preserves both buffers`() {
+        val state = TerminalState(initialWidth = 10, initialHeight = 5, maxHistory = 2)
 
-        state.resetScrollRegion()
+        state.primaryBuffer.cursor.col = 2
+        state.primaryBuffer.cursor.row = 1
+        state.primaryBuffer.cursor.pendingWrap = true
+        state.primaryBuffer.ring[0].setCell(0, 'P'.code, state.pen.currentAttr)
+
+        state.enterAltScreen()
+        state.altBuffer.cursor.col = 4
+        state.altBuffer.cursor.row = 3
+        state.altBuffer.cursor.pendingWrap = true
+        state.altBuffer.ring[0].setCell(0, 'A'.code, state.pen.currentAttr)
+
+        state.exitAltScreen()
 
         assertAll(
-            { assertEquals(0, state.scrollTop) },
-            { assertEquals(4, state.scrollBottom) },
-            { assertTrue(state.isFullViewportScroll) }
+            { assertFalse(state.isAltScreenActive) },
+            { assertSame(state.primaryBuffer, state.activeBuffer) },
+            { assertSame(state.primaryBuffer.ring, state.ring) },
+            { assertSame(state.primaryBuffer.cursor, state.cursor) },
+            { assertSame(state.primaryBuffer.savedCursor, state.savedCursor) },
+            { assertEquals(2, state.cursor.col) },
+            { assertEquals(1, state.cursor.row) },
+            { assertTrue(state.cursor.pendingWrap) },
+            { assertEquals("P", state.primaryBuffer.ring[0].toTextTrimmed()) },
+            { assertEquals("A", state.altBuffer.ring[0].toTextTrimmed()) }
+        )
+    }
+
+    @Test
+    fun `exitAltScreen is a no-op on primary screen`() {
+        val state = TerminalState(initialWidth = 8, initialHeight = 4, maxHistory = 1)
+
+        state.exitAltScreen()
+
+        assertAll(
+            { assertFalse(state.isAltScreenActive) },
+            { assertSame(state.primaryBuffer, state.activeBuffer) }
+        )
+    }
+
+    @Test
+    fun `isFullViewportScroll delegates to active screen margins`() {
+        val state = TerminalState(initialWidth = 10, initialHeight = 4, maxHistory = 1)
+
+        state.primaryBuffer.setScrollRegion(top = 2, bottom = 3, isOriginMode = false, viewportHeight = 4)
+        assertFalse(state.isFullViewportScroll)
+
+        state.enterAltScreen()
+        assertTrue(state.isFullViewportScroll)
+    }
+
+    @Test
+    fun `cancelPendingWrap affects only active cursor`() {
+        val state = TerminalState(initialWidth = 10, initialHeight = 4, maxHistory = 1)
+
+        state.primaryBuffer.cursor.pendingWrap = true
+        state.altBuffer.cursor.pendingWrap = true
+
+        state.cancelPendingWrap()
+        assertAll(
+            { assertFalse(state.primaryBuffer.cursor.pendingWrap) },
+            { assertTrue(state.altBuffer.cursor.pendingWrap) }
+        )
+
+        state.enterAltScreen()
+        state.altBuffer.cursor.pendingWrap = true
+        state.cancelPendingWrap()
+
+        assertAll(
+            { assertFalse(state.altBuffer.cursor.pendingWrap) },
+            { assertFalse(state.primaryBuffer.cursor.pendingWrap) }
         )
     }
 }

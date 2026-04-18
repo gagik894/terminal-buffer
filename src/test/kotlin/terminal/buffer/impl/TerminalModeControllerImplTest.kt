@@ -29,7 +29,12 @@ class TerminalModeControllerImplTest {
         val modeController = TerminalModeControllerImpl(state)
 
         state.cursor.pendingWrap = true
-        state.setScrollRegion(2, 3)
+        state.activeBuffer.setScrollRegion(
+            top = 2,
+            bottom = 3,
+            isOriginMode = false,
+            viewportHeight = state.dimensions.height
+        )
         modeController.setAutoWrap(false)
         modeController.setOriginMode(true)
 
