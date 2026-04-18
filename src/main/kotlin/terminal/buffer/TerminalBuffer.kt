@@ -13,7 +13,7 @@ internal class TerminalBuffer private constructor(
     TerminalReader by TerminalReaderImpl(components.state),
     TerminalWriter by TerminalWriterImpl(components.state, components.mutationEngine, components.cursorEngine),
     TerminalCursor by TerminalCursorImpl(components.state, components.cursorEngine),
-    TerminalModeController by TerminalModeControllerImpl(components.state),
+    TerminalModeController by TerminalModeControllerImpl(components.state, components.cursorEngine),
     TerminalInspector by TerminalInspectorImpl(components.state) {
 
     private val state: TerminalState get() = components.state

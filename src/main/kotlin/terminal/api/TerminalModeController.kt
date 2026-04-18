@@ -81,7 +81,7 @@ interface TerminalModeController {
      *
      * No-op if already in the alternate buffer.
      */
-    //TODO: fun enterAltBuffer()
+    fun enterAltBuffer()
 
     /**
      * Returns to the primary screen buffer (ALTBUF off, `CSI ? 1049 l`).
@@ -92,5 +92,5 @@ interface TerminalModeController {
      *
      * No-op if already on the primary buffer.
      */
-    //TODO: fun exitAltBuffer()
+    fun exitAltBuffer()
 }

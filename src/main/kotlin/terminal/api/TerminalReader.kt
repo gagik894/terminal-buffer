@@ -24,9 +24,6 @@ interface TerminalReader {
     /** Number of lines currently retained in scrollback history. */
     val historySize: Int
 
-    /** `true` while the alternate screen buffer is active. */
-    //TODO: val isAltBufferActive: Boolean
-
     /**
      * Returns a read-only view of a visible row.
      *
