@@ -14,9 +14,19 @@ import com.gagik.terminal.state.TerminalState
 internal class MutationEngine(
     private val state: TerminalState
 ) {
-    // width and height are cached for performance
     private val width: Int get() = state.dimensions.width
     private val height: Int get() = state.dimensions.height
+
+    // ----- Shared mutation protocol ------------------------------------------
+
+    /**
+     * Non-printing structural commands must cancel pending wrap before mutating state.
+     * Keep this tiny and inline so it stays a protocol guard, not an abstraction tax.
+     */
+    private inline fun structuralMutation(block: () -> Unit) {
+        state.cancelPendingWrap()
+        block()
+    }
 
     // ----- Line access --------------------------------------------------------
 
@@ -29,18 +39,12 @@ internal class MutationEngine(
     // ----- Scroll -------------------------------------------------------------
 
     /**
-     * Scrolls the active scroll region up by [count] lines.
-     *
-     * - Full-viewport scroll: pushes new blank lines into the history ring (cheap O(1) each).
-     * - Partial-region scroll: rotates line references in place, no history is written.
-     *
-     * In both cases the newly exposed line at the bottom of the region is cleared with
-     * the current pen attribute *after* rotation so the correct slot receives the fill.
+     * Internal scroll-up primitive that does not touch pending-wrap state.
      */
-    fun scrollUp(count: Int = 1) {
-        val top    = state.scrollTop
+    private fun scrollUpInternal(count: Int = 1) {
+        val top = state.scrollTop
         val bottom = state.scrollBottom
-        val n      = count.coerceIn(0, bottom - top + 1)
+        val n = count.coerceIn(0, bottom - top + 1)
         if (n == 0) return
 
         if (state.isFullViewportScroll) {
@@ -48,7 +52,7 @@ internal class MutationEngine(
                 state.ring.push().clear(state.pen.currentAttr)
             }
         } else {
-            val absTop    = state.resolveRingIndex(top)
+            val absTop = state.resolveRingIndex(top)
             val absBottom = state.resolveRingIndex(bottom)
             repeat(n) {
                 state.ring.rotateUp(absTop, absBottom)
@@ -58,18 +62,15 @@ internal class MutationEngine(
     }
 
     /**
-     * Scrolls the active scroll region down by [count] lines.
-     *
-     * Always rotates in place — scroll-down never writes to history.
-     * The newly exposed line at the top of the region is cleared after rotation.
+     * Internal scroll-down primitive that does not touch pending-wrap state.
      */
-    fun scrollDown(count: Int = 1) {
-        val top    = state.scrollTop
+    private fun scrollDownInternal(count: Int = 1) {
+        val top = state.scrollTop
         val bottom = state.scrollBottom
-        val n      = count.coerceIn(0, bottom - top + 1)
+        val n = count.coerceIn(0, bottom - top + 1)
         if (n == 0) return
 
-        val absTop    = state.resolveRingIndex(top)
+        val absTop = state.resolveRingIndex(top)
         val absBottom = state.resolveRingIndex(bottom)
         repeat(n) {
             state.ring.rotateDown(absTop, absBottom)
@@ -77,18 +78,31 @@ internal class MutationEngine(
         }
     }
 
+    /**
+     * Public scroll-up command.
+     */
+    fun scrollUp(count: Int = 1) = structuralMutation {
+        scrollUpInternal(count)
+    }
+
+    /**
+     * Public scroll-down command.
+     */
+    fun scrollDown(count: Int = 1) = structuralMutation {
+        scrollDownInternal(count)
+    }
+
     // ----- Cursor row advancement helper -------------------------------------
 
     /**
-     * Advances a viewport row by one, triggering [scrollUp] if the cursor is
+     * Advances a viewport row by one, triggering scroll if the cursor is
      * sitting on [state.scrollBottom], otherwise simply clamping to [height]-1.
      *
-     * Used by [writeToGrid], [printCodepoint], and [newLine] to keep wrap/scroll
-     * logic in one place.
+     * Used by [writeToGrid], [printCodepoint], [printCluster], and [newLine].
      */
     private fun advanceRow(row: Int): Int {
         return if (row == state.scrollBottom) {
-            scrollUp()
+            scrollUpInternal()
             state.scrollBottom
         } else {
             (row + 1).coerceAtMost(height - 1)
@@ -100,12 +114,12 @@ internal class MutationEngine(
     private fun findClusterStart(line: Line, col: Int): Int {
         if (col !in 0 until width) return col
 
-        val cp = line.rawCodepoint(col)
-        if (cp == TerminalConstants.WIDE_CHAR_SPACER) {
+        val raw = line.rawCodepoint(col)
+        if (raw == TerminalConstants.WIDE_CHAR_SPACER) {
             val prev = col - 1
             if (prev >= 0) {
-                val prevCp = line.rawCodepoint(prev)
-                if (prevCp != TerminalConstants.EMPTY && prevCp != TerminalConstants.WIDE_CHAR_SPACER) {
+                val prevRaw = line.rawCodepoint(prev)
+                if (prevRaw != TerminalConstants.EMPTY && prevRaw != TerminalConstants.WIDE_CHAR_SPACER) {
                     return prev
                 }
             }
@@ -160,7 +174,14 @@ internal class MutationEngine(
         if (cRow !in 0 until height || cCol !in 0 until width) return
         var line = getLine(cRow)
 
-        // Edge Wrap: a 2-cell character cannot fit in the last column.
+        if (state.cursor.pendingWrap) {
+            state.cursor.pendingWrap = false
+            line.wrapped = true
+            cCol = 0
+            cRow = advanceRow(cRow)
+            line = getLine(cRow)
+        }
+
         if (widthInCells == 2 && cCol == width - 1) {
             annihilateAt(cRow, cCol)
             cCol = 0
@@ -168,53 +189,37 @@ internal class MutationEngine(
             line = getLine(cRow)
         }
 
-        // ── INSERT MODE: The Memory Shift ────────────────────────────────────
-        // Must happen on the post-edge-wrap (line, cCol) — BEFORE annihilation —
-        // so live content is shifted right, not the emptied blast radius.
         if (state.modes.isInsertMode) {
-            // Left Boundary Defense: if the cursor sits on a wide spacer,
-            // destroy the owning leader now so we don't push an orphaned
-            // spacer rightward into the shifted content.
             if (line.rawCodepoint(cCol) == TerminalConstants.WIDE_CHAR_SPACER) {
                 annihilateAt(cRow, cCol)
             }
             line.insertCells(cCol, widthInCells, state.pen.currentAttr)
         }
 
-        // ── REPLACE MODE & CLEANUP: Annihilation ─────────────────────────────
-        // In Replace mode: clears the character being overwritten.
-        // In Insert mode: still required to clear a 1-cell hole before a 2-cell
-        // write, or to clear any partial residue after the shift.
         annihilateAt(cRow, cCol)
-        if (widthInCells == 2 && cCol + 1 < width) annihilateAt(cRow, cCol + 1)
+        if (widthInCells == 2 && cCol + 1 < width) {
+            annihilateAt(cRow, cCol + 1)
+        }
 
-        // Caller-supplied write phase.
         writeCell(line, cCol)
         cCol += 1
 
-        // Wide spacer placement.
         if (widthInCells == 2 && cCol < width) {
             line.setCell(cCol, TerminalConstants.WIDE_CHAR_SPACER, state.pen.currentAttr)
             cCol += 1
         }
 
-        // Standard wrap + scroll.
         if (cCol >= width) {
-            if (state.modes.isAutoWrap) {
-                line.wrapped = true
-                cCol = 0
-                cRow = advanceRow(cRow)
-            } else {
-                // DECAWM=false: clamp cursor to the last column. The next character
-                // will overwrite the rightmost cell in place. Do NOT set wrapped.
-                cCol = width - 1
-            }
+            state.cursor.col = width - 1
+            state.cursor.row = cRow
+            state.cursor.pendingWrap = state.modes.isAutoWrap
+            return
         }
 
         state.cursor.col = cCol
         state.cursor.row = cRow
+        state.cursor.pendingWrap = false
     }
-
 
     // ----- Public write API --------------------------------------------------
 
@@ -229,34 +234,34 @@ internal class MutationEngine(
         val cCol = state.cursor.col
         val cRow = state.cursor.row
 
-        // Fast path: REPLACE mode only.
-        // Insert mode must always go through writeToGrid so the shift runs.
-        if (!state.modes.isInsertMode && charWidth != 2
-            && cRow in 0 until height && cCol in 0 until width) {
+        if (!state.modes.isInsertMode &&
+            charWidth != 2 &&
+            !state.cursor.pendingWrap &&
+            cRow in 0 until height &&
+            cCol in 0 until width
+        ) {
             val line = getLine(cRow)
             if (line.rawCodepoint(cCol) == TerminalConstants.EMPTY) {
                 line.setCell(cCol, codepoint, attr)
                 if (cCol == width - 1) {
                     if (state.modes.isAutoWrap) {
-                        line.wrapped = true
-                        state.cursor.col = 0
-                        state.cursor.row = advanceRow(cRow)
+                        state.cursor.pendingWrap = true
                     } else {
                         state.cursor.col = cCol
+                        state.cursor.pendingWrap = false
                     }
                 } else {
                     state.cursor.col = cCol + 1
+                    state.cursor.pendingWrap = false
                 }
                 return
             }
         }
 
-        // Slow path: full physics via writeToGrid.
         writeToGrid(charWidth) { line, col ->
             line.setCell(col, codepoint, attr)
         }
     }
-
 
     fun printCluster(cps: IntArray, cpLen: Int, charWidth: Int) {
         if (cpLen == 1) {
@@ -270,10 +275,11 @@ internal class MutationEngine(
     }
 
     // ----- Editing -----------------------------------------------------------
+
     /**
      * Applies a vertical line mutation inside the active scroll region.
      *
-     * Returns immediately if the cursor is outside the region or the count is non-positive.
+     * Returns immediately if the cursor is outside the region.
      * The callback receives the resolved ring indices for the cursor row and bottom margin,
      * plus the clamped number of repetitions.
      */
@@ -281,50 +287,47 @@ internal class MutationEngine(
         count: Int,
         onMutate: (absCursorRow: Int, absBottom: Int, times: Int) -> Unit
     ) {
-        if (count <= 0) return
-
         val cRow = state.cursor.row
         val top = state.scrollTop
         val bottom = state.scrollBottom
         if (cRow !in top..bottom) return
 
         val times = count.coerceAtMost(bottom - cRow + 1)
+        if (times <= 0) return
+
         val absCursorRow = state.resolveRingIndex(cRow)
         val absBottom = state.resolveRingIndex(bottom)
-
         onMutate(absCursorRow, absBottom, times)
     }
 
     /**
      * Inserts [count] blank lines at the current cursor row (IL sequence).
-     *
-     * Lines at and below the cursor are shifted down inside the active scroll
-     * region. Lines shifted past the bottom margin are dropped.
-     *
-     * Ignored when the cursor is outside the scroll region.
      */
     fun insertLines(count: Int) {
-        mutateLines(count) { absCursorRow, absBottom, times ->
-            repeat(times) {
-                state.ring.rotateDown(absCursorRow, absBottom)
-                state.ring[absCursorRow].clear(state.pen.currentAttr)
+        if (count <= 0) return
+
+        structuralMutation {
+            mutateLines(count) { absCursorRow, absBottom, times ->
+                repeat(times) {
+                    state.ring.rotateDown(absCursorRow, absBottom)
+                    state.ring[absCursorRow].clear(state.pen.currentAttr)
+                }
             }
         }
     }
 
     /**
      * Deletes [count] lines starting at the current cursor row (DL sequence).
-     *
-     * Lines below the deleted region are shifted up inside the active scroll
-     * region. Newly exposed lines at the bottom margin are cleared.
-     *
-     * Ignored when the cursor is outside the scroll region.
      */
     fun deleteLines(count: Int) {
-        mutateLines(count) { absCursorRow, absBottom, times ->
-            repeat(times) {
-                state.ring.rotateUp(absCursorRow, absBottom)
-                state.ring[absBottom].clear(state.pen.currentAttr)
+        if (count <= 0) return
+
+        structuralMutation {
+            mutateLines(count) { absCursorRow, absBottom, times ->
+                repeat(times) {
+                    state.ring.rotateUp(absCursorRow, absBottom)
+                    state.ring[absBottom].clear(state.pen.currentAttr)
+                }
             }
         }
     }
@@ -332,76 +335,74 @@ internal class MutationEngine(
     fun insertBlankCharacters(count: Int) {
         if (count <= 0) return
 
-        val cRow = state.cursor.row
-        val cCol = state.cursor.col
-        if (cRow !in 0 until height || cCol !in 0 until width) return
+        structuralMutation {
+            val cRow = state.cursor.row
+            val cCol = state.cursor.col
+            if (cRow !in 0 until height || cCol !in 0 until width) return@structuralMutation
 
-        val line = getLine(cRow)
-        if (line.getCodepoint(cCol) == TerminalConstants.WIDE_CHAR_SPACER) {
-            annihilateAt(cRow, cCol)
+            val line = getLine(cRow)
+            if (line.rawCodepoint(cCol) == TerminalConstants.WIDE_CHAR_SPACER) {
+                annihilateAt(cRow, cCol)
+            }
+            line.insertCells(cCol, count, state.pen.currentAttr)
         }
-        line.insertCells(cCol, count, state.pen.currentAttr)
     }
 
     /**
      * Deletes [count] characters starting at the cursor column, shifting the
      * remainder of the line left and filling the vacated cells on the right
-     * with blanks using the current pen attribute. The cursor position is not
-     * changed. Corresponds to ANSI DCH (CSI n P).
-     *
-     * Wide-character safety:
-     * - The cluster at the cursor is annihilated before the shift so the left
-     *   boundary is never left with an orphaned spacer.
-     * - The cell immediately after the deleted region is checked: if it is a
-     *   wide-character spacer the owning leader would be shifted in without its
-     *   spacer, so the entire cluster is annihilated before the shift proceeds.
-     *   Ordinary characters at the right boundary are never touched.
-     *
-     * @param count Number of characters to delete. Non-positive values are ignored.
-     *              Values larger than the remaining columns from the cursor are
-     *              clamped to the line's right edge.
+     * with blanks using the current pen attribute. The cursor position is not changed.
      */
     fun deleteCharacters(count: Int) {
         if (count <= 0) return
 
-        val cRow = state.cursor.row
-        val cCol = state.cursor.col
-        if (cRow !in 0 until height || cCol !in 0 until width) return
+        structuralMutation {
+            val cRow = state.cursor.row
+            val cCol = state.cursor.col
+            if (cRow !in 0 until height || cCol !in 0 until width) return@structuralMutation
 
-        val safeCount = count.coerceAtMost(width - cCol)
+            val safeCount = count.coerceAtMost(width - cCol)
 
-        annihilateAt(cRow, cCol)
+            annihilateAt(cRow, cCol)
 
-        if (safeCount < width - cCol) {
-            val rightEdge = cCol + safeCount
-            if (getLine(cRow).rawCodepoint(rightEdge) == TerminalConstants.WIDE_CHAR_SPACER) {
-                annihilateAt(cRow, rightEdge)
+            if (safeCount < width - cCol) {
+                val rightEdge = cCol + safeCount
+                if (getLine(cRow).rawCodepoint(rightEdge) == TerminalConstants.WIDE_CHAR_SPACER) {
+                    annihilateAt(cRow, rightEdge)
+                }
             }
-        }
 
-        getLine(cRow).deleteCells(cCol, safeCount, state.pen.currentAttr)
+            getLine(cRow).deleteCells(cCol, safeCount, state.pen.currentAttr)
+        }
     }
 
-    fun eraseLineToEnd() {
-        val cRow = state.cursor.row
-        val cCol = state.cursor.col
-        if (cRow !in 0 until height || cCol !in 0 until width) return
+    private fun eraseLineToEndInternal(cRow: Int, cCol: Int) {
         annihilateAt(cRow, cCol)
         getLine(cRow).clearFromColumn(cCol, state.pen.currentAttr)
     }
 
-    fun eraseLineToCursor() {
+    fun eraseLineToEnd() = structuralMutation {
         val cRow = state.cursor.row
-        val cCol = state.cursor.col.coerceAtMost(width - 1)
-        if (cRow !in 0 until height || cCol < 0) return
+        val cCol = state.cursor.col
+        if (cRow !in 0 until height || cCol !in 0 until width) return@structuralMutation
+        eraseLineToEndInternal(cRow, cCol)
+    }
 
+    private fun eraseLineToCursorInternal(cRow: Int, cCol: Int) {
         annihilateAt(cRow, cCol)
         getLine(cRow).clearToColumn(cCol, state.pen.currentAttr)
     }
 
-    fun eraseCurrentLine() {
+    fun eraseLineToCursor() = structuralMutation {
         val cRow = state.cursor.row
-        if (cRow !in 0 until height) return
+        val cCol = state.cursor.col.coerceAtMost(width - 1)
+        if (cRow !in 0 until height || cCol < 0) return@structuralMutation
+        eraseLineToCursorInternal(cRow, cCol)
+    }
+
+    fun eraseCurrentLine() = structuralMutation {
+        val cRow = state.cursor.row
+        if (cRow !in 0 until height) return@structuralMutation
         getLine(cRow).clear(state.pen.currentAttr)
     }
 
@@ -409,14 +410,15 @@ internal class MutationEngine(
      * Erases from the cursor to the end of the visible screen (ED 0).
      * The cursor position is not changed.
      */
-    fun eraseScreenToEnd() {
+    fun eraseScreenToEnd() = structuralMutation {
         val cRow = state.cursor.row
-        if (cRow !in 0 until height) return
+        val cCol = state.cursor.col
+        if (cRow !in 0 until height) return@structuralMutation
 
-        // Clear the remainder of the current line
-        eraseLineToEnd()
+        if (cCol in 0 until width) {
+            eraseLineToEndInternal(cRow, cCol)
+        }
 
-        // Clear all subsequent lines
         for (row in cRow + 1 until height) {
             getLine(row).clear(state.pen.currentAttr)
         }
@@ -426,36 +428,47 @@ internal class MutationEngine(
      * Erases from the start of the visible screen through the cursor (ED 1).
      * The cursor position is not changed.
      */
-    fun eraseScreenToCursor() {
+    fun eraseScreenToCursor() = structuralMutation {
         val cRow = state.cursor.row
-        if (cRow !in 0 until height) return
+        if (cRow !in 0 until height) return@structuralMutation
 
-        // Clear all preceding lines
         for (row in 0 until cRow) {
             getLine(row).clear(state.pen.currentAttr)
         }
 
-        // Clear the beginning of the current line through the cursor
-        eraseLineToCursor()
+        val cCol = state.cursor.col.coerceAtMost(width - 1)
+        if (cCol >= 0) {
+            eraseLineToCursorInternal(cRow, cCol)
+        }
     }
 
     /**
      * Erases the entire visible screen and all scrollback history (xterm ED 3).
      * The cursor position is not changed.
      */
-    fun eraseScreenAndHistory() {
-        clearAllHistory()
+    fun eraseScreenAndHistory() = structuralMutation {
+        clearAllHistoryInternal()
     }
 
-    fun clearViewport() {
+    private fun clearViewportInternal() {
         for (row in 0 until height.coerceAtMost(state.ring.size)) {
             getLine(row).clear(state.pen.currentAttr)
         }
     }
 
-    fun clearAllHistory() {
+    fun clearViewport() = structuralMutation {
+        clearViewportInternal()
+    }
+
+    private fun clearAllHistoryInternal() {
         state.ring.clear()
-        repeat(height) { state.ring.push().clear(state.pen.currentAttr) }
+        repeat(height) {
+            state.ring.push().clear(state.pen.currentAttr)
+        }
+    }
+
+    fun clearAllHistory() = structuralMutation {
+        clearAllHistoryInternal()
     }
 
     // ----- Cursor movement ---------------------------------------------------
@@ -463,7 +476,7 @@ internal class MutationEngine(
     /**
      * Advances the cursor to the next line, scrolling the active region if needed.
      */
-    fun newLine() {
+    fun newLine() = structuralMutation {
         state.cursor.row = advanceRow(state.cursor.row)
     }
 
@@ -471,10 +484,10 @@ internal class MutationEngine(
      * Moves the cursor up one line (reverse index), scrolling the active region
      * downward if the cursor is already at [state.scrollTop].
      */
-    fun reverseLineFeed() {
+    fun reverseLineFeed() = structuralMutation {
         val cRow = state.cursor.row
         if (cRow == state.scrollTop) {
-            scrollDown()
+            scrollDownInternal()
         } else {
             state.cursor.row = (cRow - 1).coerceAtLeast(0)
         }
