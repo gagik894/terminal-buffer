@@ -39,6 +39,7 @@ internal class TerminalWriterImpl(
 
 	override fun resetScrollRegion() {
 		state.activeBuffer.resetScrollRegion(state.dimensions.height)
+		cursorEngine.setCursorAbsolute(0, 0)
 	}
 	override fun scrollUp() = mutationEngine.scrollUp()
 
