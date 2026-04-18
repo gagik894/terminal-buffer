@@ -358,10 +358,21 @@ internal class MutationEngine(
             if (cRow !in 0 until height || cCol !in 0 until width) return@structuralMutation
 
             val line = getLine(cRow)
+
             if (line.rawCodepoint(cCol) == TerminalConstants.WIDE_CHAR_SPACER) {
                 annihilateAt(cRow, cCol)
             }
-            line.insertCells(cCol, count, state.pen.currentAttr)
+
+            val safeCount = count.coerceAtMost(width - cCol)
+            val edgeCol = width - safeCount
+
+            if (edgeCol > cCol && edgeCol < width &&
+                line.rawCodepoint(edgeCol) == TerminalConstants.WIDE_CHAR_SPACER
+            ) {
+                annihilateAt(cRow, edgeCol)
+            }
+
+            line.insertCells(cCol, safeCount, state.pen.currentAttr)
         }
     }
 

@@ -97,10 +97,13 @@ internal class TerminalState(
     fun setScrollRegion(top: Int, bottom: Int) {
         val t = (top - 1).coerceIn(0, dimensions.height - 1)
         val b = (bottom - 1).coerceIn(0, dimensions.height - 1)
-        if (t >= b) return   // degenerate region — ignore per spec
+        if (t >= b) return
+
         scrollTop = t
         scrollBottom = b
-        homeCursor()
+        cursor.col = 0
+        cursor.row = if (modes.isOriginMode) t else 0
+        cursor.pendingWrap = false
     }
 
     /**

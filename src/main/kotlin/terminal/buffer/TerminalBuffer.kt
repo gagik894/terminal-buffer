@@ -92,7 +92,9 @@ internal class TerminalBuffer(
 
     override fun setOriginMode(enabled: Boolean) {
         state.modes.isOriginMode = enabled
-        state.homeCursor()
+        state.cursor.col = 0
+        state.cursor.row = if (enabled) state.scrollTop else 0
+        state.cursor.pendingWrap = false
     }
 
     override fun setTreatAmbiguousAsWide(enabled: Boolean) {
