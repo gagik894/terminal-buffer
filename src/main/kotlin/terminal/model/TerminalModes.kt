@@ -14,7 +14,7 @@ internal class TerminalModes {
     var isInsertMode: Boolean = false
 
     /** Mode 7 — Auto-Wrap Mode (DECAWM). True = wrap at right margin (default). */
-    var isAutoWrap: Boolean = true // TODO: Implement
+    var isAutoWrap: Boolean = true
 
     /** Mode 1 — Application Cursor Keys (DECCKM). False = normal cursor keys (default). */
     var isApplicationCursorKeys: Boolean = false

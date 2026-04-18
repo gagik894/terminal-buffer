@@ -200,9 +200,15 @@ internal class MutationEngine(
 
         // Standard wrap + scroll.
         if (cCol >= width) {
-            line.wrapped = true
-            cCol = 0
-            cRow = advanceRow(cRow)
+            if (state.modes.isAutoWrap) {
+                line.wrapped = true
+                cCol = 0
+                cRow = advanceRow(cRow)
+            } else {
+                // DECAWM=false: clamp cursor to the last column. The next character
+                // will overwrite the rightmost cell in place. Do NOT set wrapped.
+                cCol = width - 1
+            }
         }
 
         state.cursor.col = cCol
