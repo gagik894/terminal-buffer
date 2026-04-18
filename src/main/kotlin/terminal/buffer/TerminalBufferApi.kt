@@ -101,16 +101,24 @@ interface TerminalBufferApi {
     fun moveCursor(dx: Int, dy: Int)
 
     /**
-     * Moves the cursor up by [n] rows, clamped to the top edge (CUU, `CSI n A`).
+     * Moves the cursor up by [n] rows, respecting the active scroll region (CUU, `CSI n A`).
      *
-     * @param n Number of rows. Negative values move down instead.
+     * If the cursor is within the scroll region, movement stops at scrollTop.
+     * If the cursor is above the scroll region, movement stops at row 0.
+     * [n] must be positive; non-positive values are treated as no-op.
+     *
+     * @param n Number of rows. Must be >= 1.
      */
     fun cursorUp(n: Int = 1)
 
     /**
-     * Moves the cursor down by [n] rows, clamped to the bottom edge (CUD, `CSI n B`).
+     * Moves the cursor down by [n] rows, respecting the active scroll region (CUD, `CSI n B`).
      *
-     * @param n Number of rows. Negative values move up instead.
+     * If the cursor is within the scroll region, movement stops at scrollBottom.
+     * If the cursor is below the scroll region, movement stops at the bottom row.
+     * [n] must be positive; non-positive values are treated as no-op.
+     *
+     * @param n Number of rows. Must be >= 1.
      */
     fun cursorDown(n: Int = 1)
 
