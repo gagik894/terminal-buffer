@@ -46,7 +46,7 @@ internal class TerminalBuffer private constructor(
         if (state.activeBuffer.scrollBottom >= newHeight) {
             state.activeBuffer.resetScrollRegion(newHeight)
         }
-        state.activeBuffer.cursor.pendingWrap = false
+        state.cancelPendingWrap()
     }
 
     override fun reset() {

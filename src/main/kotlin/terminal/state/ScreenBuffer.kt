@@ -104,5 +104,13 @@ internal class ScreenBuffer(
         repeat(newHeight) { ring.push().clear(penAttr) }
         scrollTop = 0
         scrollBottom = newHeight - 1
+
+        cursor.col = cursor.col.coerceAtMost(maxOf(0, newWidth - 1))
+        cursor.row = cursor.row.coerceAtMost(maxOf(0, newHeight - 1))
+
+        // If the grid shrank and forced the cursor inward, pending wrap is no longer mathematically valid
+        if (cursor.col < newWidth - 1) {
+            cursor.pendingWrap = false
+        }
     }
 }
