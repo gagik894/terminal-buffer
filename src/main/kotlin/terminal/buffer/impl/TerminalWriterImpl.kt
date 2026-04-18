@@ -33,10 +33,14 @@ internal class TerminalWriterImpl(
 
 	override fun carriageReturn() = cursorEngine.carriageReturn()
 
-	override fun setScrollRegion(top: Int, bottom: Int) = state.setScrollRegion(top, bottom)
+	override fun setScrollRegion(top: Int, bottom: Int) {
+		state.activeBuffer.setScrollRegion(top, bottom, state.modes.isOriginMode, state.dimensions.height)
+	}
 
-	override fun resetScrollRegion() = state.resetScrollRegion()
-
+	override fun resetScrollRegion() {
+		state.activeBuffer.resetScrollRegion(state.dimensions.height)
+		cursorEngine.setCursorAbsolute(0, 0)
+	}
 	override fun scrollUp() = mutationEngine.scrollUp()
 
 	override fun scrollDown() = mutationEngine.scrollDown()

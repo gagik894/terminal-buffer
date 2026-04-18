@@ -13,7 +13,7 @@ internal class TerminalBuffer private constructor(
     TerminalReader by TerminalReaderImpl(components.state),
     TerminalWriter by TerminalWriterImpl(components.state, components.mutationEngine, components.cursorEngine),
     TerminalCursor by TerminalCursorImpl(components.state, components.cursorEngine),
-    TerminalModeController by TerminalModeControllerImpl(components.state),
+    TerminalModeController by TerminalModeControllerImpl(components.state, components.cursorEngine),
     TerminalInspector by TerminalInspectorImpl(components.state) {
 
     private val state: TerminalState get() = components.state
@@ -26,16 +26,35 @@ internal class TerminalBuffer private constructor(
         require(newWidth > 0) { "newWidth must be > 0, was $newWidth" }
         require(newHeight > 0) { "newHeight must be > 0, was $newHeight" }
 
-        TerminalResizer.resize(state, newWidth, newHeight)
-        if (state.scrollBottom >= newHeight) {
-            state.resetScrollRegion()
+        val oldWidth = state.dimensions.width
+        val oldHeight = state.dimensions.height
+
+        if (newWidth == oldWidth && newHeight == oldHeight) return
+
+        // 1. Reflow the primary screen and build a new ClusterStore
+        TerminalResizer.resizeBuffer(state.primaryBuffer, oldWidth, oldHeight, newWidth, newHeight)
+
+        // 2. Wipe and resize the alt screen
+        state.altBuffer.replaceStorage(newWidth, newHeight, state.pen.currentAttr)
+
+        // 3. Update global state dimensions and margins
+        state.dimensions.width = newWidth
+        state.dimensions.height = newHeight
+        state.tabStops.resize(newWidth)
+
+        // 4. Update the active margin bounds safely
+        if (state.activeBuffer.scrollBottom >= newHeight) {
+            state.activeBuffer.resetScrollRegion(newHeight)
         }
         state.cancelPendingWrap()
     }
 
     override fun reset() {
+        if (state.isAltScreenActive) {
+            this.exitAltBuffer()
+        }
         clearAll()
-        state.resetScrollRegion()
+        state.activeBuffer.resetScrollRegion(state.dimensions.height)
         state.modes.reset()
         state.tabStops.resetToDefault()
     }

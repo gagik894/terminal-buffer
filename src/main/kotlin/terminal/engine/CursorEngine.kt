@@ -179,7 +179,7 @@ internal class CursorEngine(private val state: TerminalState) {
      */
     fun restoreCursor() {
         if (!state.savedCursor.isSaved) {
-            state.homeCursor()
+            setCursorAbsolute(0, 0)
             state.pen.reset()
             state.modes.isOriginMode = false
             return

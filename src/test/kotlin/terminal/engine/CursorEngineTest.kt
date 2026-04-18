@@ -36,6 +36,22 @@ class CursorEngineTest {
     private fun assertGridUnchanged(before: String, state: TerminalState) =
         assertEquals(before, snapshot(state), "grid must not be mutated")
 
+    // Scroll margins now live in ScreenBuffer and are private-set; use DECSTBM helper.
+    private fun setScrollRegion(state: TerminalState, top: Int, bottom: Int) {
+        val col = state.cursor.col
+        val row = state.cursor.row
+        val pendingWrap = state.cursor.pendingWrap
+        state.activeBuffer.setScrollRegion(
+            top = top + 1,
+            bottom = bottom + 1,
+            isOriginMode = state.modes.isOriginMode,
+            viewportHeight = state.dimensions.height
+        )
+        state.cursor.col = col
+        state.cursor.row = row
+        state.cursor.pendingWrap = pendingWrap
+    }
+
     // ── carriageReturn ────────────────────────────────────────────────────
 
     @Nested
@@ -114,7 +130,7 @@ class CursorEngineTest {
         @Test
         fun `ignores origin mode — always absolute`() {
             val s = state(); val e = engine(s)
-            s.scrollTop = 2; s.scrollBottom = 3
+            setScrollRegion(s, top = 2, bottom = 3)
             s.modes.isOriginMode = true
             e.setCursorAbsolute(0, 0)
             // Must land at absolute (0,0), not scrollTop
@@ -147,7 +163,7 @@ class CursorEngineTest {
         @Test
         fun `row 0 maps to scrollTop when DECOM is on`() {
             val s = state(width = 6, height = 6); val e = engine(s)
-            s.scrollTop = 2; s.scrollBottom = 5
+            setScrollRegion(s, top = 2, bottom = 5)
             s.modes.isOriginMode = true
             e.setCursor(0, 0)
             assertAll({ assertEquals(0, s.cursor.col) }, { assertEquals(2, s.cursor.row) })
@@ -156,7 +172,7 @@ class CursorEngineTest {
         @Test
         fun `row translates relative to scrollTop when DECOM is on`() {
             val s = state(width = 6, height = 6); val e = engine(s)
-            s.scrollTop = 2; s.scrollBottom = 5
+            setScrollRegion(s, top = 2, bottom = 5)
             s.modes.isOriginMode = true
             e.setCursor(1, 2)  // col=1, row=2 relative → physical row = 2+2 = 4
             assertAll({ assertEquals(1, s.cursor.col) }, { assertEquals(4, s.cursor.row) })
@@ -165,7 +181,7 @@ class CursorEngineTest {
         @Test
         fun `cannot escape scrollBottom when DECOM is on`() {
             val s = state(width = 6, height = 6); val e = engine(s)
-            s.scrollTop = 1; s.scrollBottom = 3
+            setScrollRegion(s, top = 1, bottom = 3)
             s.modes.isOriginMode = true
             e.setCursor(0, 99)  // would map to row 100; must clamp to scrollBottom
             assertEquals(3, s.cursor.row)
@@ -174,7 +190,7 @@ class CursorEngineTest {
         @Test
         fun `cannot escape scrollTop when DECOM is on`() {
             val s = state(width = 6, height = 6); val e = engine(s)
-            s.scrollTop = 2; s.scrollBottom = 5
+            setScrollRegion(s, top = 2, bottom = 5)
             s.modes.isOriginMode = true
             e.setCursor(0, -5)  // scrollTop + (-5) = -3; must clamp to scrollTop
             assertEquals(2, s.cursor.row)
@@ -183,7 +199,7 @@ class CursorEngineTest {
         @Test
         fun `column is always absolute regardless of DECOM`() {
             val s = state(width = 6, height = 6); val e = engine(s)
-            s.scrollTop = 2; s.scrollBottom = 5
+            setScrollRegion(s, top = 2, bottom = 5)
             s.modes.isOriginMode = true
             e.setCursor(4, 0)
             assertEquals(4, s.cursor.col)
@@ -228,7 +244,7 @@ class CursorEngineTest {
         @Test
         fun `clamps to top of viewport when cursor is outside scroll region`() {
             val s = state(height = 6); val e = engine(s)
-            s.scrollTop = 2; s.scrollBottom = 4
+            setScrollRegion(s, top = 2, bottom = 4)
             s.cursor.row = 0  // already above scroll region
             e.cursorUp(5)
             assertEquals(0, s.cursor.row)
@@ -237,7 +253,7 @@ class CursorEngineTest {
         @Test
         fun `stops at scrollTop when cursor is inside scroll region`() {
             val s = state(height = 6); val e = engine(s)
-            s.scrollTop = 2; s.scrollBottom = 5
+            setScrollRegion(s, top = 2, bottom = 5)
             s.cursor.row = 3
             e.cursorUp(99)
             assertEquals(2, s.cursor.row)
@@ -246,7 +262,7 @@ class CursorEngineTest {
         @Test
         fun `cursor below scroll region clamps to row 0 (not scrollTop)`() {
             val s = state(height = 6); val e = engine(s)
-            s.scrollTop = 1; s.scrollBottom = 3
+            setScrollRegion(s, top = 1, bottom = 3)
             s.cursor.row = 5  // below scroll region
             e.cursorUp(99)
             assertEquals(0, s.cursor.row)
@@ -294,7 +310,7 @@ class CursorEngineTest {
         @Test
         fun `clamps to bottom of viewport when cursor is outside scroll region`() {
             val s = state(height = 6); val e = engine(s)
-            s.scrollTop = 1; s.scrollBottom = 3
+            setScrollRegion(s, top = 1, bottom = 3)
             s.cursor.row = 5  // below region
             e.cursorDown(99)
             assertEquals(5, s.cursor.row)
@@ -303,7 +319,7 @@ class CursorEngineTest {
         @Test
         fun `stops at scrollBottom when cursor is inside scroll region`() {
             val s = state(height = 6); val e = engine(s)
-            s.scrollTop = 1; s.scrollBottom = 3
+            setScrollRegion(s, top = 1, bottom = 3)
             s.cursor.row = 2
             e.cursorDown(99)
             assertEquals(3, s.cursor.row)
@@ -312,7 +328,7 @@ class CursorEngineTest {
         @Test
         fun `cursor above scroll region clamps to height-1 (not scrollBottom)`() {
             val s = state(height = 6); val e = engine(s)
-            s.scrollTop = 2; s.scrollBottom = 4
+            setScrollRegion(s, top = 2, bottom = 4)
             s.cursor.row = 0  // above scroll region
             e.cursorDown(99)
             assertEquals(5, s.cursor.row)
@@ -626,7 +642,7 @@ class CursorEngineTest {
             e.saveCursor()
 
             s.dimensions.width = 5
-            s.scrollBottom = 4
+            s.activeBuffer.resetScrollRegion(s.dimensions.height)
             e.restoreCursor()
 
             assertEquals(4, s.cursor.col)
@@ -639,7 +655,7 @@ class CursorEngineTest {
             e.saveCursor()
 
             s.dimensions.height = 3
-            s.scrollBottom = 2
+            s.activeBuffer.resetScrollRegion(s.dimensions.height)
             e.restoreCursor()
 
             assertEquals(2, s.cursor.row)
@@ -693,7 +709,7 @@ class CursorEngineTest {
             e.saveCursor()
 
             // Change margins before restoring
-            s.scrollTop = 2; s.scrollBottom = 3
+            setScrollRegion(s, top = 2, bottom = 3)
             s.modes.isOriginMode = true
             e.restoreCursor()
 
@@ -843,14 +859,14 @@ class CursorEngineTest {
         @Test
         fun `CUP with DECOM on positions correctly, then DECSC round-trips absolute row`() {
             val s = state(width = 8, height = 8); val e = engine(s)
-            s.scrollTop = 2; s.scrollBottom = 6
+            setScrollRegion(s, top = 2, bottom = 6)
             s.modes.isOriginMode = true
             e.setCursor(1, 1)  // relative row 1 → absolute row 3
             assertEquals(3, s.cursor.row)
             e.saveCursor()
 
             // Change margins and restore
-            s.scrollTop = 0; s.scrollBottom = 7
+            setScrollRegion(s, top = 0, bottom = 7)
             e.restoreCursor()
 
             // Restored row must be the saved absolute row 3, not re-translated
