@@ -75,4 +75,31 @@ internal class CursorEngine(private val state: TerminalState) {
     fun horizontalTab() {
         state.cursor.col = state.tabStops.getNextStop(state.cursor.col)
     }
+
+    /**
+     * Moves the cursor up by [n] rows (CUU, CSI n A).
+     *
+     * If the cursor is within the active scroll region,
+     * movement stops at scrollTop. If the cursor is above the scroll region
+     * (i.e., outside it entirely), it clamps to row 0. This matches xterm
+     * behaviour for both DECOM-off and DECOM-on modes.
+     */
+    fun cursorUp(n: Int) {
+        if (n <= 0) return
+        val top = if (state.cursor.row >= state.scrollTop) state.scrollTop else 0
+        state.cursor.row = (state.cursor.row - n).coerceAtLeast(top)
+    }
+
+    /**
+     * Moves the cursor down by [n] rows (CUD, CSI n B).
+     *
+     * If the cursor is within the active scroll region,
+     * movement stops at scrollBottom. If the cursor is below the scroll region,
+     * it clamps to height - 1.
+     */
+    fun cursorDown(n: Int) {
+        if (n <= 0) return
+        val bottom = if (state.cursor.row <= state.scrollBottom) state.scrollBottom else height - 1
+        state.cursor.row = (state.cursor.row + n).coerceAtMost(bottom)
+    }
 }
