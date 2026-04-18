@@ -1,5 +1,7 @@
 package com.gagik.terminal.buffer
 
+import com.gagik.terminal.api.TerminalBufferApi
+import com.gagik.terminal.api.TerminalLineApi
 import com.gagik.terminal.codec.AttributeCodec
 import com.gagik.terminal.engine.CursorEngine
 import com.gagik.terminal.engine.MutationEngine
@@ -13,7 +15,7 @@ import com.gagik.terminal.util.UnicodeWidth
 
 /**
  * The primary entry point and public API for the terminal emulator.
- * Implements [TerminalBufferApi] to provide a strict, zero-allocation contract.
+ * Implements apis to provide a strict, zero-allocation contract.
  * * Architecturally, this class contains NO physics and NO memory.
  * It coordinates the [MutationEngine] and reads from the [TerminalState].
  */

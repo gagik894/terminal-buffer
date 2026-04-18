@@ -1,7 +1,7 @@
 package com.gagik.terminal
 
+import com.gagik.terminal.api.TerminalBufferApi
 import com.gagik.terminal.buffer.TerminalBuffer
-import com.gagik.terminal.buffer.TerminalBufferApi
 
 /**
  * Factory for creating terminal buffer instances.

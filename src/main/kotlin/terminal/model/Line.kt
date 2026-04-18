@@ -1,6 +1,6 @@
 package com.gagik.terminal.model
 
-import com.gagik.terminal.buffer.TerminalLineApi
+import com.gagik.terminal.api.TerminalLineApi
 import com.gagik.terminal.store.ClusterStore
 
 /**
