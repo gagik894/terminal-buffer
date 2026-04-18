@@ -80,25 +80,23 @@ interface TerminalBufferApi {
     fun restoreCursor()
 
     /**
-     * Moves the cursor to an absolute position (CUP, `CSI row ; col H`).
+     * Moves the cursor using ANSI CUP/HVP semantics.
      *
-     * Both axes are clamped to the visible grid bounds.
+     * When DECOM is enabled, [row] is relative to the active scroll region and
+     * clamped within it. When DECOM is disabled, [row] is absolute in the viewport.
      *
-     * @param col Target column (0-based).
-     * @param row Target row (0-based).
+     * @param col Column index (0-based).
+     * @param row Row index (0-based).
      */
-    fun setCursor(col: Int, row: Int)
+    fun positionCursor(col: Int, row: Int)
 
     /**
-     * Moves the cursor by a relative offset.
+     * Sets Origin Mode (DECOM, `CSI ? 6 h` / `CSI ? 6 l`).
      *
-     * Both axes are clamped to the visible grid bounds. Negative deltas move
-     * left or up; positive deltas move right or down.
-     *
-     * @param dx Horizontal delta in cells.
-     * @param dy Vertical delta in rows.
+     * Setting or clearing DECOM homes the cursor to `(0, 0)` in the new coordinate
+     * system.
      */
-    fun moveCursor(dx: Int, dy: Int)
+    fun setOriginMode(enabled: Boolean)
 
     /**
      * Moves the cursor up by [n] rows, respecting the active scroll region (CUU, `CSI n A`).

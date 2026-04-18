@@ -57,19 +57,18 @@ internal class TerminalBuffer(
 
     override fun saveCursor() = cursorEngine.saveCursor()
     override fun restoreCursor() = cursorEngine.restoreCursor()
-    override fun setCursor(col: Int, row: Int) = cursorEngine.setCursor(col, row)
-    override fun moveCursor(dx: Int, dy: Int) {
-        setCursor(cursorCol + dx, cursorRow + dy)
+    override fun positionCursor(col: Int, row: Int) = cursorEngine.setCursor(col, row)
+
+    override fun setOriginMode(enabled: Boolean) {
+        state.modes.isOriginMode = enabled
     }
+
     override fun cursorUp(n: Int) = cursorEngine.cursorUp(n)
     override fun cursorDown(n: Int) = cursorEngine.cursorDown(n)
-    override fun cursorLeft(n: Int) = moveCursor(-n, 0)
-    override fun cursorRight(n: Int) = moveCursor(n, 0)
+    override fun cursorLeft(n: Int) = cursorEngine.cursorLeft(n)
+    override fun cursorRight(n: Int) = cursorEngine.cursorRight(n)
 
-    override fun resetCursor() {
-        setCursor(0, 0)
-    }
-
+    override fun resetCursor() = cursorEngine.setCursorAbsolute(0, 0)
     override fun setTabStop() = state.tabStops.setStop(state.cursor.col)
     override fun clearTabStop() = state.tabStops.clearStop(state.cursor.col)
     override fun clearAllTabStops() = state.tabStops.clearAll()
@@ -142,7 +141,7 @@ internal class TerminalBuffer(
 
     override fun clearScreen() {
         mutationEngine.clearViewport()
-        resetCursor()
+        cursorEngine.setCursorAbsolute(0, 0)
     }
 
     override fun clearAll() {

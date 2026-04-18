@@ -104,25 +104,27 @@ class TerminalBufferTest {
 	inner class CursorTests {
 
 		@Test
-		fun `setCursor clamps to visible bounds`() {
+		fun `positionCursor clamps to visible bounds`() {
 			val buffer = newBuffer(width = 5, height = 4)
 
-			buffer.setCursor(-100, -100)
+			buffer.positionCursor(-100, -100)
 			assertCursor(buffer, 0, 0)
 
-			buffer.setCursor(99, 99)
+			buffer.positionCursor(99, 99)
 			assertCursor(buffer, 4, 3)
 		}
 
 		@Test
-		fun `moveCursor is relative and clamps on both axes`() {
+		fun `cursor movements are relative and clamp on both axes`() {
 			val buffer = newBuffer(width = 5, height = 4)
 
-			buffer.setCursor(2, 1)
-			buffer.moveCursor(2, -1)
+			buffer.positionCursor(2, 1)
+			buffer.cursorRight(2)
+			buffer.cursorUp(1)
 			assertCursor(buffer, 4, 0)
 
-			buffer.moveCursor(-100, 100)
+			buffer.cursorLeft(100)
+			buffer.cursorDown(100)
 			assertCursor(buffer, 0, 3)
 		}
 
@@ -130,7 +132,7 @@ class TerminalBufferTest {
 		fun `cursor helpers move in the expected direction and clamp`() {
 			val buffer = newBuffer(width = 4, height = 3)
 
-			buffer.setCursor(1, 1)
+			buffer.positionCursor(1, 1)
 			buffer.cursorUp()
 			assertCursor(buffer, 1, 0)
 
@@ -154,7 +156,7 @@ class TerminalBufferTest {
 		fun `resetCursor returns the cursor home`() {
 			val buffer = newBuffer(width = 4, height = 4)
 
-			buffer.setCursor(3, 2)
+			buffer.positionCursor(3, 2)
 			buffer.resetCursor()
 
 			assertCursor(buffer, 0, 0)
@@ -163,11 +165,11 @@ class TerminalBufferTest {
 		@Test
 		fun `saveCursor and restoreCursor round-trip cursor position and pen attributes through the API`() {
 			val buffer = newApiBuffer(width = 4, height = 3)
-			buffer.setCursor(2, 1)
+			buffer.positionCursor(2, 1)
 			buffer.setPenAttributes(3, 7, bold = true, italic = true, underline = false)
 
 			buffer.saveCursor()
-			buffer.setCursor(0, 0)
+			buffer.positionCursor(0, 0)
 			buffer.setPenAttributes(1, 2, bold = false, italic = false, underline = true)
 			buffer.restoreCursor()
 
@@ -188,7 +190,7 @@ class TerminalBufferTest {
 		@Test
 		fun `restoreCursor without a prior save homes the cursor and resets the pen through the API`() {
 			val buffer = newApiBuffer(width = 4, height = 3)
-			buffer.setCursor(3, 2)
+			buffer.positionCursor(3, 2)
 			buffer.setPenAttributes(4, 5, bold = true, italic = true, underline = true)
 
 			buffer.restoreCursor()
@@ -295,7 +297,7 @@ class TerminalBufferTest {
 		fun `writeCodepoint writes at the cursor and advances it`() {
 			val buffer = newBuffer(width = 5, height = 3)
 
-			buffer.setCursor(2, 1)
+			buffer.positionCursor(2, 1)
 			buffer.setPenAttributes(2, 4, bold = true)
 			buffer.writeCodepoint('X'.code)
 
@@ -357,7 +359,7 @@ class TerminalBufferTest {
 		fun `line feed moves down without resetting the column`() {
 			val buffer = newBuffer(width = 3, height = 3)
 
-			buffer.setCursor(2, 0)
+			buffer.positionCursor(2, 0)
 			buffer.newLine()
 
 			assertCursor(buffer, 2, 1)
@@ -367,7 +369,7 @@ class TerminalBufferTest {
 		fun `reverse line feed moves cursor up without changing column when not at top margin`() {
 			val buffer = newBuffer(width = 4, height = 3)
 			buffer.writeText("ABCD")
-			buffer.setCursor(2, 2)
+			buffer.positionCursor(2, 2)
 
 			buffer.reverseLineFeed()
 
@@ -380,10 +382,10 @@ class TerminalBufferTest {
 		@Test
 		fun `reverse line feed at top margin scrolls down and preserves history size`() {
 			val buffer = newBuffer(width = 3, height = 3, maxHistory = 4)
-			buffer.setCursor(0, 0); buffer.writeText("A0")
-			buffer.setCursor(0, 1); buffer.writeText("B1")
-			buffer.setCursor(0, 2); buffer.writeText("C2")
-			buffer.setCursor(1, 0)
+			buffer.positionCursor(0, 0); buffer.writeText("A0")
+			buffer.positionCursor(0, 1); buffer.writeText("B1")
+			buffer.positionCursor(0, 2); buffer.writeText("C2")
+			buffer.positionCursor(1, 0)
 			val beforeHistory = buffer.historySize
 
 			buffer.reverseLineFeed()
@@ -400,12 +402,12 @@ class TerminalBufferTest {
 		@Test
 		fun `reverse line feed respects custom scroll region and leaves outside rows untouched`() {
 			val buffer = newBuffer(width = 3, height = 4, maxHistory = 2)
-			buffer.setCursor(0, 0); buffer.writeText("T0")
-			buffer.setCursor(0, 1); buffer.writeText("A1")
-			buffer.setCursor(0, 2); buffer.writeText("B2")
-			buffer.setCursor(0, 3); buffer.writeText("Z3")
+			buffer.positionCursor(0, 0); buffer.writeText("T0")
+			buffer.positionCursor(0, 1); buffer.writeText("A1")
+			buffer.positionCursor(0, 2); buffer.writeText("B2")
+			buffer.positionCursor(0, 3); buffer.writeText("Z3")
 			buffer.setScrollRegion(2, 3) // rows [1..2]
-			buffer.setCursor(1, 1)
+			buffer.positionCursor(1, 1)
 
 			buffer.reverseLineFeed()
 
@@ -422,7 +424,7 @@ class TerminalBufferTest {
 		fun `reverse line feed is exposed on TerminalBufferApi`() {
 			val buffer = newApiBuffer(width = 3, height = 2, maxHistory = 2)
 			buffer.writeText("AB")
-			buffer.setCursor(1, 1)
+			buffer.positionCursor(1, 1)
 
 			buffer.reverseLineFeed()
 
@@ -437,7 +439,7 @@ class TerminalBufferTest {
 			val buffer = newBuffer(width = 2, height = 2, maxHistory = 4)
 
 			buffer.setPenAttributes(4, 5, bold = true)
-			buffer.setCursor(1, 1)
+			buffer.positionCursor(1, 1)
 			buffer.newLine()
 
 			assertAll(
@@ -533,7 +535,7 @@ class TerminalBufferTest {
 			assertEquals(8, buffer.cursorCol)
 
 			// Set custom stop at 10
-			buffer.setCursor(10, 0)
+			buffer.positionCursor(10, 0)
 			buffer.setTabStop()
 
 			buffer.resetCursor()
@@ -549,7 +551,7 @@ class TerminalBufferTest {
 		fun `horizontalTab clamps to right margin when no more stops exist`() {
 			val buffer = newBuffer(width = 10, height = 1)
 			// Stops at 0, 8.
-			buffer.setCursor(8, 0)
+			buffer.positionCursor(8, 0)
 			buffer.horizontalTab()
 			assertEquals(9, buffer.cursorCol) // Width - 1
 
@@ -561,7 +563,7 @@ class TerminalBufferTest {
 		fun `clearTabStop removes stop at current column`() {
 			val buffer = newBuffer(width = 20, height = 1)
 			// Default stop at 8
-			buffer.setCursor(8, 0)
+			buffer.positionCursor(8, 0)
 			buffer.clearTabStop()
 
 			buffer.resetCursor()
@@ -584,7 +586,7 @@ class TerminalBufferTest {
 			val buffer = newBuffer(width = 6, height = 2)
 
 			buffer.writeText("ABCD")
-			buffer.setCursor(1, 0)
+			buffer.positionCursor(1, 0)
 			buffer.setPenAttributes(7, 8, bold = false, italic = true, underline = true)
 			buffer.insertBlankCharacters(2)
 
@@ -603,7 +605,7 @@ class TerminalBufferTest {
 			val buffer = newBuffer(width = 5, height = 2)
 
 			buffer.writeText("AB")
-			buffer.setCursor(1, 0)
+			buffer.positionCursor(1, 0)
 			val beforeLine = buffer.getLineAsString(0)
 			val beforeScreen = buffer.getScreenAsString()
 			val beforeAll = buffer.getAllAsString()
@@ -623,7 +625,7 @@ class TerminalBufferTest {
 		fun `insertBlankCharacters at the very end of line`() {
 			val buffer = newBuffer(width = 5, height = 1)
 			buffer.writeText("ABCD")
-			buffer.setCursor(4, 0)
+			buffer.positionCursor(4, 0)
 			buffer.insertBlankCharacters(1)
 			// "ABCD" + 1 space = "ABCD ".
 			// But getLineAsString() trims trailing spaces if they are codepoint 0.
@@ -635,11 +637,11 @@ class TerminalBufferTest {
         @Test
         fun `insertBlankCharacters more than remaining width`() {
             val buffer = newBuffer(width = 5, height = 2) // Increase height to be safe
-            buffer.setCursor(0, 0)
+            buffer.positionCursor(0, 0)
             buffer.writeText("ABCDE")
             // width=5, writeText("ABCDE") fills row 0, cursor wraps to (0, 1)
 
-            buffer.setCursor(2, 0)
+            buffer.positionCursor(2, 0)
             buffer.insertBlankCharacters(10) // should shift remaining 3 cells (C,D,E) out
 
             // Expected row 0: A B 0 0 0
@@ -654,13 +656,13 @@ class TerminalBufferTest {
 		@Test
 		fun `insertLines inserts blank row at cursor within active scroll region`() {
 			val buffer = newBuffer(width = 3, height = 4, maxHistory = 2)
-			buffer.setCursor(0, 0); buffer.writeText("T0")
-			buffer.setCursor(0, 1); buffer.writeText("A1")
-			buffer.setCursor(0, 2); buffer.writeText("B2")
-			buffer.setCursor(0, 3); buffer.writeText("Z3")
+			buffer.positionCursor(0, 0); buffer.writeText("T0")
+			buffer.positionCursor(0, 1); buffer.writeText("A1")
+			buffer.positionCursor(0, 2); buffer.writeText("B2")
+			buffer.positionCursor(0, 3); buffer.writeText("Z3")
 			buffer.setScrollRegion(2, 3) // rows [1..2]
 			buffer.setPenAttributes(4, 5, bold = true)
-			buffer.setCursor(0, 1)
+			buffer.positionCursor(0, 1)
 
 			buffer.insertLines(1)
 
@@ -677,12 +679,12 @@ class TerminalBufferTest {
 		@Test
 		fun `deleteLines removes cursor row and pulls lines up within active scroll region`() {
 			val buffer = newBuffer(width = 3, height = 4, maxHistory = 2)
-			buffer.setCursor(0, 0); buffer.writeText("T0")
-			buffer.setCursor(0, 1); buffer.writeText("A1")
-			buffer.setCursor(0, 2); buffer.writeText("B2")
-			buffer.setCursor(0, 3); buffer.writeText("Z3")
+			buffer.positionCursor(0, 0); buffer.writeText("T0")
+			buffer.positionCursor(0, 1); buffer.writeText("A1")
+			buffer.positionCursor(0, 2); buffer.writeText("B2")
+			buffer.positionCursor(0, 3); buffer.writeText("Z3")
 			buffer.setScrollRegion(2, 3) // rows [1..2]
-			buffer.setCursor(0, 1)
+			buffer.positionCursor(0, 1)
 
 			buffer.deleteLines(1)
 
@@ -698,16 +700,16 @@ class TerminalBufferTest {
 		@Test
 		fun `insertLines and deleteLines are ignored when cursor is outside scroll region`() {
 			val buffer = newBuffer(width = 3, height = 4, maxHistory = 2)
-			buffer.setCursor(0, 0); buffer.writeText("T0")
-			buffer.setCursor(0, 1); buffer.writeText("A1")
-			buffer.setCursor(0, 2); buffer.writeText("B2")
-			buffer.setCursor(0, 3); buffer.writeText("Z3")
+			buffer.positionCursor(0, 0); buffer.writeText("T0")
+			buffer.positionCursor(0, 1); buffer.writeText("A1")
+			buffer.positionCursor(0, 2); buffer.writeText("B2")
+			buffer.positionCursor(0, 3); buffer.writeText("Z3")
 			buffer.setScrollRegion(2, 3) // rows [1..2]
 			val before = buffer.getScreenAsString()
 
-			buffer.setCursor(0, 0)
+			buffer.positionCursor(0, 0)
 			buffer.insertLines(1)
-			buffer.setCursor(0, 3)
+			buffer.positionCursor(0, 3)
 			buffer.deleteLines(1)
 
 			assertEquals(before, buffer.getScreenAsString())
@@ -716,18 +718,18 @@ class TerminalBufferTest {
 		@Test
 		fun `insertLines and deleteLines clamp count to remaining region`() {
 			val buffer = newBuffer(width = 3, height = 4, maxHistory = 2)
-			buffer.setCursor(0, 0); buffer.writeText("T0")
-			buffer.setCursor(0, 1); buffer.writeText("A1")
-			buffer.setCursor(0, 2); buffer.writeText("B2")
-			buffer.setCursor(0, 3); buffer.writeText("Z3")
+			buffer.positionCursor(0, 0); buffer.writeText("T0")
+			buffer.positionCursor(0, 1); buffer.writeText("A1")
+			buffer.positionCursor(0, 2); buffer.writeText("B2")
+			buffer.positionCursor(0, 3); buffer.writeText("Z3")
 			buffer.setScrollRegion(2, 3) // rows [1..2]
 
-			buffer.setCursor(0, 1)
+			buffer.positionCursor(0, 1)
 			buffer.insertLines(99)
 			assertEquals("", buffer.getLineAsString(1))
 			assertEquals("", buffer.getLineAsString(2))
 
-			buffer.setCursor(0, 1)
+			buffer.positionCursor(0, 1)
 			buffer.deleteLines(99)
 			assertEquals("", buffer.getLineAsString(1))
 			assertEquals("", buffer.getLineAsString(2))
@@ -737,7 +739,7 @@ class TerminalBufferTest {
 		fun `deleteCharacters shifts remaining line content left and keeps cursor`() {
 			val buffer = newBuffer(width = 6, height = 2)
 			buffer.writeText("ABCDEF")
-			buffer.setCursor(1, 0)
+			buffer.positionCursor(1, 0)
 			buffer.setPenAttributes(fg = 2, bg = 3)
 
 			buffer.deleteCharacters(2) // Delete "BC"
@@ -754,7 +756,7 @@ class TerminalBufferTest {
 		fun `deleteCharacters is no-op for zero and negative count`() {
 			val buffer = newBuffer(width = 6, height = 1)
 			buffer.writeText("ABCDE")
-			buffer.setCursor(2, 0)
+			buffer.positionCursor(2, 0)
 
 			buffer.deleteCharacters(0)
 			buffer.deleteCharacters(-3)
@@ -769,7 +771,7 @@ class TerminalBufferTest {
 		fun `deleteCharacters clamps count to remaining cells`() {
 			val buffer = newBuffer(width = 6, height = 1)
 			buffer.writeText("ABCDE")
-			buffer.setCursor(3, 0)
+			buffer.positionCursor(3, 0)
 
 			buffer.deleteCharacters(99)
 
@@ -787,7 +789,7 @@ class TerminalBufferTest {
 			val buffer = newBuffer(width = 2, height = 2, maxHistory = 5)
 			buffer.writeText("ABCDE")
 			val beforeHistory = buffer.historySize
-			buffer.setCursor(0, 1)
+			buffer.positionCursor(0, 1)
 
 			buffer.deleteCharacters(1)
 
@@ -798,7 +800,7 @@ class TerminalBufferTest {
 		fun `deleteCharacters annihilates wide leader at cursor`() {
 			val buffer = newBuffer(width = 6, height = 1)
 			buffer.writeText("A😀B")
-			buffer.setCursor(1, 0)
+			buffer.positionCursor(1, 0)
 
 			buffer.deleteCharacters(1)
 
@@ -813,7 +815,7 @@ class TerminalBufferTest {
 		fun `deleteCharacters annihilates wide spacer at cursor`() {
 			val buffer = newBuffer(width = 6, height = 1)
 			buffer.writeText("A😀B")
-			buffer.setCursor(2, 0)
+			buffer.positionCursor(2, 0)
 
 			buffer.deleteCharacters(1)
 
@@ -828,7 +830,7 @@ class TerminalBufferTest {
 		fun `deleteCharacters annihilates right-boundary spacer to prevent orphan wide`() {
 			val buffer = newBuffer(width = 6, height = 1)
 			buffer.writeText("AB😀C")
-			buffer.setCursor(1, 0)
+			buffer.positionCursor(1, 0)
 			buffer.deleteCharacters(2)
 
 			assertAll(
@@ -842,7 +844,7 @@ class TerminalBufferTest {
 		fun `deleteCharacters keeps non-spacer right boundary content intact`() {
 			val buffer = newBuffer(width = 6, height = 1)
 			buffer.writeText("AB😀C")
-			buffer.setCursor(1, 0)
+			buffer.positionCursor(1, 0)
 			buffer.deleteCharacters(1)
 
 			assertAll(
@@ -857,7 +859,7 @@ class TerminalBufferTest {
 		fun `carriageReturn resets only the column`() {
 			val buffer = newBuffer(width = 4, height = 3)
 
-			buffer.setCursor(3, 2)
+			buffer.positionCursor(3, 2)
 			buffer.carriageReturn()
 
 			assertCursor(buffer, 0, 2)
@@ -868,7 +870,7 @@ class TerminalBufferTest {
 			val buffer = newBuffer(width = 5, height = 2)
 
 			buffer.writeText("ABCDE")
-			buffer.setCursor(2, 0)
+			buffer.positionCursor(2, 0)
 			buffer.setPenAttributes(1, 2, bold = true)
 			buffer.eraseLineToEnd()
 
@@ -884,7 +886,7 @@ class TerminalBufferTest {
 			val buffer = newBuffer(width = 5, height = 2)
 
 			buffer.writeText("ABCDE")
-			buffer.setCursor(2, 0)
+			buffer.positionCursor(2, 0)
 			buffer.setPenAttributes(3, 4, italic = true)
 			buffer.eraseLineToCursor()
 
@@ -902,7 +904,7 @@ class TerminalBufferTest {
 			val buffer = newBuffer(width = 5, height = 2)
 
 			buffer.writeText("ABCDE")
-			buffer.setCursor(2, 0)
+			buffer.positionCursor(2, 0)
 			buffer.setPenAttributes(4, 5, bold = true, underline = true)
 			buffer.eraseCurrentLine()
 
@@ -922,7 +924,7 @@ class TerminalBufferTest {
 		fun `eraseScreenToEnd clears from cursor to end of visible screen`() {
 			val buffer = newBuffer(width = 3, height = 3, maxHistory = 0)
 			buffer.writeText("ABCDEF")
-			buffer.setCursor(1, 0)
+			buffer.positionCursor(1, 0)
 
 			buffer.eraseScreenToEnd()
 
@@ -937,7 +939,7 @@ class TerminalBufferTest {
 		fun `eraseScreenToEnd at home clears entire screen`() {
 			val buffer = newBuffer(width = 2, height = 2, maxHistory = 0)
 			buffer.writeText("ABCD")
-			buffer.setCursor(0, 0)
+			buffer.positionCursor(0, 0)
 
 			buffer.eraseScreenToEnd()
 
@@ -951,7 +953,7 @@ class TerminalBufferTest {
 		fun `eraseScreenToEnd at end clears only last cell`() {
 			val buffer = newBuffer(width = 2, height = 3, maxHistory = 0)
 			buffer.writeText("ABCD")
-			buffer.setCursor(1, 1)
+			buffer.positionCursor(1, 1)
 
 			buffer.eraseScreenToEnd()
 
@@ -967,7 +969,7 @@ class TerminalBufferTest {
 			val buffer = newBuffer(width = 3, height = 3, maxHistory = 0)
 			buffer.writeText("ABCDEF")
 			buffer.setPenAttributes(fg = 2, bg = 3, bold = true)
-			buffer.setCursor(1, 0)
+			buffer.positionCursor(1, 0)
 
 			buffer.eraseScreenToEnd()
 
@@ -984,7 +986,7 @@ class TerminalBufferTest {
 		fun `eraseScreenToEnd does not move cursor`() {
 			val buffer = newBuffer(width = 4, height = 2, maxHistory = 0)
 			buffer.writeText("ABCD")
-			buffer.setCursor(2, 1)
+			buffer.positionCursor(2, 1)
 
 			buffer.eraseScreenToEnd()
 
@@ -995,7 +997,7 @@ class TerminalBufferTest {
 		fun `eraseScreenToCursor clears from start of screen through cursor`() {
 			val buffer = newBuffer(width = 3, height = 4, maxHistory = 0)
 			buffer.writeText("ABCDEFGHI")
-			buffer.setCursor(1, 1)
+			buffer.positionCursor(1, 1)
 
 			buffer.eraseScreenToCursor()
 
@@ -1011,7 +1013,7 @@ class TerminalBufferTest {
 			val buffer = newBuffer(width = 2, height = 3, maxHistory = 0)
 			buffer.writeText("ABCD")
 			// rows: "AB" / "CD" / "" — no scroll occurred
-			buffer.setCursor(0, 0)
+			buffer.positionCursor(0, 0)
 
 			buffer.eraseScreenToCursor()
 
@@ -1025,7 +1027,7 @@ class TerminalBufferTest {
 		fun `eraseScreenToCursor at end clears entire screen`() {
 			val buffer = newBuffer(width = 2, height = 2, maxHistory = 0)
 			buffer.writeText("ABCD")
-			buffer.setCursor(1, 1)
+			buffer.positionCursor(1, 1)
 
 			buffer.eraseScreenToCursor()
 
@@ -1040,7 +1042,7 @@ class TerminalBufferTest {
 			val buffer = newBuffer(width = 3, height = 2, maxHistory = 0)
 			buffer.writeText("ABCDEF")
 			buffer.setPenAttributes(fg = 5, bg = 1, italic = true)
-			buffer.setCursor(1, 1)
+			buffer.positionCursor(1, 1)
 
 			buffer.eraseScreenToCursor()
 
@@ -1056,7 +1058,7 @@ class TerminalBufferTest {
 		fun `eraseScreenToCursor does not move cursor`() {
 			val buffer = newBuffer(width = 4, height = 2, maxHistory = 0)
 			buffer.writeText("ABCD")
-			buffer.setCursor(1, 0)
+			buffer.positionCursor(1, 0)
 
 			buffer.eraseScreenToCursor()
 
@@ -1070,7 +1072,7 @@ class TerminalBufferTest {
 			// History: "AB" (row 0), Screen: "CD" (row 1)
 			assertEquals(1, buffer.historySize)
 
-			buffer.setCursor(0, 0)
+			buffer.positionCursor(0, 0)
 			buffer.eraseScreenToEnd()
 
 			// History should be untouched
@@ -1083,7 +1085,7 @@ class TerminalBufferTest {
 		fun `eraseEntireScreen clears entire visible screen without moving cursor`() {
 			val buffer = newBuffer(width = 3, height = 3, maxHistory = 0)
 			buffer.writeText("ABCDEFGHI")
-			buffer.setCursor(1, 1)
+			buffer.positionCursor(1, 1)
 			buffer.setPenAttributes(fg = 2, bg = 3, bold = true)
 
 			buffer.eraseEntireScreen()
@@ -1134,7 +1136,7 @@ class TerminalBufferTest {
 			buffer.writeText("ABCD")
 
 			// Test at home
-			buffer.setCursor(0, 0)
+			buffer.positionCursor(0, 0)
 			buffer.eraseEntireScreen()
 			assertAll(
 				{ assertEquals("", buffer.getLineAsString(0)) },
@@ -1143,7 +1145,7 @@ class TerminalBufferTest {
 
 			// Refill and test at end
 			buffer.writeText("ABCD")
-			buffer.setCursor(1, 1)
+			buffer.positionCursor(1, 1)
 			buffer.eraseEntireScreen()
 			assertAll(
 				{ assertEquals("", buffer.getLineAsString(1)) },
@@ -1157,7 +1159,7 @@ class TerminalBufferTest {
 			buffer.writeText("ABCDEF")
 			// History: "AB", "CD"; Screen: "EF"
 			assertEquals(2, buffer.historySize)
-			buffer.setCursor(1, 1)
+			buffer.positionCursor(1, 1)
 
 			buffer.eraseScreenAndHistory()
 
@@ -1189,7 +1191,7 @@ class TerminalBufferTest {
 		fun `eraseScreenAndHistory with zero history`() {
 			val buffer = newBuffer(width = 2, height = 2, maxHistory = 0)
 			buffer.writeText("ABCD")
-			buffer.setCursor(0, 0)
+			buffer.positionCursor(0, 0)
 
 			buffer.eraseScreenAndHistory()
 
@@ -1207,7 +1209,7 @@ class TerminalBufferTest {
 			buffer.writeText("ABCDE")
 
 			// Test at home
-			buffer.setCursor(0, 0)
+			buffer.positionCursor(0, 0)
 			buffer.eraseScreenAndHistory()
 			assertAll(
 				{ assertEquals(0, buffer.historySize) },
@@ -1216,7 +1218,7 @@ class TerminalBufferTest {
 
 			// Refill and test at bottom-right
 			buffer.writeText("ABCDE")
-			buffer.setCursor(1, 1)
+			buffer.positionCursor(1, 1)
 			buffer.eraseScreenAndHistory()
 			assertAll(
 				{ assertEquals(0, buffer.historySize) },
