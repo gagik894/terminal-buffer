@@ -1,281 +1,806 @@
 package com.gagik.terminal.engine
 
+import com.gagik.terminal.model.Line
 import com.gagik.terminal.state.TerminalState
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
-@DisplayName("CursorEngine Test Suite")
+@DisplayName("CursorEngine")
 class CursorEngineTest {
 
-    private fun createState(width: Int = 4, height: Int = 3, history: Int = 2): TerminalState {
-        return TerminalState(width, height, maxHistory = history)
+    // ── Fixtures ──────────────────────────────────────────────────────────
+
+    private fun state(width: Int = 6, height: Int = 4, history: Int = 2) =
+        TerminalState(width, height, maxHistory = history)
+
+    private fun engine(state: TerminalState) = CursorEngine(state)
+
+    private fun line(state: TerminalState, row: Int): Line =
+        state.ring[state.resolveRingIndex(row)]
+
+    private fun seed(state: TerminalState, row: Int, text: String) {
+        val l = line(state, row)
+        text.forEachIndexed { i, c -> if (i < l.width) l.setCell(i, c.code, 0) }
     }
 
-    private fun lineAt(state: TerminalState, row: Int) = state.ring[state.resolveRingIndex(row)]
-
-    private fun seedLine(state: TerminalState, row: Int, text: String, attr: Int = 0) {
-        val line = lineAt(state, row)
-        for ((i, ch) in text.withIndex()) {
-            if (i >= line.width) break
-            line.setCell(i, ch.code, attr)
+    private fun snapshot(state: TerminalState): String = buildString {
+        for (r in 0 until state.dimensions.height) {
+            if (r > 0) append('\n')
+            append(line(state, r).toTextTrimmed())
         }
     }
 
-    private fun screenSnapshot(state: TerminalState): String = buildString {
-        for (row in 0 until state.dimensions.height) {
-            if (row > 0) append('\n')
-            append(lineAt(state, row).toTextTrimmed())
-        }
-    }
+    // Narrow helper: assert no grid mutation occurred
+    private fun assertGridUnchanged(before: String, state: TerminalState) =
+        assertEquals(before, snapshot(state), "grid must not be mutated")
+
+    // ── carriageReturn ────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("carriageReturn")
-    inner class CarriageReturnTests {
+    inner class CarriageReturn {
 
         @Test
-        fun `carriageReturn moves only the cursor column to zero`() {
-            val state = createState()
-            val engine = CursorEngine(state)
-            state.cursor.col = 3
-            state.cursor.row = 2
-
-            engine.carriageReturn()
-
-            assertAll(
-                { assertEquals(0, state.cursor.col) },
-                { assertEquals(2, state.cursor.row) }
-            )
+        fun `moves column to zero, preserves row`() {
+            val s = state(); val e = engine(s)
+            s.cursor.col = 5; s.cursor.row = 3
+            e.carriageReturn()
+            assertAll({ assertEquals(0, s.cursor.col) }, { assertEquals(3, s.cursor.row) })
         }
 
         @Test
-        fun `carriageReturn is idempotent at column zero`() {
-            val state = createState()
-            val engine = CursorEngine(state)
-            state.cursor.col = 0
-            state.cursor.row = 1
+        fun `clears pendingWrap`() {
+            val s = state(); val e = engine(s)
+            s.cursor.pendingWrap = true
+            e.carriageReturn()
+            assertFalse(s.cursor.pendingWrap)
+        }
 
-            engine.carriageReturn()
-            engine.carriageReturn()
+        @Test
+        fun `is idempotent at column zero`() {
+            val s = state(); val e = engine(s)
+            s.cursor.col = 0; s.cursor.row = 2
+            e.carriageReturn(); e.carriageReturn()
+            assertAll({ assertEquals(0, s.cursor.col) }, { assertEquals(2, s.cursor.row) })
+        }
 
-            assertAll(
-                { assertEquals(0, state.cursor.col) },
-                { assertEquals(1, state.cursor.row) }
-            )
+        @Test
+        fun `does not mutate the grid`() {
+            val s = state(); val e = engine(s)
+            seed(s, 0, "AB"); seed(s, 1, "CD")
+            val before = snapshot(s)
+            s.cursor.col = 4; e.carriageReturn()
+            assertGridUnchanged(before, s)
         }
     }
+
+    // ── setCursor ──────────────────────────────────────────────────
 
     @Nested
     @DisplayName("setCursor")
-    inner class SetCursorTests {
+    inner class SetCursor {
 
         @Test
-        fun `setCursor clamps to the top-left when given negatives`() {
-            val state = createState(width = 5, height = 4)
-            val engine = CursorEngine(state)
-
-            engine.setCursor(-99, -42)
-
-            assertAll(
-                { assertEquals(0, state.cursor.col) },
-                { assertEquals(0, state.cursor.row) }
-            )
+        fun `absolute positioning when DECOM is off`() {
+            val s = state(); val e = engine(s)
+            s.modes.isOriginMode = false
+            e.setCursor(2, 3)
+            assertAll({ assertEquals(2, s.cursor.col) }, { assertEquals(3, s.cursor.row) })
         }
 
         @Test
-        fun `setCursor clamps to the bottom-right when given values past bounds`() {
-            val state = createState(width = 5, height = 4)
-            val engine = CursorEngine(state)
-
-            engine.setCursor(99, 999)
-
-            assertAll(
-                { assertEquals(4, state.cursor.col) },
-                { assertEquals(3, state.cursor.row) }
-            )
+        fun `row 0 maps to scrollTop when DECOM is on`() {
+            val s = state(width = 6, height = 6); val e = engine(s)
+            s.scrollTop = 2; s.scrollBottom = 5
+            s.modes.isOriginMode = true
+            e.setCursor(0, 0)
+            assertAll({ assertEquals(0, s.cursor.col) }, { assertEquals(2, s.cursor.row) })
         }
 
         @Test
-        fun `setCursor accepts in-bounds coordinates without adjustment`() {
-            val state = createState(width = 6, height = 3)
-            val engine = CursorEngine(state)
+        fun `row translates relative to scrollTop when DECOM is on`() {
+            val s = state(width = 6, height = 6); val e = engine(s)
+            s.scrollTop = 2; s.scrollBottom = 5
+            s.modes.isOriginMode = true
+            e.setCursor(1, 2)  // col=1, row=2 relative → physical row = 2+2 = 4
+            assertAll({ assertEquals(1, s.cursor.col) }, { assertEquals(4, s.cursor.row) })
+        }
 
-            engine.setCursor(2, 1)
+        @Test
+        fun `cannot escape scrollBottom when DECOM is on`() {
+            val s = state(width = 6, height = 6); val e = engine(s)
+            s.scrollTop = 1; s.scrollBottom = 3
+            s.modes.isOriginMode = true
+            e.setCursor(0, 99)  // would map to row 100; must clamp to scrollBottom
+            assertEquals(3, s.cursor.row)
+        }
 
-            assertAll(
-                { assertEquals(2, state.cursor.col) },
-                { assertEquals(1, state.cursor.row) }
-            )
+        @Test
+        fun `cannot escape scrollTop when DECOM is on`() {
+            val s = state(width = 6, height = 6); val e = engine(s)
+            s.scrollTop = 2; s.scrollBottom = 5
+            s.modes.isOriginMode = true
+            e.setCursor(0, -5)  // scrollTop + (-5) = -3; must clamp to scrollTop
+            assertEquals(2, s.cursor.row)
+        }
+
+        @Test
+        fun `column is always absolute regardless of DECOM`() {
+            val s = state(width = 6, height = 6); val e = engine(s)
+            s.scrollTop = 2; s.scrollBottom = 5
+            s.modes.isOriginMode = true
+            e.setCursor(4, 0)
+            assertEquals(4, s.cursor.col)
+        }
+
+        @Test
+        fun `clamps column past width`() {
+            val s = state(width = 4, height = 4); val e = engine(s)
+            e.setCursor(99, 0)
+            assertEquals(3, s.cursor.col)
+        }
+
+        @Test
+        fun `clears pendingWrap in both DECOM states`() {
+            val s = state(); val e = engine(s)
+            s.cursor.pendingWrap = true
+            s.modes.isOriginMode = false
+            e.setCursor(1, 1)
+            assertFalse(s.cursor.pendingWrap, "pendingWrap must clear (DECOM off)")
+
+            s.cursor.pendingWrap = true
+            s.modes.isOriginMode = true
+            e.setCursor(1, 0)
+            assertFalse(s.cursor.pendingWrap, "pendingWrap must clear (DECOM on)")
         }
     }
+
+    // ── cursorUp ──────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("cursorUp")
+    inner class CursorUp {
+
+        @Test
+        fun `moves up by n rows`() {
+            val s = state(); val e = engine(s)
+            s.cursor.row = 3
+            e.cursorUp(2)
+            assertEquals(1, s.cursor.row)
+        }
+
+        @Test
+        fun `clamps to top of viewport when cursor is outside scroll region`() {
+            val s = state(height = 6); val e = engine(s)
+            s.scrollTop = 2; s.scrollBottom = 4
+            s.cursor.row = 0  // already above scroll region
+            e.cursorUp(5)
+            assertEquals(0, s.cursor.row)
+        }
+
+        @Test
+        fun `stops at scrollTop when cursor is inside scroll region`() {
+            val s = state(height = 6); val e = engine(s)
+            s.scrollTop = 2; s.scrollBottom = 5
+            s.cursor.row = 3
+            e.cursorUp(99)
+            assertEquals(2, s.cursor.row)
+        }
+
+        @Test
+        fun `cursor below scroll region clamps to row 0 (not scrollTop)`() {
+            val s = state(height = 6); val e = engine(s)
+            s.scrollTop = 1; s.scrollBottom = 3
+            s.cursor.row = 5  // below scroll region
+            e.cursorUp(99)
+            assertEquals(0, s.cursor.row)
+        }
+
+        @Test
+        fun `non-positive n is a no-op`() {
+            val s = state(); val e = engine(s)
+            s.cursor.row = 2
+            e.cursorUp(0); assertEquals(2, s.cursor.row, "n=0 must be no-op")
+            e.cursorUp(-3); assertEquals(2, s.cursor.row, "n<0 must be no-op")
+        }
+
+        @Test
+        fun `clears pendingWrap`() {
+            val s = state(); val e = engine(s)
+            s.cursor.row = 3; s.cursor.pendingWrap = true
+            e.cursorUp(1)
+            assertFalse(s.cursor.pendingWrap)
+        }
+
+        @Test
+        fun `does not mutate the grid`() {
+            val s = state(); val e = engine(s)
+            seed(s, 0, "AB"); val before = snapshot(s)
+            s.cursor.row = 2; e.cursorUp(1)
+            assertGridUnchanged(before, s)
+        }
+    }
+
+    // ── cursorDown ────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("cursorDown")
+    inner class CursorDown {
+
+        @Test
+        fun `moves down by n rows`() {
+            val s = state(); val e = engine(s)
+            s.cursor.row = 0
+            e.cursorDown(2)
+            assertEquals(2, s.cursor.row)
+        }
+
+        @Test
+        fun `clamps to bottom of viewport when cursor is outside scroll region`() {
+            val s = state(height = 6); val e = engine(s)
+            s.scrollTop = 1; s.scrollBottom = 3
+            s.cursor.row = 5  // below region
+            e.cursorDown(99)
+            assertEquals(5, s.cursor.row)
+        }
+
+        @Test
+        fun `stops at scrollBottom when cursor is inside scroll region`() {
+            val s = state(height = 6); val e = engine(s)
+            s.scrollTop = 1; s.scrollBottom = 3
+            s.cursor.row = 2
+            e.cursorDown(99)
+            assertEquals(3, s.cursor.row)
+        }
+
+        @Test
+        fun `cursor above scroll region clamps to height-1 (not scrollBottom)`() {
+            val s = state(height = 6); val e = engine(s)
+            s.scrollTop = 2; s.scrollBottom = 4
+            s.cursor.row = 0  // above scroll region
+            e.cursorDown(99)
+            assertEquals(5, s.cursor.row)
+        }
+
+        @Test
+        fun `non-positive n is a no-op`() {
+            val s = state(); val e = engine(s)
+            s.cursor.row = 1
+            e.cursorDown(0); assertEquals(1, s.cursor.row, "n=0 must be no-op")
+            e.cursorDown(-2); assertEquals(1, s.cursor.row, "n<0 must be no-op")
+        }
+
+        @Test
+        fun `clears pendingWrap`() {
+            val s = state(); val e = engine(s)
+            s.cursor.row = 0; s.cursor.pendingWrap = true
+            e.cursorDown(1)
+            assertFalse(s.cursor.pendingWrap)
+        }
+    }
+
+    // ── cursorLeft ────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("cursorLeft")
+    inner class CursorLeft {
+
+        @Test
+        fun `moves left by n columns`() {
+            val s = state(); val e = engine(s)
+            s.cursor.col = 4
+            e.cursorLeft(3)
+            assertEquals(1, s.cursor.col)
+        }
+
+        @Test
+        fun `clamps to column 0`() {
+            val s = state(); val e = engine(s)
+            s.cursor.col = 2
+            e.cursorLeft(99)
+            assertEquals(0, s.cursor.col)
+        }
+
+        @Test
+        fun `non-positive n is a no-op`() {
+            val s = state(); val e = engine(s)
+            s.cursor.col = 3
+            e.cursorLeft(0); assertEquals(3, s.cursor.col)
+            e.cursorLeft(-1); assertEquals(3, s.cursor.col)
+        }
+
+        @Test
+        fun `clears pendingWrap`() {
+            val s = state(); val e = engine(s)
+            s.cursor.col = 5; s.cursor.pendingWrap = true
+            e.cursorLeft(1)
+            assertFalse(s.cursor.pendingWrap)
+        }
+
+        @Test
+        fun `does not mutate the grid`() {
+            val s = state(); val e = engine(s)
+            seed(s, 0, "AB"); val before = snapshot(s)
+            s.cursor.col = 4; e.cursorLeft(2)
+            assertGridUnchanged(before, s)
+        }
+    }
+
+    // ── cursorRight ───────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("cursorRight")
+    inner class CursorRight {
+
+        @Test
+        fun `moves right by n columns`() {
+            val s = state(); val e = engine(s)
+            s.cursor.col = 1
+            e.cursorRight(3)
+            assertEquals(4, s.cursor.col)
+        }
+
+        @Test
+        fun `clamps to width minus one`() {
+            val s = state(width = 5); val e = engine(s)
+            s.cursor.col = 2
+            e.cursorRight(99)
+            assertEquals(4, s.cursor.col)
+        }
+
+        @Test
+        fun `non-positive n is a no-op`() {
+            val s = state(); val e = engine(s)
+            s.cursor.col = 2
+            e.cursorRight(0); assertEquals(2, s.cursor.col)
+            e.cursorRight(-1); assertEquals(2, s.cursor.col)
+        }
+
+        @Test
+        fun `clears pendingWrap`() {
+            val s = state(); val e = engine(s)
+            s.cursor.col = 2; s.cursor.pendingWrap = true
+            e.cursorRight(1)
+            assertFalse(s.cursor.pendingWrap)
+        }
+    }
+
+    // ── horizontalTab ─────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("horizontalTab")
+    inner class HorizontalTab {
+
+        @Test
+        fun `advances to next default tab stop`() {
+            val s = state(width = 20); val e = engine(s)
+            // Default tab stops every 8 columns: 0→8
+            s.cursor.col = 0
+            e.horizontalTab()
+            assertEquals(8, s.cursor.col)
+        }
+
+        @Test
+        fun `advances through multiple tab stops sequentially`() {
+            val s = state(width = 20); val e = engine(s)
+            s.cursor.col = 0
+            e.horizontalTab(); assertEquals(8, s.cursor.col)
+            e.horizontalTab(); assertEquals(16, s.cursor.col)
+        }
+
+        @Test
+        fun `clamps to right margin when no further stops exist`() {
+            val s = state(width = 10); val e = engine(s)
+            // Default stops at 8; from col 9 (width-1) there is no further stop
+            s.cursor.col = 9
+            e.horizontalTab()
+            assertEquals(9, s.cursor.col)
+        }
+
+        @Test
+        fun `clears pendingWrap`() {
+            val s = state(width = 20); val e = engine(s)
+            s.cursor.pendingWrap = true
+            e.horizontalTab()
+            assertFalse(s.cursor.pendingWrap)
+        }
+
+        @Test
+        fun `respects custom tab stops`() {
+            val s = state(width = 20); val e = engine(s)
+            s.tabStops.clearAll()
+            s.tabStops.setStop(3)
+            s.tabStops.setStop(7)
+            s.cursor.col = 0; e.horizontalTab(); assertEquals(3, s.cursor.col)
+            e.horizontalTab(); assertEquals(7, s.cursor.col)
+        }
+
+        @Test
+        fun `does not mutate the grid`() {
+            val s = state(width = 20); val e = engine(s)
+            seed(s, 0, "AB"); val before = snapshot(s)
+            e.horizontalTab()
+            assertGridUnchanged(before, s)
+        }
+    }
+
+    // ── saveCursor ────────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("saveCursor")
-    inner class SaveCursorTests {
+    inner class SaveCursor {
 
         @Test
-        fun `saveCursor captures cursor position and pen attributes`() {
-            val state = createState()
-            val engine = CursorEngine(state)
-            state.cursor.col = 2
-            state.cursor.row = 1
-            state.pen.setAttributes(fg = 3, bg = 4, bold = true, italic = true, underline = false)
+        fun `captures position, pen, pendingWrap, and origin mode`() {
+            val s = state(); val e = engine(s)
+            s.cursor.col = 2; s.cursor.row = 1
+            s.cursor.pendingWrap = true
+            s.modes.isOriginMode = true
+            s.pen.setAttributes(fg = 3, bg = 4, bold = true)
 
-            engine.saveCursor()
+            e.saveCursor()
 
             assertAll(
-                { assertTrue(state.savedCursor.isSaved) },
-                { assertEquals(2, state.savedCursor.col) },
-                { assertEquals(1, state.savedCursor.row) },
-                { assertEquals(state.pen.currentAttr, state.savedCursor.attr) }
+                { assertTrue(s.savedCursor.isSaved) },
+                { assertEquals(2, s.savedCursor.col) },
+                { assertEquals(1, s.savedCursor.row) },
+                { assertEquals(s.pen.currentAttr, s.savedCursor.attr) },
+                { assertTrue(s.savedCursor.pendingWrap) },
+                { assertTrue(s.savedCursor.isOriginMode) }
             )
         }
 
         @Test
-        fun `saveCursor overwrites the previous saved state`() {
-            val state = createState()
-            val engine = CursorEngine(state)
+        fun `captures pendingWrap=false correctly`() {
+            val s = state(); val e = engine(s)
+            s.cursor.pendingWrap = false
+            e.saveCursor()
+            assertFalse(s.savedCursor.pendingWrap)
+        }
 
-            state.cursor.col = 1
-            state.cursor.row = 2
-            state.pen.setAttributes(fg = 1, bg = 2, bold = true)
-            engine.saveCursor()
+        @Test
+        fun `captures isOriginMode=false correctly`() {
+            val s = state(); val e = engine(s)
+            s.modes.isOriginMode = false
+            e.saveCursor()
+            assertFalse(s.savedCursor.isOriginMode)
+        }
 
-            state.cursor.col = 3
-            state.cursor.row = 0
-            state.pen.setAttributes(fg = 5, bg = 6, italic = true)
-            engine.saveCursor()
+        @Test
+        fun `overwrites the previous save`() {
+            val s = state(); val e = engine(s)
+            s.cursor.col = 1; s.cursor.row = 2
+            s.cursor.pendingWrap = true; s.modes.isOriginMode = true
+            e.saveCursor()
+
+            s.cursor.col = 4; s.cursor.row = 3
+            s.cursor.pendingWrap = false; s.modes.isOriginMode = false
+            e.saveCursor()
 
             assertAll(
-                { assertTrue(state.savedCursor.isSaved) },
-                { assertEquals(3, state.savedCursor.col) },
-                { assertEquals(0, state.savedCursor.row) },
-                { assertEquals(state.pen.currentAttr, state.savedCursor.attr) }
+                { assertEquals(4, s.savedCursor.col) },
+                { assertEquals(3, s.savedCursor.row) },
+                { assertFalse(s.savedCursor.pendingWrap) },
+                { assertFalse(s.savedCursor.isOriginMode) }
             )
         }
 
         @Test
-        fun `saveCursor does not mutate the grid`() {
-            val state = createState(width = 4, height = 2)
-            val engine = CursorEngine(state)
-            seedLine(state, 0, "AB")
-            seedLine(state, 1, "CD")
-            val before = screenSnapshot(state)
+        fun `save is a snapshot - mutations after save do not affect saved state`() {
+            val s = state(); val e = engine(s)
+            s.cursor.col = 2; s.cursor.row = 1
+            e.saveCursor()
 
-            engine.saveCursor()
+            // Mutate cursor after save
+            s.cursor.col = 5; s.cursor.row = 3; s.cursor.pendingWrap = true
 
-            assertEquals(before, screenSnapshot(state))
+            assertAll(
+                { assertEquals(2, s.savedCursor.col) },
+                { assertEquals(1, s.savedCursor.row) },
+                { assertFalse(s.savedCursor.pendingWrap) }
+            )
+        }
+
+        @Test
+        fun `does not mutate the grid`() {
+            val s = state(); val e = engine(s)
+            seed(s, 0, "AB"); val before = snapshot(s)
+            e.saveCursor()
+            assertGridUnchanged(before, s)
         }
     }
+
+    // ── restoreCursor ─────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("restoreCursor")
-    inner class RestoreCursorTests {
+    inner class RestoreCursor {
 
         @Test
-        fun `restoreCursor without a saved state homes the cursor and resets the pen`() {
-            val state = createState()
-            val engine = CursorEngine(state)
-            val defaultAttr = state.pen.currentAttr
-            state.cursor.col = 3
-            state.cursor.row = 2
-            state.pen.setAttributes(fg = 7, bg = 8, bold = true, italic = true, underline = true)
+        fun `restores position, pen, pendingWrap, and origin mode`() {
+            val s = state(); val e = engine(s)
 
-            engine.restoreCursor()
+            // pendingWrap=true is only valid when cursor is at the right margin (col = width - 1).
+            s.cursor.col = s.dimensions.width - 1
+            s.cursor.row = 1
+            s.cursor.pendingWrap = true
+            s.modes.isOriginMode = true
+            s.pen.setAttributes(fg = 2, bg = 3, bold = true)
+            e.saveCursor()
+
+            // Dirty everything
+            s.cursor.col = 0; s.cursor.row = 0
+            s.cursor.pendingWrap = false; s.modes.isOriginMode = false
+            s.pen.reset()
+
+            e.restoreCursor()
 
             assertAll(
-                { assertFalse(state.savedCursor.isSaved) },
-                { assertEquals(0, state.cursor.col) },
-                { assertEquals(0, state.cursor.row) },
-                { assertEquals(defaultAttr, state.pen.currentAttr) }
+                { assertEquals(s.dimensions.width - 1, s.cursor.col) },
+                { assertEquals(1, s.cursor.row) },
+                { assertTrue(s.cursor.pendingWrap) },
+                { assertTrue(s.modes.isOriginMode) },
+                { assertEquals(s.savedCursor.attr, s.pen.currentAttr) }
             )
         }
 
         @Test
-        fun `restoreCursor restores saved cursor position and pen attributes`() {
-            val state = createState()
-            val engine = CursorEngine(state)
-            state.cursor.col = 1
-            state.cursor.row = 2
-            state.pen.setAttributes(fg = 2, bg = 3, bold = true, underline = true)
-            engine.saveCursor()
+        fun `without saved state - homes cursor, resets pen, clears origin mode`() {
+            val s = state(); val e = engine(s)
+            val defaultAttr = s.pen.currentAttr
+            s.cursor.col = 4; s.cursor.row = 3
+            s.cursor.pendingWrap = true; s.modes.isOriginMode = true
+            s.pen.setAttributes(fg = 7, bg = 8, bold = true)
 
-            state.cursor.col = 0
-            state.cursor.row = 0
-            state.pen.setAttributes(fg = 5, bg = 6, italic = true)
-
-            engine.restoreCursor()
+            e.restoreCursor()
 
             assertAll(
-                { assertEquals(1, state.cursor.col) },
-                { assertEquals(2, state.cursor.row) },
-                { assertEquals(state.savedCursor.attr, state.pen.currentAttr) }
+                { assertEquals(0, s.cursor.col) },
+                { assertEquals(0, s.cursor.row) },
+                { assertFalse(s.cursor.pendingWrap) },
+                { assertFalse(s.modes.isOriginMode) },
+                { assertEquals(defaultAttr, s.pen.currentAttr) }
             )
         }
 
         @Test
-        fun `restoreCursor clamps saved coordinates after resize`() {
-            val state = createState(width = 6, height = 5)
-            val engine = CursorEngine(state)
-            state.cursor.col = 5
-            state.cursor.row = 4
-            state.pen.setAttributes(fg = 4, bg = 5, bold = true)
-            engine.saveCursor()
+        fun `clamps restored column after terminal narrowed`() {
+            val s = state(width = 10, height = 5); val e = engine(s)
+            s.cursor.col = 9; s.cursor.row = 4
+            e.saveCursor()
 
-            state.dimensions.width = 3
-            state.dimensions.height = 2
-            state.scrollBottom = 1
+            s.dimensions.width = 5
+            s.scrollBottom = 4
+            e.restoreCursor()
 
-            engine.restoreCursor()
+            assertEquals(4, s.cursor.col)
+        }
+
+        @Test
+        fun `clamps restored row after terminal shrunk vertically`() {
+            val s = state(width = 6, height = 6); val e = engine(s)
+            s.cursor.col = 2; s.cursor.row = 5
+            e.saveCursor()
+
+            s.dimensions.height = 3
+            s.scrollBottom = 2
+            e.restoreCursor()
+
+            assertEquals(2, s.cursor.row)
+        }
+
+        @Test
+        fun `pendingWrap survives restore when col still at right margin`() {
+            val s = state(width = 6, height = 4); val e = engine(s)
+            s.cursor.col = 5; s.cursor.row = 0
+            s.cursor.pendingWrap = true
+            e.saveCursor()
+
+            s.cursor.pendingWrap = false
+            e.restoreCursor()
+
+            assertTrue(s.cursor.pendingWrap)
+        }
+
+        @Test
+        fun `pendingWrap cleared when restored col no longer at right margin after widening`() {
+            val s = state(width = 4, height = 4); val e = engine(s)
+            // Save at right margin col=3 of a width=4 terminal
+            s.cursor.col = 3; s.cursor.pendingWrap = true
+            e.saveCursor()
+
+            // Terminal widened: col 3 is no longer the right margin
+            s.dimensions.width = 8
+            e.restoreCursor()
+
+            assertFalse(s.cursor.pendingWrap, "pendingWrap must clear after widening")
+        }
+
+        @Test
+        fun `restored col at new right margin after narrowing keeps pendingWrap`() {
+            val s = state(width = 6, height = 4); val e = engine(s)
+            s.cursor.col = 5; s.cursor.pendingWrap = true
+            e.saveCursor()
+
+            // Narrow so width-1 == 5 still holds but terminal is smaller
+            s.dimensions.width = 6  // same — pendingWrap must survive
+            e.restoreCursor()
+
+            assertTrue(s.cursor.pendingWrap)
+        }
+
+        @Test
+        fun `restores absolute row regardless of current scroll margins`() {
+            val s = state(width = 6, height = 6); val e = engine(s)
+            s.cursor.col = 0; s.cursor.row = 4  // absolute row 4
+            s.modes.isOriginMode = false
+            e.saveCursor()
+
+            // Change margins before restoring
+            s.scrollTop = 2; s.scrollBottom = 3
+            s.modes.isOriginMode = true
+            e.restoreCursor()
+
+            // Row must be the saved absolute row 4, not clamped into [2..3]
+            assertEquals(4, s.cursor.row,
+                "DECRC must restore absolute saved row regardless of current margins")
+        }
+
+        @Test
+        fun `multiple restores without intervening save always produce same result`() {
+            val s = state(); val e = engine(s)
+            s.cursor.col = 3; s.cursor.row = 2
+            s.pen.setAttributes(fg = 1, bg = 2)
+            e.saveCursor()
+
+            e.restoreCursor()
+            s.cursor.col = 5; s.cursor.row = 3  // dirty cursor between restores
+            e.restoreCursor()
 
             assertAll(
-                { assertEquals(2, state.cursor.col) },
-                { assertEquals(1, state.cursor.row) },
-                { assertEquals(state.savedCursor.attr, state.pen.currentAttr) }
+                { assertEquals(3, s.cursor.col) },
+                { assertEquals(2, s.cursor.row) },
+                { assertTrue(s.savedCursor.isSaved) }
             )
         }
 
         @Test
-        fun `restoreCursor does not mutate the grid`() {
-            val state = createState(width = 4, height = 2)
-            val engine = CursorEngine(state)
-            seedLine(state, 0, "AB")
-            seedLine(state, 1, "CD")
-            val before = screenSnapshot(state)
+        fun `does not mutate the grid`() {
+            val s = state(); val e = engine(s)
+            seed(s, 0, "AB"); seed(s, 1, "CD"); val before = snapshot(s)
+            e.restoreCursor()
+            assertGridUnchanged(before, s)
+        }
+    }
 
-            engine.restoreCursor()
+    // ── pendingWrap — cross-method invariant ──────────────────────────────
 
-            assertEquals(before, screenSnapshot(state))
+    @Nested
+    @DisplayName("pendingWrap invariant")
+    inner class PendingWrapInvariant {
+
+        @Test
+        fun `carriageReturn cancels wrap`() {
+            val s = state(); val e = engine(s)
+            s.cursor.col = 5; s.cursor.pendingWrap = true
+            e.carriageReturn()
+            assertFalse(s.cursor.pendingWrap)
+        }
+
+
+        @Test
+        fun `cursorUp cancels wrap`() {
+            val s = state(); val e = engine(s)
+            s.cursor.row = 2; s.cursor.pendingWrap = true
+            e.cursorUp(1); assertFalse(s.cursor.pendingWrap)
         }
 
         @Test
-        fun `restoreCursor preserves a previously saved state across multiple restores`() {
-            val state = createState()
-            val engine = CursorEngine(state)
-            state.cursor.col = 2
-            state.cursor.row = 1
-            state.pen.setAttributes(fg = 1, bg = 2)
-            engine.saveCursor()
+        fun `cursorDown cancels wrap`() {
+            val s = state(); val e = engine(s)
+            s.cursor.row = 0; s.cursor.pendingWrap = true
+            e.cursorDown(1); assertFalse(s.cursor.pendingWrap)
+        }
 
-            state.cursor.col = 0
-            state.cursor.row = 0
-            state.pen.reset()
+        @Test
+        fun `cursorLeft cancels wrap`() {
+            val s = state(); val e = engine(s)
+            s.cursor.col = 3; s.cursor.pendingWrap = true
+            e.cursorLeft(1); assertFalse(s.cursor.pendingWrap)
+        }
 
-            engine.restoreCursor()
-            state.cursor.col = 3
-            state.cursor.row = 2
-            state.pen.setAttributes(fg = 7, bg = 8)
-            engine.restoreCursor()
+        @Test
+        fun `cursorRight cancels wrap`() {
+            val s = state(); val e = engine(s)
+            s.cursor.col = 2; s.cursor.pendingWrap = true
+            e.cursorRight(1); assertFalse(s.cursor.pendingWrap)
+        }
 
-            assertAll(
-                { assertEquals(2, state.cursor.col) },
-                { assertEquals(1, state.cursor.row) },
-                { assertEquals(state.savedCursor.attr, state.pen.currentAttr) },
-                { assertTrue(state.savedCursor.isSaved) }
-            )
+        @Test
+        fun `horizontalTab cancels wrap`() {
+            val s = state(width = 20); val e = engine(s)
+            s.cursor.pendingWrap = true
+            e.horizontalTab(); assertFalse(s.cursor.pendingWrap)
+        }
+
+        @Test
+        fun `no-op cursorUp does not clear pendingWrap`() {
+            // n=0 returns before cancelPendingWrap; flag must be untouched
+            val s = state(); val e = engine(s)
+            s.cursor.row = 2; s.cursor.pendingWrap = true
+            e.cursorUp(0)
+            assertTrue(s.cursor.pendingWrap,
+                "n=0 is a no-op and must not side-effect pendingWrap")
+        }
+
+        @Test
+        fun `no-op cursorDown does not clear pendingWrap`() {
+            val s = state(); val e = engine(s)
+            s.cursor.row = 0; s.cursor.pendingWrap = true
+            e.cursorDown(0)
+            assertTrue(s.cursor.pendingWrap)
+        }
+
+        @Test
+        fun `no-op cursorLeft does not clear pendingWrap`() {
+            val s = state(); val e = engine(s)
+            s.cursor.col = 2; s.cursor.pendingWrap = true
+            e.cursorLeft(0)
+            assertTrue(s.cursor.pendingWrap)
+        }
+
+        @Test
+        fun `no-op cursorRight does not clear pendingWrap`() {
+            val s = state(); val e = engine(s)
+            s.cursor.col = 2; s.cursor.pendingWrap = true
+            e.cursorRight(0)
+            assertTrue(s.cursor.pendingWrap)
+        }
+    }
+
+    // ── DECOM interaction with save/restore ───────────────────────────────
+
+    @Nested
+    @DisplayName("DECOM interaction")
+    inner class DecomInteraction {
+
+        @Test
+        fun `DECSC captures origin-mode-off and DECRC restores it`() {
+            val s = state(); val e = engine(s)
+            s.modes.isOriginMode = false
+            e.saveCursor()
+            s.modes.isOriginMode = true
+            e.restoreCursor()
+            assertFalse(s.modes.isOriginMode)
+        }
+
+        @Test
+        fun `DECSC captures origin-mode-on and DECRC restores it`() {
+            val s = state(); val e = engine(s)
+            s.modes.isOriginMode = true
+            e.saveCursor()
+            s.modes.isOriginMode = false
+            e.restoreCursor()
+            assertTrue(s.modes.isOriginMode)
+        }
+
+        @Test
+        fun `CUP with DECOM on positions correctly, then DECSC round-trips absolute row`() {
+            val s = state(width = 8, height = 8); val e = engine(s)
+            s.scrollTop = 2; s.scrollBottom = 6
+            s.modes.isOriginMode = true
+            e.setCursor(1, 1)  // relative row 1 → absolute row 3
+            assertEquals(3, s.cursor.row)
+            e.saveCursor()
+
+            // Change margins and restore
+            s.scrollTop = 0; s.scrollBottom = 7
+            e.restoreCursor()
+
+            // Restored row must be the saved absolute row 3, not re-translated
+            assertEquals(3, s.cursor.row)
         }
     }
 }
-
-

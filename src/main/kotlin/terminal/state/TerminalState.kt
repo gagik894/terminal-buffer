@@ -56,6 +56,23 @@ internal class TerminalState(
     }
 
     /**
+     * Cancels any pending wrap operation.
+     * This is called when the user presses a key that does not trigger a wrap.
+     */
+    fun cancelPendingWrap() {
+        cursor.pendingWrap = false
+    }
+
+    /**
+     * Resets the cursor position to (0, 0).
+     */
+    fun homeCursor() {
+        cursor.col = 0
+        cursor.row = 0
+        cursor.pendingWrap = false
+    }
+
+    /**
      * Resolves a visible viewport row to its backing line index in the ring.
      *
      * @param viewportRow Viewport row (0-based).
@@ -81,10 +98,9 @@ internal class TerminalState(
         val t = (top - 1).coerceIn(0, dimensions.height - 1)
         val b = (bottom - 1).coerceIn(0, dimensions.height - 1)
         if (t >= b) return   // degenerate region — ignore per spec
-        scrollTop    = t
+        scrollTop = t
         scrollBottom = b
-        cursor.col   = 0
-        cursor.row   = 0
+        homeCursor()
     }
 
     /**
@@ -92,7 +108,8 @@ internal class TerminalState(
      * Called on resize and terminal reset.
      */
     fun resetScrollRegion() {
-        scrollTop    = 0
+        scrollTop = 0
         scrollBottom = dimensions.height - 1
+        homeCursor()
     }
 }
