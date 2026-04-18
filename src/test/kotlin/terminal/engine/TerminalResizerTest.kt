@@ -452,7 +452,7 @@ class TerminalResizerTest {
 
             resizeState(state, 5, 5)
 
-            // "AAABBBCCC" â†’ "AAABB" + "BCCC"
+            // "AAABBBCCC" -> "AAABB" + "BCCC"
             // col 7 maps to col 2 on the second chunk
             assertAll(
                 { assertEquals(2, state.cursor.col, "cursor col after split") },
