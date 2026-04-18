@@ -57,19 +57,14 @@ internal class TerminalBuffer(
 
     override fun saveCursor() = cursorEngine.saveCursor()
     override fun restoreCursor() = cursorEngine.restoreCursor()
-    override fun setCursor(col: Int, row: Int) = cursorEngine.setCursor(col, row)
-    override fun moveCursor(dx: Int, dy: Int) {
-        setCursor(cursorCol + dx, cursorRow + dy)
-    }
+    override fun positionCursor(col: Int, row: Int) = cursorEngine.setCursor(col, row)
+
     override fun cursorUp(n: Int) = cursorEngine.cursorUp(n)
     override fun cursorDown(n: Int) = cursorEngine.cursorDown(n)
-    override fun cursorLeft(n: Int) = moveCursor(-n, 0)
-    override fun cursorRight(n: Int) = moveCursor(n, 0)
+    override fun cursorLeft(n: Int) = cursorEngine.cursorLeft(n)
+    override fun cursorRight(n: Int) = cursorEngine.cursorRight(n)
 
-    override fun resetCursor() {
-        setCursor(0, 0)
-    }
-
+    override fun resetCursor() = cursorEngine.setCursorAbsolute(0, 0)
     override fun setTabStop() = state.tabStops.setStop(state.cursor.col)
     override fun clearTabStop() = state.tabStops.clearStop(state.cursor.col)
     override fun clearAllTabStops() = state.tabStops.clearAll()
@@ -81,6 +76,7 @@ internal class TerminalBuffer(
 
         TerminalResizer.resize(state, newWidth, newHeight)
         state.resetScrollRegion()
+        state.cancelPendingWrap()
     }
 
     // --- Terminal modes ---
@@ -91,6 +87,14 @@ internal class TerminalBuffer(
 
     override fun setAutoWrap(enabled: Boolean) {
         state.modes.isAutoWrap = enabled
+        if (!enabled) state.cancelPendingWrap()
+    }
+
+    override fun setOriginMode(enabled: Boolean) {
+        state.modes.isOriginMode = enabled
+        state.cursor.col = 0
+        state.cursor.row = if (enabled) state.scrollTop else 0
+        state.cursor.pendingWrap = false
     }
 
     override fun setTreatAmbiguousAsWide(enabled: Boolean) {
@@ -142,7 +146,7 @@ internal class TerminalBuffer(
 
     override fun clearScreen() {
         mutationEngine.clearViewport()
-        resetCursor()
+        cursorEngine.setCursorAbsolute(0, 0)
     }
 
     override fun clearAll() {

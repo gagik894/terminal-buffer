@@ -19,6 +19,9 @@ internal class TerminalModes {
     /** Mode 1 — Application Cursor Keys (DECCKM). False = normal cursor keys (default). */
     var isApplicationCursorKeys: Boolean = false
 
+    /** Mode 6 — Origin Mode (DECOM). False = absolute coordinates (default), true = relative to scroll region. */
+    var isOriginMode: Boolean = false
+
     /**
      * Whether ambiguous-width Unicode characters are treated as wide (2-cell).
      * False = treat as narrow (default).
@@ -30,9 +33,10 @@ internal class TerminalModes {
      * Called on hard reset.
      */
     fun reset() {
-        isInsertMode            = false
-        isAutoWrap              = true
+        isInsertMode = false
+        isAutoWrap = true
         isApplicationCursorKeys = false
-        treatAmbiguousAsWide    = false
+        isOriginMode = false
+        treatAmbiguousAsWide = false
     }
 }

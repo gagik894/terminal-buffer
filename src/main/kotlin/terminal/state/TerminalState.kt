@@ -56,6 +56,23 @@ internal class TerminalState(
     }
 
     /**
+     * Cancels any pending wrap operation.
+     * This is called when the user presses a key that does not trigger a wrap.
+     */
+    fun cancelPendingWrap() {
+        cursor.pendingWrap = false
+    }
+
+    /**
+     * Resets the cursor position to (0, 0).
+     */
+    fun homeCursor() {
+        cursor.col = 0
+        cursor.row = 0
+        cursor.pendingWrap = false
+    }
+
+    /**
      * Resolves a visible viewport row to its backing line index in the ring.
      *
      * @param viewportRow Viewport row (0-based).
@@ -72,7 +89,10 @@ internal class TerminalState(
 
     /**
      * Sets the scroll region, clamping and validating inputs.
-     * Resets the cursor to (0, 0) as required by the VT spec.
+     * Homes the cursor as required by the VT spec:
+     * - Without DECOM (origin mode off): cursor goes to (col=0, row=0).
+     * - With DECOM (origin mode on): cursor goes to (col=0, row=scrollTop),
+     *   i.e., the top of the newly established scroll region.
      *
      * @param top 1-based top row from the DECSTBM escape (converted to 0-based internally).
      * @param bottom 1-based bottom row from the DECSTBM escape (converted to 0-based internally).
@@ -80,11 +100,13 @@ internal class TerminalState(
     fun setScrollRegion(top: Int, bottom: Int) {
         val t = (top - 1).coerceIn(0, dimensions.height - 1)
         val b = (bottom - 1).coerceIn(0, dimensions.height - 1)
-        if (t >= b) return   // degenerate region — ignore per spec
-        scrollTop    = t
+        if (t >= b) return
+
+        scrollTop = t
         scrollBottom = b
-        cursor.col   = 0
-        cursor.row   = 0
+        cursor.col = 0
+        cursor.row = if (modes.isOriginMode) t else 0
+        cursor.pendingWrap = false
     }
 
     /**
@@ -92,7 +114,8 @@ internal class TerminalState(
      * Called on resize and terminal reset.
      */
     fun resetScrollRegion() {
-        scrollTop    = 0
+        scrollTop = 0
         scrollBottom = dimensions.height - 1
+        homeCursor()
     }
 }
