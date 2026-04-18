@@ -253,7 +253,7 @@ class TerminalResizerTest {
                 { assertEquals('A'.code, first.getCodepoint(0)) },
                 { assertEquals('B'.code, first.getCodepoint(1)) },
                 { assertEquals(TerminalConstants.EMPTY, first.getCodepoint(2)) },
-                // Second line: ä½  + spacer
+                // Second line: 0x4F60 + spacer
                 { assertEquals(0x4F60, second.getCodepoint(0)) },
                 { assertEquals(TerminalConstants.WIDE_CHAR_SPACER, second.getCodepoint(1)) },
                 { assertEquals(TerminalConstants.EMPTY, second.getCodepoint(2)) }
