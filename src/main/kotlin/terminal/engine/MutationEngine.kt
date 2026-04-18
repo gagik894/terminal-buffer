@@ -100,11 +100,11 @@ internal class MutationEngine(
     private fun findClusterStart(line: Line, col: Int): Int {
         if (col !in 0 until width) return col
 
-        val cp = line.getCodepoint(col)
+        val cp = line.rawCodepoint(col)
         if (cp == TerminalConstants.WIDE_CHAR_SPACER) {
             val prev = col - 1
             if (prev >= 0) {
-                val prevCp = line.getCodepoint(prev)
+                val prevCp = line.rawCodepoint(prev)
                 if (prevCp != TerminalConstants.EMPTY && prevCp != TerminalConstants.WIDE_CHAR_SPACER) {
                     return prev
                 }
