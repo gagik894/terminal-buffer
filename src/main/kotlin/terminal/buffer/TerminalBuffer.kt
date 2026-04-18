@@ -59,10 +59,6 @@ internal class TerminalBuffer(
     override fun restoreCursor() = cursorEngine.restoreCursor()
     override fun positionCursor(col: Int, row: Int) = cursorEngine.setCursor(col, row)
 
-    override fun setOriginMode(enabled: Boolean) {
-        state.modes.isOriginMode = enabled
-    }
-
     override fun cursorUp(n: Int) = cursorEngine.cursorUp(n)
     override fun cursorDown(n: Int) = cursorEngine.cursorDown(n)
     override fun cursorLeft(n: Int) = cursorEngine.cursorLeft(n)
@@ -90,6 +86,12 @@ internal class TerminalBuffer(
 
     override fun setAutoWrap(enabled: Boolean) {
         state.modes.isAutoWrap = enabled
+        if (!enabled) state.cancelPendingWrap()
+    }
+
+    override fun setOriginMode(enabled: Boolean) {
+        state.modes.isOriginMode = enabled
+        state.homeCursor()
     }
 
     override fun setTreatAmbiguousAsWide(enabled: Boolean) {

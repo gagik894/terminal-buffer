@@ -91,14 +91,6 @@ interface TerminalBufferApi {
     fun positionCursor(col: Int, row: Int)
 
     /**
-     * Sets Origin Mode (DECOM, `CSI ? 6 h` / `CSI ? 6 l`).
-     *
-     * Setting or clearing DECOM homes the cursor to `(0, 0)` in the new coordinate
-     * system.
-     */
-    fun setOriginMode(enabled: Boolean)
-
-    /**
      * Moves the cursor up by [n] rows, respecting the active scroll region (CUU, `CSI n A`).
      *
      * If the cursor is within the scroll region, movement stops at scrollTop.
@@ -205,6 +197,14 @@ interface TerminalBufferApi {
      * @param enabled `true` to activate application cursor keys.
      */
     fun setApplicationCursorKeys(enabled: Boolean)
+
+    /**
+     * Sets Origin Mode (DECOM, `CSI ? 6 h` / `CSI ? 6 l`).
+     *
+     * Setting or clearing DECOM homes the cursor to `(0, 0)` in the new coordinate
+     * system.
+     */
+    fun setOriginMode(enabled: Boolean)
 
     /**
      * Controls how ambiguous-width Unicode characters are measured.
