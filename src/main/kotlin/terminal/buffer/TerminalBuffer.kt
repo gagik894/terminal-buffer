@@ -29,6 +29,8 @@ internal class TerminalBuffer private constructor(
         val oldWidth = state.dimensions.width
         val oldHeight = state.dimensions.height
 
+        if (newWidth == oldWidth && newHeight == oldHeight) return
+
         // 1. Reflow the primary screen and build a new ClusterStore
         TerminalResizer.resizeBuffer(state.primaryBuffer, oldWidth, oldHeight, newWidth, newHeight)
 
@@ -48,6 +50,9 @@ internal class TerminalBuffer private constructor(
     }
 
     override fun reset() {
+        if (state.isAltScreenActive) {
+            this.exitAltBuffer()
+        }
         clearAll()
         state.activeBuffer.resetScrollRegion(state.dimensions.height)
         state.modes.reset()
