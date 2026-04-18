@@ -51,9 +51,10 @@ internal class TerminalState(
         if (isAltScreenActive) return
         altBuffer.clearGrid(pen.currentAttr, dimensions.height)
         altBuffer.resetScrollRegion(dimensions.height)
-        altBuffer.cursor.col         = 0
-        altBuffer.cursor.row         = 0
+        altBuffer.cursor.col = 0
+        altBuffer.cursor.row = 0
         altBuffer.cursor.pendingWrap = false
+        altBuffer.savedCursor.clear()
         activeBuffer = altBuffer
     }
 
