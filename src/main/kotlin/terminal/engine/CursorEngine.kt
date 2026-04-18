@@ -32,6 +32,19 @@ internal class CursorEngine(private val state: TerminalState) {
     }
 
     /**
+     * Absolute positioning for programmatic/test use.
+     * This does NOT apply DECOM translation and addresses the entire viewport.
+     *
+     * @param col Target column (0-based).
+     * @param row Target row (0-based).
+     */
+    fun setCursorAbsolute(col: Int, row: Int) {
+        state.cancelPendingWrap()
+        state.cursor.col = state.dimensions.clampCol(col)
+        state.cursor.row = state.dimensions.clampRow(row)
+    }
+
+    /**
      * ANSI CUP/HVP positioning.
      * Applies VT100 Origin Mode (DECOM) translation.
      *

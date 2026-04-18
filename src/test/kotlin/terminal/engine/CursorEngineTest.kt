@@ -76,6 +76,60 @@ class CursorEngineTest {
         }
     }
 
+    // ── setCursorAbsolute ─────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("setCursorAbsolute")
+    inner class SetCursorAbsolute {
+
+        @Test
+        fun `accepts in-bounds coordinates without adjustment`() {
+            val s = state(); val e = engine(s)
+            e.setCursorAbsolute(3, 2)
+            assertAll({ assertEquals(3, s.cursor.col) }, { assertEquals(2, s.cursor.row) })
+        }
+
+        @Test
+        fun `clamps negative values to top-left`() {
+            val s = state(); val e = engine(s)
+            e.setCursorAbsolute(-99, -42)
+            assertAll({ assertEquals(0, s.cursor.col) }, { assertEquals(0, s.cursor.row) })
+        }
+
+        @Test
+        fun `clamps values past bounds to bottom-right`() {
+            val s = state(width = 5, height = 4); val e = engine(s)
+            e.setCursorAbsolute(999, 999)
+            assertAll({ assertEquals(4, s.cursor.col) }, { assertEquals(3, s.cursor.row) })
+        }
+
+        @Test
+        fun `clears pendingWrap`() {
+            val s = state(); val e = engine(s)
+            s.cursor.pendingWrap = true
+            e.setCursorAbsolute(0, 0)
+            assertFalse(s.cursor.pendingWrap)
+        }
+
+        @Test
+        fun `ignores origin mode — always absolute`() {
+            val s = state(); val e = engine(s)
+            s.scrollTop = 2; s.scrollBottom = 3
+            s.modes.isOriginMode = true
+            e.setCursorAbsolute(0, 0)
+            // Must land at absolute (0,0), not scrollTop
+            assertAll({ assertEquals(0, s.cursor.col) }, { assertEquals(0, s.cursor.row) })
+        }
+
+        @Test
+        fun `does not mutate the grid`() {
+            val s = state(); val e = engine(s)
+            seed(s, 0, "XY"); val before = snapshot(s)
+            e.setCursorAbsolute(3, 2)
+            assertGridUnchanged(before, s)
+        }
+    }
+
     // ── setCursor ──────────────────────────────────────────────────
 
     @Nested
