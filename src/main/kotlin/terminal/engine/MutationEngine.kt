@@ -40,6 +40,17 @@ internal class MutationEngine(
 
     /**
      * Internal scroll-up primitive that does not touch pending-wrap state.
+     *
+     * CRITICAL: This function is called from two distinct contexts:
+     * 1. Public API [scrollUp] via [structuralMutation] (which cancels pendingWrap first)
+     * 2. Internal [advanceRow] → [writeToGrid] (where pendingWrap is managed by the write engine itself)
+     *
+     * For context 2, calling [state.cancelPendingWrap] here would silently corrupt mid-write
+     * wrap state, since [writeToGrid] has already decided whether to set or defer wrapping.
+     *
+     * DO NOT add [state.cancelPendingWrap] to this function. The public API is responsible for
+     * calling [structuralMutation], which handles the cancel. Adding it here would break writes
+     * that legitimately rely on edge-wrap behavior inside [advanceRow].
      */
     private fun scrollUpInternal(count: Int = 1) {
         val top = state.scrollTop
@@ -63,6 +74,12 @@ internal class MutationEngine(
 
     /**
      * Internal scroll-down primitive that does not touch pending-wrap state.
+     *
+     * See [scrollUpInternal] for the architectural rationale: this function is called both
+     * from the public API (via [structuralMutation]) and internally from [advanceRow].
+     *
+     * DO NOT add [state.cancelPendingWrap] to this function for the same reasons as
+     * [scrollUpInternal]: doing so would corrupt pending wrap state managed by [writeToGrid].
      */
     private fun scrollDownInternal(count: Int = 1) {
         val top = state.scrollTop
