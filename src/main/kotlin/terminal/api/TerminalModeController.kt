@@ -74,10 +74,13 @@ interface TerminalModeController {
     /**
      * Switches to the alternate screen buffer (ALTBUF on, `CSI ? 1049 h`).
      *
-     * Saves the primary cursor position, pen attributes, and per-screen mode
-     * flags; clears the alternate grid; then activates it. All subsequent
-     * read and write operations target the alternate buffer until
-     * [exitAltBuffer] is called. The alternate buffer has no scrollback history.
+     * Natively saves the primary cursor position, pen attributes, and origin mode
+     * (DECOM) via DECSC. It then clears the alternate grid, resets its scroll
+     * margins, and activates it. All subsequent read and write operations target
+     * the alternate buffer. The alternate buffer has no scrollback history.
+     *
+     * **Note:** Hardware modes (such as Insert Mode or Auto-Wrap) are global in
+     * the VT500 specification. They are explicitly NOT saved per-screen.
      *
      * No-op if already in the alternate buffer.
      */
@@ -86,9 +89,12 @@ interface TerminalModeController {
     /**
      * Returns to the primary screen buffer (ALTBUF off, `CSI ? 1049 l`).
      *
-     * Restores the primary cursor position, pen attributes, and per-screen mode
-     * flags saved when [enterAltBuffer] was called. Alternate buffer content is
-     * discarded. Primary scrollback history is unaffected.
+     * Natively restores the primary cursor position, pen attributes, and origin
+     * mode (DECOM) that were saved via DECRC when [enterAltBuffer] was called.
+     * Alternate buffer content is discarded. Primary scrollback history is unaffected.
+     *
+     * **Note:** Global hardware modes mutated during the alternate session
+     * (such as IRM or DECAWM) are preserved and do not revert upon exit.
      *
      * No-op if already on the primary buffer.
      */
