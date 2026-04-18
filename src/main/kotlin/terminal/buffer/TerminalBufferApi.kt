@@ -113,16 +113,18 @@ interface TerminalBufferApi {
     fun cursorDown(n: Int = 1)
 
     /**
-     * Moves the cursor left by [n] columns, clamped to the left edge (CUB, `CSI n D`).
+     * Moves the cursor left by [n] columns, clamped to column 0 (CUB, CSI n D).
+     * Non-positive values are treated as no-ops.
      *
-     * @param n Number of columns. Negative values move right instead.
+     *@param n Number of columns. Must be >= 1.
      */
     fun cursorLeft(n: Int = 1)
 
     /**
-     * Moves the cursor right by [n] columns, clamped to the right edge (CUF, `CSI n C`).
+     * Moves the cursor left by [n] columns, clamped to column 0 (CUB, CSI n D).
+     * Non-positive values are treated as no-ops.
      *
-     * @param n Number of columns. Negative values move left instead.
+     * @param n Number of columns. Must be >= 1.
      */
     fun cursorRight(n: Int = 1)
 
@@ -288,15 +290,14 @@ interface TerminalBufferApi {
     // ── Scroll region ─────────────────────────────────────────────────────────
 
     /**
-     * Sets the active vertical scroll region (DECSTBM, `CSI top ; bottom r`).
+     * Sets the scroll region, clamping and validating inputs.
+     * Homes the cursor as required by the VT spec:
+     * - Without DECOM (origin mode off): cursor goes to (col=0, row=0).
+     * - With DECOM (origin mode on): cursor goes to (col=0, row=scrollTop),
+     *   i.e., the top of the newly established scroll region.
      *
-     * [top] and [bottom] are **1-based inclusive** row numbers, following the
-     * DECSTBM convention. Both values are clamped to the viewport bounds.
-     * Degenerate or invalid regions (e.g. top ≥ bottom) are ignored.
-     * Setting a region homes the cursor to `(0, 0)`.
-     *
-     * @param top    First row of the scroll region (1-based, inclusive).
-     * @param bottom Last row of the scroll region (1-based, inclusive).
+     * @param top 1-based top row from the DECSTBM escape (converted to 0-based internally).
+     * @param bottom 1-based bottom row from the DECSTBM escape (converted to 0-based internally).
      */
     fun setScrollRegion(top: Int, bottom: Int)
 

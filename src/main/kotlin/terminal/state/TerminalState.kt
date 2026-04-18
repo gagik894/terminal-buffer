@@ -89,7 +89,10 @@ internal class TerminalState(
 
     /**
      * Sets the scroll region, clamping and validating inputs.
-     * Resets the cursor to (0, 0) as required by the VT spec.
+     * Homes the cursor as required by the VT spec:
+     * - Without DECOM (origin mode off): cursor goes to (col=0, row=0).
+     * - With DECOM (origin mode on): cursor goes to (col=0, row=scrollTop),
+     *   i.e., the top of the newly established scroll region.
      *
      * @param top 1-based top row from the DECSTBM escape (converted to 0-based internally).
      * @param bottom 1-based bottom row from the DECSTBM escape (converted to 0-based internally).
