@@ -625,7 +625,7 @@ class TerminalResizerTest {
     @DisplayName("Dimensions update")
     inner class DimensionsTests {
 
-        @ParameterizedTest(name = "Resize {0}x{1} â†’ {2}x{3}")
+        @ParameterizedTest(name = "Resize {0}x{1} -> {2}x{3}")
         @CsvSource(
             "80, 24, 40, 12",
             "40, 12, 80, 24",
