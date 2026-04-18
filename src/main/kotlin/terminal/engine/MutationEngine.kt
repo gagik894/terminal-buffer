@@ -124,15 +124,15 @@ internal class MutationEngine(
 
         val line = getLine(row)
         val start = findClusterStart(line, col)
-        val cp = line.getCodepoint(start)
+        val raw = line.rawCodepoint(start)
         val attr = state.pen.currentAttr
 
-        if (cp == TerminalConstants.WIDE_CHAR_SPACER) {
+        if (raw == TerminalConstants.WIDE_CHAR_SPACER) {
             line.setCell(start, TerminalConstants.EMPTY, attr)
             return
         }
 
-        if (start + 1 < width && line.getCodepoint(start + 1) == TerminalConstants.WIDE_CHAR_SPACER) {
+        if (start + 1 < width && line.rawCodepoint(start + 1) == TerminalConstants.WIDE_CHAR_SPACER) {
             line.setCell(start, TerminalConstants.EMPTY, attr)
             line.setCell(start + 1, TerminalConstants.EMPTY, attr)
             return
@@ -234,12 +234,16 @@ internal class MutationEngine(
         if (!state.modes.isInsertMode && charWidth != 2
             && cRow in 0 until height && cCol in 0 until width) {
             val line = getLine(cRow)
-            if (line.rawCodepoint   (cCol) == TerminalConstants.EMPTY) {
+            if (line.rawCodepoint(cCol) == TerminalConstants.EMPTY) {
                 line.setCell(cCol, codepoint, attr)
                 if (cCol == width - 1) {
-                    line.wrapped = true
-                    state.cursor.col = 0
-                    state.cursor.row = advanceRow(cRow)
+                    if (state.modes.isAutoWrap) {
+                        line.wrapped = true
+                        state.cursor.col = 0
+                        state.cursor.row = advanceRow(cRow)
+                    } else {
+                        state.cursor.col = cCol
+                    }
                 } else {
                     state.cursor.col = cCol + 1
                 }
