@@ -77,10 +77,12 @@ internal object TerminalResizer {
 
                 // If we are chopping exactly at the new width boundary, check if
                 // the NEXT character in the buffer is a wide-character spacer.
-                if (chunkLength == newWidth && offset + chunkLength < builder.size) {
-                    if (builder.codepoints[offset + chunkLength] == TerminalConstants.WIDE_CHAR_SPACER) {
-                        chunkLength--
-                    }
+                if (chunkLength == newWidth
+                    && chunkLength > 1
+                    && offset + chunkLength < builder.size
+                    && builder.codepoints[offset + chunkLength] == TerminalConstants.WIDE_CHAR_SPACER
+                ) {
+                    chunkLength--
                 }
 
                 // Set the wrapped flag after the line has been cleared once. Do NOT
