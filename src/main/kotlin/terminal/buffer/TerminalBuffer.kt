@@ -76,6 +76,7 @@ internal class TerminalBuffer(
 
         TerminalResizer.resize(state, newWidth, newHeight)
         state.resetScrollRegion()
+        state.cancelPendingWrap()
     }
 
     // --- Terminal modes ---
