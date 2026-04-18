@@ -105,12 +105,16 @@ internal class ScreenBuffer(
         scrollTop = 0
         scrollBottom = newHeight - 1
 
+        // Clamp active cursor and UNCONDITIONALLY clear pending wrap (grid is blank)
         cursor.col = cursor.col.coerceAtMost(maxOf(0, newWidth - 1))
         cursor.row = cursor.row.coerceAtMost(maxOf(0, newHeight - 1))
+        cursor.pendingWrap = false
 
-        // If the grid shrank and forced the cursor inward, pending wrap is no longer mathematically valid
-        if (cursor.col < newWidth - 1) {
-            cursor.pendingWrap = false
+        // Clamp saved cursor and UNCONDITIONALLY clear pending wrap (grid is blank)
+        if (savedCursor.isSaved) {
+            savedCursor.col = savedCursor.col.coerceAtMost(maxOf(0, newWidth - 1))
+            savedCursor.row = savedCursor.row.coerceAtMost(maxOf(0, newHeight - 1))
+            savedCursor.pendingWrap = false
         }
     }
 }

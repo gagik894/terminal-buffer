@@ -220,7 +220,7 @@ class ScreenBufferTest {
             { assertEquals(7, buffer.savedCursor.col) },
             { assertEquals(2, buffer.savedCursor.row) },
             { assertEquals(123, buffer.savedCursor.attr) },
-            { assertTrue(buffer.savedCursor.pendingWrap) },
+            { assertFalse(buffer.savedCursor.pendingWrap, "Saved pendingWrap must clear when grid is wiped") },
             { assertTrue(buffer.savedCursor.isOriginMode) },
             { assertTrue(buffer.savedCursor.isSaved) }
         )
@@ -241,6 +241,27 @@ class ScreenBufferTest {
             { assertTrue(buffer.isFullViewportScroll(1)) },
             { assertEquals("", buffer.ring[0].toTextTrimmed()) },
             { assertEquals(41, buffer.ring[0].getPackedAttr(0)) }
+        )
+    }
+
+    @Test
+    fun `replaceStorage clamps savedCursor bounds to prevent out-of-bounds restore crashes`() {
+        val buffer = ScreenBuffer(initialWidth = 10, initialHeight = 10, maxHistory = 0)
+
+        // Simulate a saved cursor at the far edge
+        buffer.savedCursor.isSaved = true
+        buffer.savedCursor.col = 9
+        buffer.savedCursor.row = 9
+        buffer.savedCursor.pendingWrap = true
+
+        // Shrink the terminal massively
+        buffer.replaceStorage(newWidth = 5, newHeight = 5, penAttr = 0)
+
+        assertAll(
+            { assertTrue(buffer.savedCursor.isSaved, "Saved flag should be preserved") },
+            { assertEquals(4, buffer.savedCursor.col, "Saved Col MUST be clamped to new width") },
+            { assertEquals(4, buffer.savedCursor.row, "Saved Row MUST be clamped to new height") },
+            { assertFalse(buffer.savedCursor.pendingWrap, "Saved pending wrap MUST be broken if pushed inward") }
         )
     }
 }

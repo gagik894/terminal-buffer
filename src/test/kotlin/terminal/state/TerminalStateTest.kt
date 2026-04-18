@@ -174,4 +174,27 @@ class TerminalStateTest {
             { assertFalse(state.primaryBuffer.cursor.pendingWrap) }
         )
     }
+
+    @Test
+    fun `enterAltScreen actively clears stale savedCursor from previous alt sessions`() {
+        val state = TerminalState(initialWidth = 10, initialHeight = 10, maxHistory = 10)
+
+        // 1. Enter Alt Screen and simulate an app saving the cursor
+        state.enterAltScreen()
+        state.altBuffer.savedCursor.isSaved = true
+        state.altBuffer.savedCursor.col = 5
+        state.altBuffer.savedCursor.row = 5
+
+        // 2. Exit Alt Screen
+        state.exitAltScreen()
+
+        // 3. Re-enter Alt Screen
+        state.enterAltScreen()
+
+        // Ensure the saved cursor was wiped clean
+        assertFalse(
+            state.altBuffer.savedCursor.isSaved,
+            "Entering the Alt Screen MUST wipe any stale saved cursor state"
+        )
+    }
 }
