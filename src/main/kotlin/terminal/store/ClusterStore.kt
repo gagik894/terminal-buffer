@@ -102,9 +102,13 @@ internal class ClusterStore {
     fun alloc(codepoints: IntArray, offset: Int = 0, length: Int = codepoints.size): Int {
         require(length >= 1) { "cluster must have at least 1 codepoint, got $length" }
         val slot  = acquireSlot()
-        val start = reserveData(length)
+        val start = if (slotLengths[slot] >= length) {
+            slotStarts[slot]        // reuse existing data region
+        } else {
+            reserveData(length)     // bump allocate new region
+        }
         System.arraycopy(codepoints, offset, clusterData, start, length)
-        slotStarts[slot]  = start
+        slotStarts[slot] = start
         slotLengths[slot] = length
         return encodeHandle(slot)
     }
