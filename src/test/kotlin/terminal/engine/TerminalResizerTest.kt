@@ -92,7 +92,7 @@ class TerminalResizerTest {
     }
 
     // =========================================================================
-    // Width changes â€” reflow
+    // Width changes - reflow
     // =========================================================================
 
     @Nested
@@ -222,7 +222,7 @@ class TerminalResizerTest {
                 { assertEquals('B'.code, first.getCodepoint(1)) },
                 { assertEquals('C'.code, first.getCodepoint(2)) },
                 { assertEquals(TerminalConstants.EMPTY, first.getCodepoint(3)) },
-                // Second chunk: ä½  + spacer + D
+                // Second chunk: 0x4F60 + spacer + D
                 { assertEquals(0x4F60, second.getCodepoint(0)) },
                 { assertEquals(TerminalConstants.WIDE_CHAR_SPACER, second.getCodepoint(1)) },
                 { assertEquals('D'.code, second.getCodepoint(2)) },

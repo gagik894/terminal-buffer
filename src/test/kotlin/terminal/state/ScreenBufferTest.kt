@@ -174,7 +174,7 @@ class ScreenBufferTest {
     }
 
     @Test
-    fun `replaceStorage swaps ring and store and rebuilds blank arena at new size`() {
+    fun `replaceStorage swaps ring and store, clamps cursor bounds, and rebuilds blank arena`() {
         val buffer = newBuffer(width = 8, height = 3, maxHistory = 2)
         buffer.clearGrid(penAttr = 5, viewportHeight = 3)
         buffer.ring[0].setCell(0, 'X'.code, 5)
@@ -209,9 +209,14 @@ class ScreenBufferTest {
             { assertEquals(29, buffer.ring[4].getPackedAttr(0)) },
             { assertSame(buffer.store, buffer.ring[0].store) },
             { assertSame(buffer.store, buffer.ring[4].store) },
+
+            // Cursor is preserved because it is within new bounds
             { assertEquals(2, buffer.cursor.col) },
             { assertEquals(1, buffer.cursor.row) },
-            { assertTrue(buffer.cursor.pendingWrap) },
+            // THE FIX: pendingWrap MUST be false because col 2 is not at the new right margin (11)
+            { assertFalse(buffer.cursor.pendingWrap, "pendingWrap must clear when not at right margin") },
+
+            // Saved cursor is untouched by active buffer resizes
             { assertEquals(7, buffer.savedCursor.col) },
             { assertEquals(2, buffer.savedCursor.row) },
             { assertEquals(123, buffer.savedCursor.attr) },
