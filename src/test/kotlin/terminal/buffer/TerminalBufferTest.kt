@@ -1,6 +1,7 @@
 package com.gagik.terminal.buffer
 
 import com.gagik.terminal.TerminalBuffers
+import com.gagik.terminal.api.TerminalBufferApi
 import com.gagik.terminal.model.Attributes
 import com.gagik.terminal.model.TerminalConstants
 import org.junit.jupiter.api.Assertions.*
