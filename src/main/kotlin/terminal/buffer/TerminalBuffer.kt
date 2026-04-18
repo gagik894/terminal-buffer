@@ -61,8 +61,8 @@ internal class TerminalBuffer(
     override fun moveCursor(dx: Int, dy: Int) {
         setCursor(cursorCol + dx, cursorRow + dy)
     }
-    override fun cursorUp(n: Int) = moveCursor(0, -n)
-    override fun cursorDown(n: Int) = moveCursor(0, n)
+    override fun cursorUp(n: Int) = cursorEngine.cursorUp(n)
+    override fun cursorDown(n: Int) = cursorEngine.cursorDown(n)
     override fun cursorLeft(n: Int) = moveCursor(-n, 0)
     override fun cursorRight(n: Int) = moveCursor(n, 0)
 

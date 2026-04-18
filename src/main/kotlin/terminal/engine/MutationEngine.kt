@@ -100,11 +100,11 @@ internal class MutationEngine(
     private fun findClusterStart(line: Line, col: Int): Int {
         if (col !in 0 until width) return col
 
-        val cp = line.getCodepoint(col)
+        val cp = line.rawCodepoint(col)
         if (cp == TerminalConstants.WIDE_CHAR_SPACER) {
             val prev = col - 1
             if (prev >= 0) {
-                val prevCp = line.getCodepoint(prev)
+                val prevCp = line.rawCodepoint(prev)
                 if (prevCp != TerminalConstants.EMPTY && prevCp != TerminalConstants.WIDE_CHAR_SPACER) {
                     return prev
                 }
@@ -124,15 +124,15 @@ internal class MutationEngine(
 
         val line = getLine(row)
         val start = findClusterStart(line, col)
-        val cp = line.getCodepoint(start)
+        val raw = line.rawCodepoint(start)
         val attr = state.pen.currentAttr
 
-        if (cp == TerminalConstants.WIDE_CHAR_SPACER) {
+        if (raw == TerminalConstants.WIDE_CHAR_SPACER) {
             line.setCell(start, TerminalConstants.EMPTY, attr)
             return
         }
 
-        if (start + 1 < width && line.getCodepoint(start + 1) == TerminalConstants.WIDE_CHAR_SPACER) {
+        if (start + 1 < width && line.rawCodepoint(start + 1) == TerminalConstants.WIDE_CHAR_SPACER) {
             line.setCell(start, TerminalConstants.EMPTY, attr)
             line.setCell(start + 1, TerminalConstants.EMPTY, attr)
             return
@@ -200,9 +200,15 @@ internal class MutationEngine(
 
         // Standard wrap + scroll.
         if (cCol >= width) {
-            line.wrapped = true
-            cCol = 0
-            cRow = advanceRow(cRow)
+            if (state.modes.isAutoWrap) {
+                line.wrapped = true
+                cCol = 0
+                cRow = advanceRow(cRow)
+            } else {
+                // DECAWM=false: clamp cursor to the last column. The next character
+                // will overwrite the rightmost cell in place. Do NOT set wrapped.
+                cCol = width - 1
+            }
         }
 
         state.cursor.col = cCol
@@ -228,12 +234,16 @@ internal class MutationEngine(
         if (!state.modes.isInsertMode && charWidth != 2
             && cRow in 0 until height && cCol in 0 until width) {
             val line = getLine(cRow)
-            if (line.rawCodepoint   (cCol) == TerminalConstants.EMPTY) {
+            if (line.rawCodepoint(cCol) == TerminalConstants.EMPTY) {
                 line.setCell(cCol, codepoint, attr)
                 if (cCol == width - 1) {
-                    line.wrapped = true
-                    state.cursor.col = 0
-                    state.cursor.row = advanceRow(cRow)
+                    if (state.modes.isAutoWrap) {
+                        line.wrapped = true
+                        state.cursor.col = 0
+                        state.cursor.row = advanceRow(cRow)
+                    } else {
+                        state.cursor.col = cCol
+                    }
                 } else {
                     state.cursor.col = cCol + 1
                 }

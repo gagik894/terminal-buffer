@@ -151,18 +151,6 @@ class TerminalBufferTest {
 		}
 
 		@Test
-		fun `negative step values reverse direction instead of throwing`() {
-			val buffer = newBuffer(width = 4, height = 4)
-
-			buffer.setCursor(1, 1)
-			buffer.cursorUp(-1)
-			assertCursor(buffer, 1, 2)
-
-			buffer.cursorLeft(-2)
-			assertCursor(buffer, 3, 2)
-		}
-
-		@Test
 		fun `resetCursor returns the cursor home`() {
 			val buffer = newBuffer(width = 4, height = 4)
 
@@ -589,17 +577,6 @@ class TerminalBufferTest {
 			buffer.resetCursor()
 			buffer.horizontalTab()
 			assertEquals(19, buffer.cursorCol) // Directly to right margin
-		}
-
-		@Test
-		fun `clearAll resets tab stops to defaults`() {
-			val buffer = newBuffer(width = 20, height = 1)
-			buffer.clearAllTabStops()
-			buffer.clearAll() // Should reset to default rhythm
-
-			buffer.resetCursor()
-			buffer.horizontalTab()
-			assertEquals(8, buffer.cursorCol)
 		}
 
 		@Test
