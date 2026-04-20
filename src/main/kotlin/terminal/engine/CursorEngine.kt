@@ -207,27 +207,33 @@ internal class CursorEngine(private val state: TerminalState) {
      * DECSC stores the cursor position in absolute screen coordinates, not
      * coordinates relative to the current origin mode or scroll margins.
      * Therefore, DECRC restores the saved row/column as absolute viewport
-     * coordinates and clamps them only to the current screen bounds.
+     * coordinates.
      *
      * Origin mode is restored as a terminal state, but it does not reinterpret
-     * the saved cursor position relative to the current scroll region.
+     * the saved cursor position relative to the current scroll region. The
+     * restored row is clamped only to the current viewport height. The restored
+     * column is clamped to the current effective horizontal bounds:
+     * - with DECLRMM off: `0 .. width - 1`
+     * - with DECLRMM on: `leftMargin .. rightMargin`
      *
      * ## Resize safety
      *
      * A saved pending-wrap state is only valid when the restored cursor is
-     * still on the current right margin. If the terminal width changed since
-     * [saveCursor], [pendingWrap] is restored only when `restoredCol == width - 1`;
-     * otherwise it is cleared to avoid an impossible deferred-wrap state.
+     * still on the current effective right margin. If the terminal width or
+     * active horizontal margins changed since [saveCursor], [pendingWrap] is
+     * restored only when `restoredCol == rightMargin`; otherwise it is cleared
+     * to avoid an impossible deferred-wrap state.
      *
      * ## No prior save
      *
      * If no cursor has been saved:
-     * - the cursor homes to (0, 0)
+     * - the cursor homes to absolute `(0, 0)`
      * - pending-wrap is cleared
      * - pen attributes are reset
      * - origin mode is cleared
      *
-     * This matches documented DECRC reset behavior when no saved state exists.
+     * The no-save path uses [setCursorAbsolute], so it deliberately ignores
+     * DECOM and DECLRMM when homing.
      */
     fun restoreCursor() {
         if (!state.savedCursor.isSaved) {
