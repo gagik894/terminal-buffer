@@ -362,6 +362,37 @@ class MutationEngineTest {
                 assertEquals(TerminalConstants.EMPTY, lineAt(state, 0).getCodepoint(col))
             }
         }
+
+        @Test
+        fun `eraseLineToEnd breaks the soft-wrap flag to prevent ghost concatenation`() {
+            val state = createState(width = 4, height = 2)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "ABCD")
+            lineAt(state, 0).wrapped = true // Manually simulate a line that was soft-wrapped
+
+            state.cursor.col = 2
+            writer.eraseLineToEnd()
+
+            assertAll(
+                { assertEquals(TerminalConstants.EMPTY, lineAt(state, 0).getCodepoint(2)) },
+                { assertFalse(lineAt(state, 0).wrapped, "Erase to end MUST break the soft-wrap flag") }
+            )
+        }
+
+        @Test
+        fun `eraseCurrentLine breaks the soft-wrap flag`() {
+            val state = createState(width = 4, height = 2)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "ABCD")
+            lineAt(state, 0).wrapped = true
+
+            writer.eraseCurrentLine()
+
+            assertAll(
+                { assertEquals(TerminalConstants.EMPTY, lineAt(state, 0).getCodepoint(0)) },
+                { assertFalse(lineAt(state, 0).wrapped, "Erase whole line MUST break the soft-wrap flag") }
+            )
+        }
     }
 
     @Nested
@@ -1231,6 +1262,28 @@ class MutationEngineTest {
                 { assertEquals(2, state.cursor.col) },
                 { assertEquals(0, state.cursor.row) },
                 { assertFalse(state.cursor.pendingWrap) }
+            )
+        }
+
+        @Test
+        fun `wide char at absolute right edge with DECAWM off is safely ignored and does not crash`() {
+            val state = createState(width = 4, height = 2)
+            val writer = MutationEngine(state)
+            state.modes.isAutoWrap = false
+
+            // Move cursor to the absolute final column (width - 1)
+            state.cursor.col = 3
+
+            // This would historically throw an IndexOutOfBoundsException because the wide
+            // char needs 2 cells but auto-wrap is forbidden.
+            assertDoesNotThrow {
+                writer.printCodepoint(0x1F600, 2)
+            }
+
+            assertAll(
+                { assertEquals(TerminalConstants.EMPTY, lineAt(state, 0).getCodepoint(3), "Char should be safely ignored") },
+                { assertEquals(3, state.cursor.col, "Cursor must remain clamped at edge") },
+                { assertFalse(state.cursor.pendingWrap, "Pending wrap must remain false") }
             )
         }
     }

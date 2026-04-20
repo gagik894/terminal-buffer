@@ -115,6 +115,14 @@ internal class MutationEngine(
      * Advances a viewport row by one, triggering scroll if the cursor is
      * sitting on [state.scrollBottom], otherwise simply clamping to [height]-1.
      *
+     * Scroll is only triggered when [row] == [state.scrollBottom]. A cursor
+     * outside the scroll region advances freely and never triggers a scroll,
+     * which is correct VT behaviour for writing below a restricted region.
+     *
+     * Invariant: [state.scrollBottom] is always <= height - 1, guaranteed by
+     * [setScrollRegion] and [resetScrollRegion], so the clamp path can never
+     * overshoot [state.scrollBottom] from below.
+     *
      * Used by [writeToGrid], [printCodepoint], [printCluster], and [newLine].
      */
     private fun advanceRow(row: Int): Int {
@@ -189,6 +197,11 @@ internal class MutationEngine(
         val widthInCells = if (charWidth == 2) 2 else 1
 
         if (cRow !in 0 until height || cCol !in 0 until width) return
+
+        if (widthInCells == 2 && cCol >= width - 1 && !state.modes.isAutoWrap) {
+            return // Ignored per VT spec: wide char does not fit, and wrap is forbidden
+        }
+
         var line = getLine(cRow)
 
         if (state.cursor.pendingWrap) {
@@ -199,7 +212,7 @@ internal class MutationEngine(
             line = getLine(cRow)
         }
 
-        if (widthInCells == 2 && cCol == width - 1) {
+        if (widthInCells == 2 && cCol >= width - 1) {
             annihilateAt(cRow, cCol)
             cCol = 0
             cRow = advanceRow(cRow)
@@ -406,7 +419,9 @@ internal class MutationEngine(
 
     private fun eraseLineToEndInternal(cRow: Int, cCol: Int) {
         annihilateAt(cRow, cCol)
-        getLine(cRow).clearFromColumn(cCol, state.pen.currentAttr)
+        val line = getLine(cRow)
+        line.clearFromColumn(cCol, state.pen.currentAttr)
+        line.wrapped = false
     }
 
     fun eraseLineToEnd() = structuralMutation {
@@ -431,7 +446,9 @@ internal class MutationEngine(
     fun eraseCurrentLine() = structuralMutation {
         val cRow = state.cursor.row
         if (cRow !in 0 until height) return@structuralMutation
-        getLine(cRow).clear(state.pen.currentAttr)
+        val line = getLine(cRow)
+        line.clear(state.pen.currentAttr)
+        line.wrapped = false
     }
 
     /**
