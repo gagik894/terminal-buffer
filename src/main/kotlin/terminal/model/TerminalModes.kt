@@ -14,23 +14,6 @@ package com.gagik.terminal.model
  */
 internal class TerminalModes {
 
-    /** Mouse reporting selection controlled by DECSET private modes. */
-    enum class MouseTrackingMode {
-        OFF,
-        X10,
-        NORMAL,
-        BUTTON_EVENT,
-        ANY_EVENT
-    }
-
-    /** Mouse report encoding selected by xterm private modes. */
-    enum class MouseEncodingMode {
-        DEFAULT,
-        UTF8,
-        SGR,
-        URXVT
-    }
-
     /** Mode 4: Insert/Replace Mode (IRM). False = replace (default), true = insert. */
     var isInsertMode: Boolean = false
 

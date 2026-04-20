@@ -2,6 +2,8 @@ package com.gagik.terminal.buffer.impl
 
 import com.gagik.terminal.api.TerminalModeController
 import com.gagik.terminal.engine.CursorEngine
+import com.gagik.terminal.model.MouseEncodingMode
+import com.gagik.terminal.model.MouseTrackingMode
 import com.gagik.terminal.state.TerminalState
 
 internal class TerminalModeControllerImpl(
@@ -27,11 +29,51 @@ internal class TerminalModeControllerImpl(
 		state.modes.isApplicationCursorKeys = enabled
 	}
 
+	override fun setApplicationKeypad(enabled: Boolean) {
+		state.modes.isApplicationKeypad = enabled
+	}
+
 	override fun setLeftRightMarginMode(enabled: Boolean) {
 		if (state.modes.isLeftRightMarginMode == enabled) return
 		state.modes.isLeftRightMarginMode = enabled
 		state.activeBuffer.resetLeftRightMargins(state.dimensions.width)
 		cursorEngine.homeCursor()
+	}
+
+	override fun setNewLineMode(enabled: Boolean) {
+		state.modes.isNewLineMode = enabled
+	}
+
+	override fun setMouseTrackingMode(mode: MouseTrackingMode) {
+		state.modes.mouseTrackingMode = mode
+	}
+
+	override fun setMouseEncodingMode(mode: MouseEncodingMode) {
+		state.modes.mouseEncodingMode = mode
+	}
+
+	override fun setBracketedPasteEnabled(enabled: Boolean) {
+		state.modes.isBracketedPasteEnabled = enabled
+	}
+
+	override fun setFocusReportingEnabled(enabled: Boolean) {
+		state.modes.isFocusReportingEnabled = enabled
+	}
+
+	override fun setModifyOtherKeysMode(mode: Int) {
+		state.modes.modifyOtherKeysMode = mode
+	}
+
+	override fun setReverseVideo(enabled: Boolean) {
+		state.modes.isReverseVideo = enabled
+	}
+
+	override fun setCursorVisible(enabled: Boolean) {
+		state.modes.isCursorVisible = enabled
+	}
+
+	override fun setCursorBlinking(enabled: Boolean) {
+		state.modes.isCursorBlinking = enabled
 	}
 
 	override fun setTreatAmbiguousAsWide(enabled: Boolean) {

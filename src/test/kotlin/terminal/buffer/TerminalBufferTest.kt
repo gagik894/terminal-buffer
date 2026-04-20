@@ -3,7 +3,8 @@ package com.gagik.terminal.buffer
 import com.gagik.terminal.TerminalBuffers
 import com.gagik.terminal.api.TerminalBufferApi
 import com.gagik.terminal.model.Attributes
-import com.gagik.terminal.model.TerminalModes
+import com.gagik.terminal.model.MouseEncodingMode
+import com.gagik.terminal.model.MouseTrackingMode
 import com.gagik.terminal.state.TerminalState
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
@@ -118,40 +119,42 @@ class TerminalBufferTest {
 		buffer.setAutoWrap(false)
 		buffer.setOriginMode(true)
 		buffer.setApplicationCursorKeys(true)
+		buffer.setApplicationKeypad(true)
+		buffer.setNewLineMode(true)
+		buffer.setLeftRightMarginMode(true)
+		buffer.setReverseVideo(true)
+		buffer.setCursorVisible(false)
+		buffer.setCursorBlinking(true)
+		buffer.setBracketedPasteEnabled(true)
+		buffer.setFocusReportingEnabled(true)
+		buffer.setMouseTrackingMode(MouseTrackingMode.BUTTON_EVENT)
+		buffer.setMouseEncodingMode(MouseEncodingMode.SGR)
+		buffer.setModifyOtherKeysMode(2)
 		buffer.setTreatAmbiguousAsWide(true)
-		state.modes.isApplicationKeypad = true
-		state.modes.isNewLineMode = true
-		state.modes.isLeftRightMarginMode = true
-		state.modes.isReverseVideo = true
-		state.modes.isCursorVisible = false
-		state.modes.isCursorBlinking = true
-		state.modes.isBracketedPasteEnabled = true
-		state.modes.isFocusReportingEnabled = true
-		state.modes.mouseTrackingMode = TerminalModes.MouseTrackingMode.BUTTON_EVENT
-		state.modes.mouseEncodingMode = TerminalModes.MouseEncodingMode.SGR
-		state.modes.modifyOtherKeysMode = 2
 		buffer.enterAltBuffer()
 
 		buffer.reset()
 
+		val snapshot = buffer.getModeSnapshot()
+
 		assertAll(
 			{ assertFalse(state.isAltScreenActive) },
-			{ assertFalse(state.modes.isInsertMode) },
-			{ assertTrue(state.modes.isAutoWrap) },
-			{ assertFalse(state.modes.isOriginMode) },
-			{ assertFalse(state.modes.isApplicationCursorKeys) },
-			{ assertFalse(state.modes.isApplicationKeypad) },
-			{ assertFalse(state.modes.isNewLineMode) },
-			{ assertFalse(state.modes.isLeftRightMarginMode) },
-			{ assertFalse(state.modes.isReverseVideo) },
-			{ assertTrue(state.modes.isCursorVisible) },
-			{ assertFalse(state.modes.isCursorBlinking) },
-			{ assertFalse(state.modes.isBracketedPasteEnabled) },
-			{ assertFalse(state.modes.isFocusReportingEnabled) },
-			{ assertFalse(state.modes.treatAmbiguousAsWide) },
-			{ assertEquals(TerminalModes.MouseTrackingMode.OFF, state.modes.mouseTrackingMode) },
-			{ assertEquals(TerminalModes.MouseEncodingMode.DEFAULT, state.modes.mouseEncodingMode) },
-			{ assertEquals(0, state.modes.modifyOtherKeysMode) },
+			{ assertFalse(snapshot.isInsertMode) },
+			{ assertTrue(snapshot.isAutoWrap) },
+			{ assertFalse(snapshot.isOriginMode) },
+			{ assertFalse(snapshot.isApplicationCursorKeys) },
+			{ assertFalse(snapshot.isApplicationKeypad) },
+			{ assertFalse(snapshot.isNewLineMode) },
+			{ assertFalse(snapshot.isLeftRightMarginMode) },
+			{ assertFalse(snapshot.isReverseVideo) },
+			{ assertTrue(snapshot.isCursorVisible) },
+			{ assertFalse(snapshot.isCursorBlinking) },
+			{ assertFalse(snapshot.isBracketedPasteEnabled) },
+			{ assertFalse(snapshot.isFocusReportingEnabled) },
+			{ assertFalse(snapshot.treatAmbiguousAsWide) },
+			{ assertEquals(MouseTrackingMode.OFF, snapshot.mouseTrackingMode) },
+			{ assertEquals(MouseEncodingMode.DEFAULT, snapshot.mouseEncodingMode) },
+			{ assertEquals(0, snapshot.modifyOtherKeysMode) },
 			{ assertEquals(0, buffer.cursorCol) },
 			{ assertEquals(0, buffer.cursorRow) }
 		)

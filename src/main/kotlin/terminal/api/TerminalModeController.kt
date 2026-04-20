@@ -1,5 +1,8 @@
 package com.gagik.terminal.api
 
+import com.gagik.terminal.model.MouseEncodingMode
+import com.gagik.terminal.model.MouseTrackingMode
+
 /**
  * Mode-control contract for the terminal buffer.
  *
@@ -25,6 +28,9 @@ interface TerminalModeController {
     /** Toggles application cursor key mode (DECCKM, `CSI ? 1 h` / `CSI ? 1 l`). */
     fun setApplicationCursorKeys(enabled: Boolean)
 
+    /** Toggles application keypad mode (DECNKM). */
+    fun setApplicationKeypad(enabled: Boolean)
+
     /**
      * Enables or disables left/right margin mode (DECLRMM, `CSI ? 69 h` / `CSI ? 69 l`).
      *
@@ -32,6 +38,41 @@ interface TerminalModeController {
      * per screen buffer. Enabling or disabling the mode homes the cursor.
      */
     fun setLeftRightMarginMode(enabled: Boolean)
+
+    /** Enables or disables New Line Mode (LNM, `CSI 20 h` / `CSI 20 l`). */
+    fun setNewLineMode(enabled: Boolean)
+
+    /** Sets the active mouse tracking mode used by terminal-to-host reporting. */
+    fun setMouseTrackingMode(mode: MouseTrackingMode)
+
+    /** Sets the active mouse report encoding mode used by terminal-to-host reporting. */
+    fun setMouseEncodingMode(mode: MouseEncodingMode)
+
+    /** Enables or disables bracketed paste reporting (`CSI ? 2004 h` / `CSI ? 2004 l`). */
+    fun setBracketedPasteEnabled(enabled: Boolean)
+
+    /** Enables or disables focus in/out reporting (`CSI ? 1004 h` / `CSI ? 1004 l`). */
+    fun setFocusReportingEnabled(enabled: Boolean)
+
+    /** Sets the modify-other-keys reporting level. */
+    fun setModifyOtherKeysMode(mode: Int)
+
+    /**
+     * Toggles reverse-video presentation state (DECSCNM, `CSI ? 5 h` / `CSI ? 5 l`).
+     *
+     * This is renderer-facing state stored in core because the host controls it.
+     */
+    fun setReverseVideo(enabled: Boolean)
+
+    /**
+     * Toggles cursor visibility presentation state (DECTCEM, `CSI ? 25 h` / `CSI ? 25 l`).
+     *
+     * This is renderer-facing state stored in core because the host controls it.
+     */
+    fun setCursorVisible(enabled: Boolean)
+
+    /** Toggles cursor blink presentation state. */
+    fun setCursorBlinking(enabled: Boolean)
 
     /**
      * Controls how East Asian Ambiguous codepoints are measured for future writes.

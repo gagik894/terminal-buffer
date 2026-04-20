@@ -23,8 +23,8 @@ class TerminalModesTest {
             { assertFalse(modes.isBracketedPasteEnabled) },
             { assertFalse(modes.isFocusReportingEnabled) },
             { assertFalse(modes.treatAmbiguousAsWide) },
-            { assertEquals(TerminalModes.MouseTrackingMode.OFF, modes.mouseTrackingMode) },
-            { assertEquals(TerminalModes.MouseEncodingMode.DEFAULT, modes.mouseEncodingMode) },
+            { assertEquals(MouseTrackingMode.OFF, modes.mouseTrackingMode) },
+            { assertEquals(MouseEncodingMode.DEFAULT, modes.mouseEncodingMode) },
             { assertEquals(0, modes.modifyOtherKeysMode) }
         )
     }
@@ -45,8 +45,8 @@ class TerminalModesTest {
         modes.isBracketedPasteEnabled = true
         modes.isFocusReportingEnabled = true
         modes.treatAmbiguousAsWide = true
-        modes.mouseTrackingMode = TerminalModes.MouseTrackingMode.ANY_EVENT
-        modes.mouseEncodingMode = TerminalModes.MouseEncodingMode.SGR
+        modes.mouseTrackingMode = MouseTrackingMode.ANY_EVENT
+        modes.mouseEncodingMode = MouseEncodingMode.SGR
         modes.modifyOtherKeysMode = 2
 
         modes.reset()
@@ -65,8 +65,8 @@ class TerminalModesTest {
             { assertFalse(modes.isBracketedPasteEnabled) },
             { assertFalse(modes.isFocusReportingEnabled) },
             { assertFalse(modes.treatAmbiguousAsWide) },
-            { assertEquals(TerminalModes.MouseTrackingMode.OFF, modes.mouseTrackingMode) },
-            { assertEquals(TerminalModes.MouseEncodingMode.DEFAULT, modes.mouseEncodingMode) },
+            { assertEquals(MouseTrackingMode.OFF, modes.mouseTrackingMode) },
+            { assertEquals(MouseEncodingMode.DEFAULT, modes.mouseEncodingMode) },
             { assertEquals(0, modes.modifyOtherKeysMode) }
         )
     }

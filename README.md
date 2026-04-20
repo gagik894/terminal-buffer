@@ -31,6 +31,14 @@ The core is cluster-capable but not a grapheme segmenter.
 - A future parser module should own grapheme segmentation, buffering, and
   dispatch into the core.
 
+## Parser / input handoff
+
+- Parser-facing durable mode control lives on `TerminalModeController`.
+- Input/UI-facing durable mode reads live on `TerminalModeReader` via immutable
+  `TerminalModeSnapshot` values.
+- The core stores host-controlled input and presentation flags, but it does not
+  encode input events or render frames.
+
 ## Behavioral notes
 
 - Wide characters and grapheme clusters are stored explicitly in the grid.

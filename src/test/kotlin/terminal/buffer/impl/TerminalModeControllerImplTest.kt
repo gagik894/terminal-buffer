@@ -1,6 +1,8 @@
 package com.gagik.terminal.buffer.impl
 
 import com.gagik.terminal.engine.CursorEngine
+import com.gagik.terminal.model.MouseEncodingMode
+import com.gagik.terminal.model.MouseTrackingMode
 import com.gagik.terminal.state.TerminalState
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
@@ -20,6 +22,36 @@ class TerminalModeControllerImplTest {
             { assertEquals(true, state.modes.isInsertMode) },
             { assertEquals(true, state.modes.isApplicationCursorKeys) },
             { assertEquals(true, state.modes.treatAmbiguousAsWide) }
+        )
+    }
+
+    @Test
+    fun `new fields round trip into shared state`() {
+        val state = TerminalState(4, 3, 2)
+        val modeController = TerminalModeControllerImpl(state, CursorEngine(state))
+
+        modeController.setNewLineMode(true)
+        modeController.setApplicationKeypad(true)
+        modeController.setMouseTrackingMode(MouseTrackingMode.BUTTON_EVENT)
+        modeController.setMouseEncodingMode(MouseEncodingMode.SGR)
+        modeController.setBracketedPasteEnabled(true)
+        modeController.setFocusReportingEnabled(true)
+        modeController.setModifyOtherKeysMode(2)
+        modeController.setReverseVideo(true)
+        modeController.setCursorVisible(false)
+        modeController.setCursorBlinking(true)
+
+        assertAll(
+            { assertTrue(state.modes.isNewLineMode) },
+            { assertTrue(state.modes.isApplicationKeypad) },
+            { assertEquals(MouseTrackingMode.BUTTON_EVENT, state.modes.mouseTrackingMode) },
+            { assertEquals(MouseEncodingMode.SGR, state.modes.mouseEncodingMode) },
+            { assertTrue(state.modes.isBracketedPasteEnabled) },
+            { assertTrue(state.modes.isFocusReportingEnabled) },
+            { assertEquals(2, state.modes.modifyOtherKeysMode) },
+            { assertTrue(state.modes.isReverseVideo) },
+            { assertFalse(state.modes.isCursorVisible) },
+            { assertTrue(state.modes.isCursorBlinking) }
         )
     }
 

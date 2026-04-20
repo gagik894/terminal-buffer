@@ -24,6 +24,7 @@ internal class TerminalBuffer private constructor(
     TerminalWriter by TerminalWriterImpl(components.state, components.mutationEngine, components.cursorEngine),
     TerminalCursor by TerminalCursorImpl(components.state, components.cursorEngine),
     TerminalModeController by TerminalModeControllerImpl(components.state, components.cursorEngine),
+    TerminalModeReader by TerminalModeReaderImpl(components.state),
     TerminalInspector by TerminalInspectorImpl(components.state) {
 
     private val state: TerminalState
