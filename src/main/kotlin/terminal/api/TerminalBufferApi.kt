@@ -4,13 +4,14 @@ package com.gagik.terminal.api
  * Full public contract for the terminal buffer.
  *
  * Composes all role-specific interfaces into a single surface for host
- * applications and integration tests. The ANSI parser should depend only
- * on the narrower interfaces it actually needs ([TerminalWriter],
- * [TerminalCursor], [TerminalModeController]) rather than this full contract.
+ * applications and integration tests.
  *
- * All row and column indices are **0-based** unless a method explicitly states
- * otherwise (e.g. [TerminalWriter.setScrollRegion] follows the 1-based
- * DECSTBM convention).
+ * Coordinates are always zero-based when they are expressed directly as rows
+ * and columns on this API. DEC/ANSI commands that are traditionally 1-based
+ * should be translated by the parser before they reach the core.
+ *
+ * The parser should depend only on the narrower interfaces it actually needs;
+ * this facade mainly exists for host integration points and tests.
  */
 interface TerminalBufferApi :
     TerminalWriter,
@@ -20,16 +21,17 @@ interface TerminalBufferApi :
     TerminalInspector {
 
     /**
-     * Resizes the terminal to [newWidth] × [newHeight].
+     * Resizes the terminal to [newWidth] x [newHeight].
      *
      * Existing content is reflowed to the new width. The cursor is relocated to
      * the corresponding position in the reflowed content. Scrollback history is
-     * preserved within the configured capacity. The active scroll region is reset
-     * to the full viewport. Both the primary and alternate grids are resized.
+     * preserved within the configured capacity. Both the primary and alternate
+     * grids are resized, and both screen buffers reset their scroll regions to
+     * the full viewport. Saved-cursor state is clamped to the new bounds.
      *
-     * @param newWidth  New terminal width in cells. Must be > 0.
+     * @param newWidth New terminal width in cells. Must be > 0.
      * @param newHeight New terminal height in rows. Must be > 0.
-     * @throws IllegalArgumentException if either dimension is ≤ 0.
+     * @throws IllegalArgumentException if either dimension is <= 0.
      */
     fun resize(newWidth: Int, newHeight: Int)
 
