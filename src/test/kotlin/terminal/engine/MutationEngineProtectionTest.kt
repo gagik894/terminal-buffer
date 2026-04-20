@@ -131,7 +131,7 @@ class MutationEngineProtectionTest {
     }
 
     @Test
-    fun `protectedSpacer_selectiveErase_noop`() {
+    fun `selectiveErase_protectedSpacerInheritsLeaderProtection`() {
         val state = createState(width = 4, height = 1)
         val writer = MutationEngine(state)
         state.pen.setSelectiveEraseProtection(true)
@@ -148,7 +148,7 @@ class MutationEngineProtectionTest {
     }
 
     @Test
-    fun `ich_dch_shiftsProtectedCells`() {
+    fun `ich_shiftedCells_preserveProtectionBit`() {
         val state = createState(width = 5, height = 1)
         val writer = MutationEngine(state)
         state.pen.setSelectiveEraseProtection(true)
@@ -165,12 +165,27 @@ class MutationEngineProtectionTest {
             { assertTrue(AttributeCodec.isProtected(lineAt(state, 0).getPackedAttr(1))) },
             { assertFalse(AttributeCodec.isProtected(lineAt(state, 0).getPackedAttr(0))) }
         )
+    }
+
+    @Test
+    fun `dch_shiftedCells_preserveProtectionBit`() {
+        val state = createState(width = 5, height = 1)
+        val writer = MutationEngine(state)
+        state.pen.setSelectiveEraseProtection(false)
+        writer.printCodepoint('X'.code, 1)
+        state.pen.setSelectiveEraseProtection(true)
+        writer.printCodepoint('A'.code, 1)
+        state.pen.setSelectiveEraseProtection(false)
+        writer.printCodepoint('B'.code, 1)
+        state.cursor.col = 0
 
         writer.deleteCharacters(1)
 
         assertAll(
             { assertEquals('A'.code, lineAt(state, 0).getCodepoint(0)) },
-            { assertTrue(AttributeCodec.isProtected(lineAt(state, 0).getPackedAttr(0))) }
+            { assertTrue(AttributeCodec.isProtected(lineAt(state, 0).getPackedAttr(0))) },
+            { assertEquals('B'.code, lineAt(state, 0).getCodepoint(1)) },
+            { assertFalse(AttributeCodec.isProtected(lineAt(state, 0).getPackedAttr(1))) }
         )
     }
 }

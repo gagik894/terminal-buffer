@@ -1,9 +1,9 @@
 package com.gagik.terminal.engine
 
 import com.gagik.terminal.codec.AttributeCodec
+import com.gagik.terminal.model.TerminalConstants
 import com.gagik.terminal.state.TerminalState
-import org.junit.jupiter.api.Assertions.assertAll
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 class TerminalResizerProtectionTest {
@@ -32,10 +32,16 @@ class TerminalResizerProtectionTest {
         val top = (state.ring.size - state.dimensions.height).coerceAtLeast(0)
         val firstVisible = state.ring[top]
         val secondVisible = state.ring[top + 1]
+        val thirdVisible = state.ring[top + 2]
 
         assertAll(
+            { assertEquals('A'.code, firstVisible.getCodepoint(0)) },
             { assertTrue(AttributeCodec.isProtected(firstVisible.getPackedAttr(0))) },
-            { assertTrue(firstVisible.getCodepoint(0) == 'A'.code || secondVisible.getCodepoint(0) == 'A'.code) }
+            { assertEquals('B'.code, firstVisible.getCodepoint(1)) },
+            { assertFalse(AttributeCodec.isProtected(firstVisible.getPackedAttr(1))) },
+            { assertEquals('C'.code, secondVisible.getCodepoint(0)) },
+            { assertFalse(AttributeCodec.isProtected(secondVisible.getPackedAttr(0))) },
+            { assertEquals(TerminalConstants.EMPTY, thirdVisible.getCodepoint(0)) }
         )
     }
 }
