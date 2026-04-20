@@ -25,11 +25,20 @@ internal class TerminalCursorImpl(
 
 	override fun resetCursor() = cursorEngine.setCursorAbsolute(0, 0)
 
-	override fun setTabStop() = state.tabStops.setStop(state.cursor.col)
+	override fun setTabStop() {
+		state.cancelPendingWrap()
+		state.tabStops.setStop(state.cursor.col)
+	}
 
-	override fun clearTabStop() = state.tabStops.clearStop(state.cursor.col)
+	override fun clearTabStop() {
+		state.cancelPendingWrap()
+		state.tabStops.clearStop(state.cursor.col)
+	}
 
-	override fun clearAllTabStops() = state.tabStops.clearAll()
+	override fun clearAllTabStops() {
+		state.cancelPendingWrap()
+		state.tabStops.clearAll()
+	}
 
 	override fun horizontalTab() = cursorEngine.horizontalTab()
 

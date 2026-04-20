@@ -96,14 +96,15 @@ interface TerminalCursor {
      * Sets a tab stop at the current cursor column (HTS, `ESC H`).
      *
      * The stop persists until cleared by [clearTabStop], [clearAllTabStops],
-     * or a hard reset.
+     * or a hard reset. As a non-printing control, HTS cancels any pending wrap.
      */
     fun setTabStop()
 
     /**
      * Clears the tab stop at the current cursor column (TBC 0, `CSI 0 g`).
      *
-     * No-op if no stop exists at the current column.
+     * No-op if no stop exists at the current column. As a non-printing control,
+     * TBC 0 cancels any pending wrap.
      */
     fun clearTabStop()
 
@@ -111,7 +112,8 @@ interface TerminalCursor {
      * Clears all tab stops (TBC 3, `CSI 3 g`).
      *
      * After this call, [horizontalTab] advances the cursor directly to the right
-     * margin until stops are re-established.
+     * margin until stops are re-established. As a non-printing control, TBC 3
+     * cancels any pending wrap.
      */
     fun clearAllTabStops()
 

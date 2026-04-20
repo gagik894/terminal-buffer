@@ -2,8 +2,7 @@ package com.gagik.terminal.buffer.impl
 
 import com.gagik.terminal.engine.CursorEngine
 import com.gagik.terminal.state.TerminalState
-import org.junit.jupiter.api.Assertions.assertAll
-import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 class TerminalCursorImplTest {
@@ -96,6 +95,41 @@ class TerminalCursorImplTest {
         cursor.cursorBackwardTab(2)
 
         assertEquals(8, state.cursor.col)
+    }
+
+    @Test
+    fun `setTabStop_cancelsPendingWrap`() {
+        val state = TerminalState(20, 1, 0)
+        val cursor = TerminalCursorImpl(state, CursorEngine(state))
+        state.cursor.col = 19
+        state.cursor.pendingWrap = true
+
+        cursor.setTabStop()
+
+        assertFalse(state.cursor.pendingWrap)
+    }
+
+    @Test
+    fun `clearTabStop_cancelsPendingWrap`() {
+        val state = TerminalState(20, 1, 0)
+        val cursor = TerminalCursorImpl(state, CursorEngine(state))
+        state.cursor.col = 8
+        state.cursor.pendingWrap = true
+
+        cursor.clearTabStop()
+
+        assertFalse(state.cursor.pendingWrap)
+    }
+
+    @Test
+    fun `clearAllTabStops_cancelsPendingWrap`() {
+        val state = TerminalState(20, 1, 0)
+        val cursor = TerminalCursorImpl(state, CursorEngine(state))
+        state.cursor.pendingWrap = true
+
+        cursor.clearAllTabStops()
+
+        assertFalse(state.cursor.pendingWrap)
     }
 }
 

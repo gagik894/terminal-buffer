@@ -29,4 +29,21 @@ class TerminalWriterImplContractTest {
             { assertEquals(2, buffer.cursorCol) }
         )
     }
+
+    @Test
+    fun `setTabStop_breaks_pendingWrap_so_next_print_does_not_wrap`() {
+        val buffer = TerminalBuffers.create(width = 4, height = 2)
+
+        buffer.positionCursor(3, 0)
+        buffer.writeCodepoint('A'.code)
+        buffer.setTabStop()
+        buffer.writeCodepoint('B'.code)
+
+        assertAll(
+            { assertEquals('B'.code, buffer.getCodepointAt(3, 0)) },
+            { assertEquals(0, buffer.getCodepointAt(0, 1)) },
+            { assertEquals(3, buffer.cursorCol) },
+            { assertEquals(0, buffer.cursorRow) }
+        )
+    }
 }
