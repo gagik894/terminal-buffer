@@ -11,29 +11,36 @@ internal class TerminalModeControllerImpl(
 	private val cursorEngine: CursorEngine
 ) : TerminalModeController {
 
+	private inline fun mutateMode(block: () -> Unit) {
+		state.cancelPendingWrap()
+		block()
+	}
+
 	override fun setInsertMode(enabled: Boolean) {
-		state.modes.isInsertMode = enabled
+		mutateMode { state.modes.isInsertMode = enabled }
 	}
 
 	override fun setAutoWrap(enabled: Boolean) {
-		state.modes.isAutoWrap = enabled
-		if (!enabled) state.cancelPendingWrap()
+		mutateMode { state.modes.isAutoWrap = enabled }
 	}
 
 	override fun setOriginMode(enabled: Boolean) {
-		state.modes.isOriginMode = enabled
-		cursorEngine.homeCursor()
+		mutateMode {
+			state.modes.isOriginMode = enabled
+			cursorEngine.homeCursor()
+		}
 	}
 
 	override fun setApplicationCursorKeys(enabled: Boolean) {
-		state.modes.isApplicationCursorKeys = enabled
+		mutateMode { state.modes.isApplicationCursorKeys = enabled }
 	}
 
 	override fun setApplicationKeypad(enabled: Boolean) {
-		state.modes.isApplicationKeypad = enabled
+		mutateMode { state.modes.isApplicationKeypad = enabled }
 	}
 
 	override fun setLeftRightMarginMode(enabled: Boolean) {
+		state.cancelPendingWrap()
 		if (state.modes.isLeftRightMarginMode == enabled) return
 		state.modes.isLeftRightMarginMode = enabled
 		state.activeBuffer.resetLeftRightMargins(state.dimensions.width)
@@ -41,43 +48,43 @@ internal class TerminalModeControllerImpl(
 	}
 
 	override fun setNewLineMode(enabled: Boolean) {
-		state.modes.isNewLineMode = enabled
+		mutateMode { state.modes.isNewLineMode = enabled }
 	}
 
 	override fun setMouseTrackingMode(mode: MouseTrackingMode) {
-		state.modes.mouseTrackingMode = mode
+		mutateMode { state.modes.mouseTrackingMode = mode }
 	}
 
 	override fun setMouseEncodingMode(mode: MouseEncodingMode) {
-		state.modes.mouseEncodingMode = mode
+		mutateMode { state.modes.mouseEncodingMode = mode }
 	}
 
 	override fun setBracketedPasteEnabled(enabled: Boolean) {
-		state.modes.isBracketedPasteEnabled = enabled
+		mutateMode { state.modes.isBracketedPasteEnabled = enabled }
 	}
 
 	override fun setFocusReportingEnabled(enabled: Boolean) {
-		state.modes.isFocusReportingEnabled = enabled
+		mutateMode { state.modes.isFocusReportingEnabled = enabled }
 	}
 
 	override fun setModifyOtherKeysMode(mode: Int) {
-		state.modes.modifyOtherKeysMode = mode
+		mutateMode { state.modes.modifyOtherKeysMode = mode }
 	}
 
 	override fun setReverseVideo(enabled: Boolean) {
-		state.modes.isReverseVideo = enabled
+		mutateMode { state.modes.isReverseVideo = enabled }
 	}
 
 	override fun setCursorVisible(enabled: Boolean) {
-		state.modes.isCursorVisible = enabled
+		mutateMode { state.modes.isCursorVisible = enabled }
 	}
 
 	override fun setCursorBlinking(enabled: Boolean) {
-		state.modes.isCursorBlinking = enabled
+		mutateMode { state.modes.isCursorBlinking = enabled }
 	}
 
 	override fun setTreatAmbiguousAsWide(enabled: Boolean) {
-		state.modes.treatAmbiguousAsWide = enabled
+		mutateMode { state.modes.treatAmbiguousAsWide = enabled }
 	}
 
 	override fun enterAltBuffer() {

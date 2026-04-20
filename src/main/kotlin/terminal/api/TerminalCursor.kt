@@ -31,7 +31,7 @@ interface TerminalCursor {
      * Stops at the top of the scroll region when the cursor is inside it,
      * or at row 0 when outside. Non-positive values are no-ops.
      *
-     * @param n Number of rows. Must be ≥ 1.
+     * @param n Number of rows. Must be >= 1.
      */
     fun cursorUp(n: Int = 1)
 
@@ -41,7 +41,7 @@ interface TerminalCursor {
      * Stops at the bottom of the scroll region when the cursor is inside it,
      * or at the last row when outside. Non-positive values are no-ops.
      *
-     * @param n Number of rows. Must be ≥ 1.
+     * @param n Number of rows. Must be >= 1.
      */
     fun cursorDown(n: Int = 1)
 
@@ -66,20 +66,39 @@ interface TerminalCursor {
     fun cursorRight(n: Int = 1)
 
     /**
-     * Saves the current cursor position and pen attributes (DECSC, `ESC 7`).
+     * Saves the core-owned cursor state (DECSC, `ESC 7`).
      *
-     * One save slot exists per screen. Subsequent calls overwrite the slot.
-     * Restored by [restoreCursor].
+     * The saved state includes:
+     * - cursor column
+     * - cursor row
+     * - pen attributes
+     * - pending-wrap state
+     * - origin mode (DECOM)
+     *
+     * One save slot exists per screen. Subsequent calls overwrite that slot and
+     * [restoreCursor] restores it later.
+     *
+     * This core does not model parser-owned charset designation or shift state
+     * (`G0..G3`, `SO`, `SI`), so DECSC does not capture charset state here.
      */
     fun saveCursor()
 
     /**
-     * Restores the cursor position and pen attributes saved by [saveCursor]
-     * (DECRC, `ESC 8`).
+     * Restores the core-owned state saved by [saveCursor] (DECRC, `ESC 8`).
      *
-     * If no cursor has been saved, homes the cursor to `(0, 0)` and resets
-     * the pen to its default — matching xterm behaviour. The restored position
-     * is clamped to the current grid bounds.
+     * The restored state includes:
+     * - cursor column
+     * - cursor row
+     * - pen attributes
+     * - pending-wrap state
+     * - origin mode (DECOM)
+     *
+     * If no cursor has been saved, the core homes the cursor to absolute
+     * `(0, 0)`, clears origin mode, and resets the pen to its default, matching
+     * the current xterm-style fallback implemented by the core.
+     *
+     * Charset designation and shift state remain outside this contract because
+     * they belong to the parser layer, not to `:terminal-core`.
      */
     fun restoreCursor()
 
@@ -90,7 +109,7 @@ interface TerminalCursor {
      */
     fun resetCursor()
 
-    // ── Tab stops ─────────────────────────────────────────────────────────────
+    // Tab stops
 
     /**
      * Sets a tab stop at the current cursor column (HTS, `ESC H`).

@@ -1,6 +1,7 @@
 package com.gagik.terminal.buffer.impl
 
 import com.gagik.terminal.engine.CursorEngine
+import com.gagik.terminal.engine.MutationEngine
 import com.gagik.terminal.model.MouseEncodingMode
 import com.gagik.terminal.model.MouseTrackingMode
 import com.gagik.terminal.state.TerminalState
@@ -8,6 +9,16 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 class TerminalModeControllerImplTest {
+
+    private fun withPendingWrap(
+        modeController: TerminalModeControllerImpl,
+        state: TerminalState,
+        assertion: () -> Unit
+    ) {
+        state.cursor.pendingWrap = true
+        assertion()
+        assertFalse(state.cursor.pendingWrap)
+    }
 
     @Test
     fun `updates mode flags in the shared state`() {
@@ -52,6 +63,56 @@ class TerminalModeControllerImplTest {
             { assertTrue(state.modes.isReverseVideo) },
             { assertFalse(state.modes.isCursorVisible) },
             { assertTrue(state.modes.isCursorBlinking) }
+        )
+    }
+
+    @Test
+    fun `public mode setters cancel pending wrap`() {
+        val state = TerminalState(8, 4, 2)
+        val modeController = TerminalModeControllerImpl(state, CursorEngine(state))
+
+        withPendingWrap(modeController, state) { modeController.setInsertMode(true) }
+        withPendingWrap(modeController, state) { modeController.setAutoWrap(true) }
+        withPendingWrap(modeController, state) { modeController.setAutoWrap(false) }
+        withPendingWrap(modeController, state) { modeController.setOriginMode(true) }
+        withPendingWrap(modeController, state) { modeController.setApplicationCursorKeys(true) }
+        withPendingWrap(modeController, state) { modeController.setApplicationKeypad(true) }
+        withPendingWrap(modeController, state) { modeController.setLeftRightMarginMode(true) }
+        withPendingWrap(modeController, state) { modeController.setLeftRightMarginMode(true) }
+        withPendingWrap(modeController, state) { modeController.setLeftRightMarginMode(false) }
+        withPendingWrap(modeController, state) { modeController.setNewLineMode(true) }
+        withPendingWrap(modeController, state) { modeController.setMouseTrackingMode(MouseTrackingMode.NORMAL) }
+        withPendingWrap(modeController, state) { modeController.setMouseEncodingMode(MouseEncodingMode.SGR) }
+        withPendingWrap(modeController, state) { modeController.setBracketedPasteEnabled(true) }
+        withPendingWrap(modeController, state) { modeController.setFocusReportingEnabled(true) }
+        withPendingWrap(modeController, state) { modeController.setModifyOtherKeysMode(2) }
+        withPendingWrap(modeController, state) { modeController.setReverseVideo(true) }
+        withPendingWrap(modeController, state) { modeController.setCursorVisible(false) }
+        withPendingWrap(modeController, state) { modeController.setCursorBlinking(true) }
+        withPendingWrap(modeController, state) { modeController.setTreatAmbiguousAsWide(true) }
+    }
+
+    @Test
+    fun `next printable after mode setter does not consume stale pending wrap`() {
+        val state = TerminalState(4, 2, 1)
+        val cursorEngine = CursorEngine(state)
+        val modeController = TerminalModeControllerImpl(state, cursorEngine)
+        val writer = TerminalWriterImpl(state, MutationEngine(state), cursorEngine)
+
+        writer.writeText("ABCD")
+        assertTrue(state.cursor.pendingWrap)
+
+        modeController.setNewLineMode(true)
+        writer.writeCodepoint('X'.code)
+
+        assertAll(
+            { assertEquals('A'.code, state.ring[state.resolveRingIndex(0)].getCodepoint(0)) },
+            { assertEquals('B'.code, state.ring[state.resolveRingIndex(0)].getCodepoint(1)) },
+            { assertEquals('C'.code, state.ring[state.resolveRingIndex(0)].getCodepoint(2)) },
+            { assertEquals('X'.code, state.ring[state.resolveRingIndex(0)].getCodepoint(3)) },
+            { assertEquals(0, state.ring[state.resolveRingIndex(1)].getCodepoint(0)) },
+            { assertEquals(3, state.cursor.col) },
+            { assertEquals(0, state.cursor.row) }
         )
     }
 
