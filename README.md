@@ -34,7 +34,7 @@ The core is cluster-capable but not a grapheme segmenter.
 ## Parser / input handoff
 
 The detailed public contract lives in
-[`docs/terminal-core-contract.md`](docs/terminal-core-contract.md).
+[`docs/terminal-core-contract.md`](terminal-core/docs/terminal-core-contract.md).
 
 - Parser-facing durable mode control lives on `TerminalModeController`.
 - Input/UI-facing durable mode reads live on `TerminalModeReader` via immutable

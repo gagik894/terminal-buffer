@@ -1,0 +1,204 @@
+package com.gagik.core.engine
+
+import com.gagik.core.buffer.HistoryRing
+import com.gagik.core.model.Line
+import com.gagik.core.model.TerminalConstants
+import com.gagik.core.state.ScreenBuffer
+import com.gagik.core.store.ClusterStore
+
+/**
+ * Stateless resize engine.
+ *
+ * Reflowing a terminal grid on resize is a three-phase operation:
+ *
+ * 1. Logical-line reconstruction from wrapped physical rows.
+ * 2. Re-wrapping into new-width physical rows.
+ * 3. Cursor relocation into the reflowed result.
+ *
+ * A resize creates a brand-new [ClusterStore] alongside a brand-new [HistoryRing].
+ * Cluster payloads that survive reflow are deep-copied into the new store.
+ */
+internal object TerminalResizer {
+
+    /**
+     * Resizes a specific [ScreenBuffer], reflowing all its content and safely
+     * copying surviving grapheme clusters to a new memory arena.
+     */
+    fun resizeBuffer(
+        buffer: ScreenBuffer,
+        oldWidth: Int,
+        oldHeight: Int,
+        newWidth: Int,
+        newHeight: Int
+    ) {
+        val newStore = ClusterStore()
+        val newRing = HistoryRing(buffer.maxHistory + newHeight) { Line(newWidth, newStore) }
+        var clusterBuf = IntArray(16)
+        val builder = LogicalLineBuilder(oldWidth * 10)
+
+        val absoluteOldCursorRow =
+            (buffer.ring.size - oldHeight).coerceAtLeast(0) + buffer.cursor.row
+
+        var newAbsoluteCursorRow = 0
+        var newCursorCol = 0
+        var cursorPlaced = false
+
+        fun flushBuilder() {
+            if (builder.size == 0) {
+                val newLine = newRing.push()
+                newLine.clear(0)
+                if (builder.cursorAbsoluteIndex != -1) {
+                    newAbsoluteCursorRow = newRing.size - 1
+                    newCursorCol = 0
+                    cursorPlaced = true
+                }
+                return
+            }
+
+            var offset = 0
+            while (offset < builder.size) {
+                val newLine = newRing.push()
+                newLine.clear(0)
+
+                var chunkLength = minOf(newWidth, builder.size - offset)
+                if (chunkLength == newWidth &&
+                    chunkLength > 1 &&
+                    offset + chunkLength < builder.size &&
+                    builder.codepoints[offset + chunkLength] == TerminalConstants.WIDE_CHAR_SPACER
+                ) {
+                    chunkLength--
+                }
+
+                newLine.wrapped = (offset + chunkLength < builder.size)
+
+                for (i in 0 until chunkLength) {
+                    val srcIndex = offset + i
+                    val raw = builder.codepoints[srcIndex]
+                    val attr = builder.attrs[srcIndex]
+
+                    if (raw <= TerminalConstants.CLUSTER_HANDLE_MAX) {
+                        val cpLen = buffer.store.length(raw)
+                        if (clusterBuf.size < cpLen) {
+                            clusterBuf = IntArray(cpLen)
+                        }
+                        buffer.store.readInto(raw, clusterBuf)
+                        newLine.setCluster(i, clusterBuf, cpLen, attr)
+                    } else {
+                        newLine.setRawCell(i, raw, attr)
+                    }
+
+                    if (srcIndex == builder.cursorAbsoluteIndex) {
+                        newAbsoluteCursorRow = newRing.size - 1
+                        newCursorCol = i
+                        cursorPlaced = true
+                    }
+                }
+                offset += chunkLength
+            }
+        }
+
+        for (i in 0 until buffer.ring.size) {
+            val oldLine = buffer.ring[i]
+            val logicalLen = getLogicalLength(oldLine)
+            val dataLength = if (oldLine.wrapped && logicalLen > 0) oldWidth else logicalLen
+            val hasCursor = i == absoluteOldCursorRow
+
+            val readLength = if (hasCursor && buffer.cursor.col > 0) {
+                maxOf(dataLength, buffer.cursor.col + 1)
+            } else {
+                dataLength
+            }
+
+            for (col in 0 until readLength) {
+                val isCursor = hasCursor && col == buffer.cursor.col
+                builder.append(oldLine.rawCodepoint(col), oldLine.getPackedAttr(col), isCursor)
+            }
+
+            if (hasCursor && readLength == 0) {
+                builder.cursorAbsoluteIndex = 0
+            }
+
+            if (!oldLine.wrapped) {
+                flushBuilder()
+                builder.clear()
+            }
+        }
+
+        if (builder.size > 0 || absoluteOldCursorRow >= buffer.ring.size) {
+            flushBuilder()
+        }
+
+        while (newRing.size < newHeight) {
+            newRing.push().clear(0)
+        }
+
+        val liveScreenTop = (newRing.size - newHeight).coerceAtLeast(0)
+
+        if (!cursorPlaced) {
+            newCursorCol = buffer.cursor.col.coerceIn(0, newWidth - 1)
+            newAbsoluteCursorRow =
+                (liveScreenTop + buffer.cursor.row).coerceIn(liveScreenTop, newRing.size - 1)
+        }
+
+        val newRelativeRow = (newAbsoluteCursorRow - liveScreenTop).coerceIn(0, newHeight - 1)
+
+        buffer.store = newStore
+        buffer.ring = newRing
+        buffer.cursor.col = newCursorCol
+        buffer.cursor.row = newRelativeRow
+    }
+
+    // Private helpers.
+
+    /**
+     * Returns the index one past the last non-blank cell, using the raw value so
+     * that cluster handles (<= -2) are correctly treated as content.
+     */
+    private fun getLogicalLength(line: Line): Int {
+        var len = line.width
+        while (len > 0 && line.rawCodepoint(len - 1) == TerminalConstants.EMPTY) len--
+        return len
+    }
+}
+
+/**
+ * Accumulates cells from one or more soft-wrapped physical lines into a single
+ * flat logical line for re-wrapping at the new width.
+ *
+ * All arrays are grown by doubling; the initial capacity should be generous enough
+ * to avoid a growth on typical terminal content (oldWidth * 10 is safe).
+ *
+ * @param initialCapacity Starting array capacity in cells.
+ */
+private class LogicalLineBuilder(initialCapacity: Int) {
+    var codepoints = IntArray(initialCapacity)
+    var attrs = IntArray(initialCapacity)
+    var size = 0
+    var cursorAbsoluteIndex = -1
+
+    /**
+     * Appends one cell (raw codepoint value plus packed attr) to the builder.
+     *
+     * @param raw The raw [Int] from [Line.rawCodepoint]; it may be a cluster handle.
+     * @param attr The packed cell attribute.
+     * @param isCursor `true` if this cell is the current cursor position.
+     */
+    fun append(raw: Int, attr: Int, isCursor: Boolean) {
+        if (size == codepoints.size) grow()
+        if (isCursor) cursorAbsoluteIndex = size
+        codepoints[size] = raw
+        attrs[size] = attr
+        size++
+    }
+
+    /** Resets the builder for the next logical line without releasing arrays. */
+    fun clear() {
+        size = 0
+        cursorAbsoluteIndex = -1
+    }
+
+    private fun grow() {
+        codepoints = codepoints.copyOf(size * 2)
+        attrs = attrs.copyOf(size * 2)
+    }
+}

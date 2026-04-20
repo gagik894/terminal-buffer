@@ -1,0 +1,103 @@
+package com.gagik.core.buffer.impl
+
+import com.gagik.core.api.TerminalModeController
+import com.gagik.core.engine.CursorEngine
+import com.gagik.core.model.MouseEncodingMode
+import com.gagik.core.model.MouseTrackingMode
+import com.gagik.core.state.TerminalState
+
+internal class TerminalModeControllerImpl(
+    private val state: TerminalState,
+    private val cursorEngine: CursorEngine
+) : TerminalModeController {
+
+	private inline fun mutateMode(block: () -> Unit) {
+		state.cancelPendingWrap()
+		block()
+	}
+
+	override fun setInsertMode(enabled: Boolean) {
+		mutateMode { state.modes.isInsertMode = enabled }
+	}
+
+	override fun setAutoWrap(enabled: Boolean) {
+		mutateMode { state.modes.isAutoWrap = enabled }
+	}
+
+	override fun setOriginMode(enabled: Boolean) {
+		mutateMode {
+			state.modes.isOriginMode = enabled
+			cursorEngine.homeCursor()
+		}
+	}
+
+	override fun setApplicationCursorKeys(enabled: Boolean) {
+		mutateMode { state.modes.isApplicationCursorKeys = enabled }
+	}
+
+	override fun setApplicationKeypad(enabled: Boolean) {
+		mutateMode { state.modes.isApplicationKeypad = enabled }
+	}
+
+	override fun setLeftRightMarginMode(enabled: Boolean) {
+		state.cancelPendingWrap()
+		if (state.modes.isLeftRightMarginMode == enabled) return
+		state.modes.isLeftRightMarginMode = enabled
+		state.activeBuffer.resetLeftRightMargins(state.dimensions.width)
+		cursorEngine.homeCursor()
+	}
+
+	override fun setNewLineMode(enabled: Boolean) {
+		mutateMode { state.modes.isNewLineMode = enabled }
+	}
+
+	override fun setMouseTrackingMode(mode: MouseTrackingMode) {
+		mutateMode { state.modes.mouseTrackingMode = mode }
+	}
+
+	override fun setMouseEncodingMode(mode: MouseEncodingMode) {
+		mutateMode { state.modes.mouseEncodingMode = mode }
+	}
+
+	override fun setBracketedPasteEnabled(enabled: Boolean) {
+		mutateMode { state.modes.isBracketedPasteEnabled = enabled }
+	}
+
+	override fun setFocusReportingEnabled(enabled: Boolean) {
+		mutateMode { state.modes.isFocusReportingEnabled = enabled }
+	}
+
+	override fun setModifyOtherKeysMode(mode: Int) {
+		mutateMode { state.modes.modifyOtherKeysMode = mode }
+	}
+
+	override fun setReverseVideo(enabled: Boolean) {
+		mutateMode { state.modes.isReverseVideo = enabled }
+	}
+
+	override fun setCursorVisible(enabled: Boolean) {
+		mutateMode { state.modes.isCursorVisible = enabled }
+	}
+
+	override fun setCursorBlinking(enabled: Boolean) {
+		mutateMode { state.modes.isCursorBlinking = enabled }
+	}
+
+	override fun setTreatAmbiguousAsWide(enabled: Boolean) {
+		mutateMode { state.modes.treatAmbiguousAsWide = enabled }
+	}
+
+	override fun enterAltBuffer() {
+		if (state.isAltScreenActive) return
+
+		cursorEngine.saveCursor()
+		state.enterAltScreen()
+	}
+
+	override fun exitAltBuffer() {
+		if (!state.isAltScreenActive) return
+
+		state.exitAltScreen()
+		cursorEngine.restoreCursor()
+	}
+}

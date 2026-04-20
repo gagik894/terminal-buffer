@@ -1,0 +1,160 @@
+package com.gagik.core.state
+
+import com.gagik.core.buffer.HistoryRing
+import com.gagik.core.model.Cursor
+import com.gagik.core.model.Line
+import com.gagik.core.model.SavedCursorState
+import com.gagik.core.store.ClusterStore
+
+/**
+ * Represents a single cohesive terminal screen (primary or alternate).
+ *
+ * Each [ScreenBuffer] owns its entire memory arena: the ring, the cluster
+ * store, the cursor, the DECSC save slot, and the active scroll margins.
+ *
+ * Memory ownership:
+ * [store] and [ring] are always co-owned. Every [Line] in the ring holds a
+ * reference to [store]. The pair must always be replaced together; never
+ * replace one without the other. [replaceStorage] is the single safe entry
+ * point for doing this.
+ *
+ * Resize lifecycle:
+ * - the primary buffer must be reflowed by `TerminalResizer` so scrollback survives
+ * - the alternate buffer is always wiped via [replaceStorage]
+ * - alternate content is transient and recreated on each alt-screen entry
+ */
+internal class ScreenBuffer(
+    initialWidth: Int,
+    initialHeight: Int,
+    val maxHistory: Int,
+) {
+    var store = ClusterStore()
+        internal set
+
+    var ring = HistoryRing(maxHistory + initialHeight) { Line(initialWidth, store) }
+        internal set
+
+    val cursor = Cursor()
+    val savedCursor = SavedCursorState()
+
+    var scrollTop: Int = 0
+        private set
+    var scrollBottom: Int = initialHeight - 1
+        private set
+
+    var leftMargin: Int = 0
+        private set
+    var rightMargin: Int = initialWidth - 1
+        private set
+
+    fun isFullViewportScroll(viewportHeight: Int): Boolean =
+        scrollTop == 0 && scrollBottom == viewportHeight - 1
+
+    /**
+     * DECSTBM: sets the scroll margins and homes the cursor per the VT spec.
+     *
+     * [top] and [bottom] are 1-based per the escape sequence convention.
+     * Degenerate ranges are silently ignored.
+     */
+    fun setScrollRegion(
+        top: Int,
+        bottom: Int,
+        isOriginMode: Boolean,
+        viewportHeight: Int,
+        homeCol: Int = 0
+    ) {
+        val t = (top - 1).coerceIn(0, viewportHeight - 1)
+        val b = (bottom - 1).coerceIn(0, viewportHeight - 1)
+        if (t >= b) return
+        scrollTop = t
+        scrollBottom = b
+        cursor.col = homeCol.coerceIn(0, rightMargin)
+        cursor.row = if (isOriginMode) t else 0
+        cursor.pendingWrap = false
+    }
+
+    /** Resets scroll margins to the full viewport. */
+    fun resetScrollRegion(viewportHeight: Int) {
+        scrollTop = 0
+        scrollBottom = viewportHeight - 1
+    }
+
+    /**
+     * Sets the horizontal margins from 1-based DECSLRM parameters.
+     *
+     * Returns `true` when a non-degenerate range was applied and `false` when
+     * the request was ignored.
+     */
+    fun setLeftRightMargins(left: Int, right: Int, viewportWidth: Int): Boolean {
+        val l = (left - 1).coerceIn(0, viewportWidth - 1)
+        val r = (right - 1).coerceIn(0, viewportWidth - 1)
+        if (l >= r) return false
+        leftMargin = l
+        rightMargin = r
+        return true
+    }
+
+    /** Resets horizontal margins to the full viewport width. */
+    fun resetLeftRightMargins(viewportWidth: Int) {
+        leftMargin = 0
+        rightMargin = viewportWidth - 1
+    }
+
+    /**
+     * Clamps the DECSC save slot to the current viewport bounds after a resize.
+     *
+     * Pending wrap is preserved only if the clamped cursor still lands on the
+     * new right margin; otherwise it is cleared to avoid stale phantom-column
+     * state when DECRC restores later.
+     */
+    fun clampSavedCursorToBounds(newWidth: Int, newHeight: Int) {
+        if (!savedCursor.isSaved) return
+        savedCursor.col = savedCursor.col.coerceIn(0, newWidth - 1)
+        savedCursor.row = savedCursor.row.coerceIn(0, newHeight - 1)
+        savedCursor.pendingWrap = savedCursor.pendingWrap && savedCursor.col == newWidth - 1
+    }
+
+    /**
+     * Clears every currently live line to release cluster handles, then rebuilds
+     * the visible viewport as blank lines while reusing the existing ring and store.
+     *
+     * This is the safe history-destroying path when the arena pair stays in
+     * place: every live line must be cleared before logical reachability is
+     * dropped, otherwise cluster payloads can leak in the shared [store].
+     */
+    fun clearGrid(penAttr: Int, viewportHeight: Int) {
+        for (i in 0 until ring.size) {
+            ring[i].clear(penAttr)
+        }
+        ring.clear()
+        repeat(viewportHeight) { ring.push().clear(penAttr) }
+    }
+
+    /**
+     * Replaces the entire memory arena with a fresh store and ring sized to
+     * [newWidth] x [newHeight], then fills the new ring with blank lines.
+     *
+     * This is the only safe way to swap [ring] and [store]; callers must never
+     * replace them independently because every [Line] in the ring closes over
+     * the active store instance.
+     */
+    fun replaceStorage(newWidth: Int, newHeight: Int, penAttr: Int) {
+        store = ClusterStore()
+        ring = HistoryRing(maxHistory + newHeight) { Line(newWidth, store) }
+        repeat(newHeight) { ring.push().clear(penAttr) }
+        scrollTop = 0
+        scrollBottom = newHeight - 1
+        leftMargin = 0
+        rightMargin = newWidth - 1
+
+        cursor.col = cursor.col.coerceIn(0, maxOf(0, newWidth - 1))
+        cursor.row = cursor.row.coerceIn(0, maxOf(0, newHeight - 1))
+        cursor.pendingWrap = false
+
+        if (savedCursor.isSaved) {
+            savedCursor.col = savedCursor.col.coerceIn(0, maxOf(0, newWidth - 1))
+            savedCursor.row = savedCursor.row.coerceIn(0, maxOf(0, newHeight - 1))
+            savedCursor.pendingWrap = false
+        }
+    }
+}
