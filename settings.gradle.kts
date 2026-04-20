@@ -1,4 +1,6 @@
 plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "0.8.0"
 }
-rootProject.name = "terminal-buffer"
+
+rootProject.name = "Lattice"
+include(":terminal-core")
