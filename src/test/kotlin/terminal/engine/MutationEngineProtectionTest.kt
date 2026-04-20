@@ -74,6 +74,26 @@ class MutationEngineProtectionTest {
     }
 
     @Test
+    fun `eraseCharacters_ignoresProtectionLikeNormalErase`() {
+        val state = createState(width = 4, height = 1)
+        val writer = MutationEngine(state)
+        state.pen.setSelectiveEraseProtection(true)
+        writer.printCodepoint('A'.code, 1)
+        state.pen.setSelectiveEraseProtection(false)
+        writer.printCodepoint('B'.code, 1)
+        state.cursor.col = 0
+
+        writer.eraseCharacters(2)
+
+        assertAll(
+            { assertEquals(TerminalConstants.EMPTY, lineAt(state, 0).getCodepoint(0)) },
+            { assertEquals(TerminalConstants.EMPTY, lineAt(state, 0).getCodepoint(1)) },
+            { assertFalse(AttributeCodec.isProtected(lineAt(state, 0).getPackedAttr(0))) },
+            { assertFalse(AttributeCodec.isProtected(lineAt(state, 0).getPackedAttr(1))) }
+        )
+    }
+
+    @Test
     fun `selectiveErase_skipsProtected_and_clearsUnprotected`() {
         val state = createState(width = 4, height = 1)
         val writer = MutationEngine(state)

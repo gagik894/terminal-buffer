@@ -161,6 +161,18 @@ interface TerminalWriter {
      */
     fun deleteCharacters(count: Int)
 
+    /**
+     * Erases [count] characters starting at the cursor column without shifting
+     * the remainder of the line (ECH, `CSI n X`).
+     *
+     * A count of `0` follows VT semantics and erases one character. Negative
+     * values are ignored. With DECLRMM active, erasure is clamped to the active
+     * horizontal right margin.
+     *
+     * @param count Number of characters to erase; `0` means `1`.
+     */
+    fun eraseCharacters(count: Int)
+
     /** Erases from the cursor to the end of the current line (EL 0, `CSI 0 K`). */
     fun eraseLineToEnd()
 

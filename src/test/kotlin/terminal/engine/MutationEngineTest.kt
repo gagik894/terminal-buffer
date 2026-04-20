@@ -311,6 +311,101 @@ class MutationEngineTest {
     inner class EraseTests {
 
         @Test
+        fun `eraseCharacters_zeroDefaultsToOne`() {
+            val state = createState(width = 5, height = 1)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "ABCDE")
+            state.cursor.col = 2
+
+            writer.eraseCharacters(0)
+
+            assertLineCodepoints(
+                state,
+                0,
+                intArrayOf('A'.code, 'B'.code, TerminalConstants.EMPTY, 'D'.code, 'E'.code)
+            )
+        }
+
+        @Test
+        fun `eraseCharacters_clearsWithoutShifting`() {
+            val state = createState(width = 5, height = 1)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "ABCDE")
+            state.cursor.col = 1
+
+            writer.eraseCharacters(2)
+
+            assertLineCodepoints(
+                state,
+                0,
+                intArrayOf('A'.code, TerminalConstants.EMPTY, TerminalConstants.EMPTY, 'D'.code, 'E'.code)
+            )
+        }
+
+        @Test
+        fun `eraseCharacters_clampsToRightBoundary`() {
+            val state = createState(width = 5, height = 1)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "ABCDE")
+            state.cursor.col = 3
+
+            writer.eraseCharacters(99)
+
+            assertLineCodepoints(
+                state,
+                0,
+                intArrayOf('A'.code, 'B'.code, 'C'.code, TerminalConstants.EMPTY, TerminalConstants.EMPTY)
+            )
+        }
+
+        @Test
+        fun `eraseCharacters_respectsLeftRightMargins`() {
+            val state = createState(width = 8, height = 1)
+            val writer = MutationEngine(state)
+            seedLine(state, 0, "ABCDEFGH")
+            state.modes.isLeftRightMarginMode = true
+            state.activeBuffer.setLeftRightMargins(left = 3, right = 6, viewportWidth = 8)
+            state.cursor.col = 4
+
+            writer.eraseCharacters(99)
+
+            assertLineCodepoints(
+                state,
+                0,
+                intArrayOf(
+                    'A'.code,
+                    'B'.code,
+                    'C'.code,
+                    'D'.code,
+                    TerminalConstants.EMPTY,
+                    TerminalConstants.EMPTY,
+                    'G'.code,
+                    'H'.code
+                )
+            )
+        }
+
+        @Test
+        fun `eraseCharacters_annihilatesWideLeaderAndSpacer`() {
+            val state = createState(width = 5, height = 1)
+            val writer = MutationEngine(state)
+            writer.printCodepoint('A'.code, 1)
+            writer.printCodepoint(0x1F600, 2)
+            writer.printCodepoint('Z'.code, 1)
+            state.cursor.col = 2
+            state.cursor.pendingWrap = false
+
+            writer.eraseCharacters(1)
+
+            assertAll(
+                { assertEquals('A'.code, lineAt(state, 0).getCodepoint(0)) },
+                { assertEquals(TerminalConstants.EMPTY, lineAt(state, 0).getCodepoint(1)) },
+                { assertEquals(TerminalConstants.EMPTY, lineAt(state, 0).getCodepoint(2)) },
+                { assertEquals('Z'.code, lineAt(state, 0).getCodepoint(3)) }
+            )
+        }
+
+        @Test
         fun `eraseLineToEnd on spacer annihilates owning cluster`() {
             val state = createState(width = 4, height = 1)
             val writer = MutationEngine(state)
@@ -1135,6 +1230,18 @@ class MutationEngineTest {
             assertTrue(state.cursor.pendingWrap)
 
             writer.eraseCurrentLine()
+
+            assertFalse(state.cursor.pendingWrap)
+        }
+
+        @Test
+        fun `eraseCharacters cancels pendingWrap`() {
+            val state = createState(width = 2, height = 2)
+            val writer = MutationEngine(state)
+            writeAscii(writer, "AB")
+            assertTrue(state.cursor.pendingWrap)
+
+            writer.eraseCharacters(1)
 
             assertFalse(state.cursor.pendingWrap)
         }

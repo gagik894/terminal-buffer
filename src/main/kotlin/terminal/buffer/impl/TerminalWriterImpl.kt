@@ -77,6 +77,8 @@ internal class TerminalWriterImpl(
 
     override fun deleteCharacters(count: Int) = mutationEngine.deleteCharacters(count)
 
+    override fun eraseCharacters(count: Int) = mutationEngine.eraseCharacters(count)
+
     override fun eraseLineToEnd() = mutationEngine.eraseLineToEnd()
 
     override fun eraseLineToCursor() = mutationEngine.eraseLineToCursor()

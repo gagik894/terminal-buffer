@@ -247,6 +247,29 @@ internal class MutationEngine(
     }
 
     /**
+     * Erases the visual occupants intersecting `[startCol, endExclusive)` on one row.
+     *
+     * This is the normal-erase counterpart to [selectiveEraseRange]: protection
+     * is ignored, but wide leaders/spacers and cluster owners are still erased
+     * as full visual units so no orphaned cells remain.
+     */
+    private fun eraseRange(row: Int, startCol: Int, endExclusive: Int) {
+        if (row !in 0 until height) return
+        val line = getLine(row)
+        val from = startCol.coerceIn(0, width)
+        val to = endExclusive.coerceIn(0, width)
+        if (from >= to) return
+
+        var col = from
+        while (col < to) {
+            val start = findClusterStart(line, col).coerceIn(0, width - 1)
+            val next = occupantEndExclusive(line, start)
+            line.clearRange(start, minOf(next, width), blankAttr)
+            col = maxOf(col + 1, next)
+        }
+    }
+
+    /**
      * Core write engine shared by [printCodepoint] and [printCluster].
      *
      * Ordering matters here: deferred wrap, annihilation, insert-mode shifting,
@@ -512,6 +535,34 @@ internal class MutationEngine(
             }
 
             getLine(cRow).deleteCellsInRange(cCol, safeCount, rightMargin, blankAttr)
+        }
+    }
+
+    /**
+     * Erases [count] cells starting at the cursor column without shifting the
+     * remainder of the line (ECH).
+     *
+     * A count of `0` follows VT semantics and erases one character. Negative
+     * values are ignored. Wide characters and cluster owners are erased as full
+     * visual occupants, so erasing a spacer also clears its leader.
+     */
+    fun eraseCharacters(count: Int) {
+        if (count < 0) return
+
+        structuralMutation {
+            val cRow = state.cursor.row
+            val cCol = state.cursor.col
+            if (cRow !in 0 until height || cCol !in 0 until width) return@structuralMutation
+            if (state.modes.isLeftRightMarginMode && cCol !in leftMargin..rightMargin) return@structuralMutation
+
+            val safeCount = if (count == 0) 1 else count
+            val endExclusive = if (state.modes.isLeftRightMarginMode) {
+                minOf(cCol + safeCount, rightMargin + 1)
+            } else {
+                minOf(cCol + safeCount, width)
+            }
+
+            eraseRange(cRow, cCol, endExclusive)
         }
     }
 
