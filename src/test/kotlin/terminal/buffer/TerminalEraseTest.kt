@@ -1,0 +1,28 @@
+package com.gagik.terminal.buffer
+
+import com.gagik.terminal.TerminalBuffers
+import org.junit.jupiter.api.Assertions.assertAll
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Test
+
+class TerminalEraseTest {
+
+    @Test
+    fun `ed3_clearsScrollbackButPreservesViewport_ifTargetingXtermSemantics`() {
+        val buffer = TerminalBuffers.create(width = 3, height = 2, maxHistory = 4)
+        buffer.writeText("abc")
+        buffer.newLine()
+        buffer.writeText("def")
+        buffer.newLine()
+        buffer.writeText("ghi")
+
+        val screenBefore = buffer.getScreenAsString()
+
+        buffer.eraseScreenAndHistory()
+
+        assertAll(
+            { assertEquals(screenBefore, buffer.getScreenAsString(), "ED 3 should preserve the visible viewport") },
+            { assertEquals(0, buffer.historySize, "ED 3 should clear scrollback history") }
+        )
+    }
+}

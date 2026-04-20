@@ -3,53 +3,36 @@ package com.gagik.terminal.api
 /**
  * Zero-allocation read contract for the terminal buffer.
  *
- * Consumed by the renderer on every frame. No method in this interface
- * allocates — callers receive primitive values or pre-existing object
- * references only.
+ * Exposes viewport-relative state plus random-access helpers for the currently
+ * active screen buffer. Out-of-bounds probes never throw; they return stable
+ * sentinel values so renderers can remain branch-light.
  */
 interface TerminalReader {
 
-    /** Width of the visible terminal grid, in cells. */
+    /** Current viewport width in cells. */
     val width: Int
 
-    /** Height of the visible terminal grid, in rows. */
+    /** Current viewport height in rows. */
     val height: Int
 
-    /** Current cursor column (0-based). */
+    /** Active cursor column in zero-based viewport coordinates. */
     val cursorCol: Int
 
-    /** Current cursor row (0-based). */
+    /** Active cursor row in zero-based viewport coordinates. */
     val cursorRow: Int
 
-    /** Number of lines currently retained in scrollback history. */
+    /** Number of retained off-screen history lines in the active buffer. */
     val historySize: Int
 
-    /**
-     * Returns a read-only view of a visible row.
-     *
-     * @param row Visible row index (0-based).
-     * @return The row's line, or a blank `VoidLine` if [row] is out of bounds.
-     */
+    /** Returns the visible line at [row], or a shared void line when [row] is out of bounds. */
     fun getLine(row: Int): TerminalLineApi
 
-    /**
-     * Returns the Unicode codepoint stored at the given screen position.
-     *
-     * @param col Column index (0-based).
-     * @param row Row index (0-based).
-     * @return The stored codepoint, or `0` if the cell is empty or out of bounds.
-     */
+    /** Returns the raw stored codepoint at `[col, row]`, or `0` when out of bounds. */
     fun getCodepointAt(col: Int, row: Int): Int
 
     /**
-     * Returns the packed attribute word at the given screen position.
-     *
-     * Decode with `AttributeCodec` on the call site. Do not use [TerminalInspector.getAttrAt]
-     * on a hot rendering path — it allocates.
-     *
-     * @param col Column index (0-based).
-     * @param row Row index (0-based).
-     * @return The packed cell attributes, or the active pen attribute if out of bounds.
+     * Returns the packed cell attributes, or the active pen attribute if out of bounds.
+     * This mirrors the terminal's current erase/write attribute for off-grid queries.
      */
     fun getPackedAttrAt(col: Int, row: Int): Int
 }
