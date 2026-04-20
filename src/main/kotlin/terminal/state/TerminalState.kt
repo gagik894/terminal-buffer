@@ -13,18 +13,18 @@ import com.gagik.terminal.model.*
  * can never corrupt the other.
  */
 internal class TerminalState(
-    initialWidth:  Int,
+    initialWidth: Int,
     initialHeight: Int,
-    maxHistory:    Int,
+    maxHistory: Int,
 ) {
-    // ── Global hardware state ─────────────────────────────────────────────────
+    // Global hardware state.
 
-    val modes      = TerminalModes()
-    val tabStops   = TabStops(initialWidth)
-    val pen        = Pen()
+    val modes = TerminalModes()
+    val tabStops = TabStops(initialWidth)
+    val pen = Pen()
     val dimensions = GridDimensions(initialWidth, initialHeight)
 
-    // ── Physical screens ──────────────────────────────────────────────────────
+    // Physical screens.
 
     val primaryBuffer = ScreenBuffer(initialWidth, initialHeight, maxHistory)
         .apply { clearGrid(pen.currentAttr, initialHeight) }
@@ -33,7 +33,7 @@ internal class TerminalState(
     val altBuffer = ScreenBuffer(initialWidth, initialHeight, maxHistory = 0)
         .apply { clearGrid(pen.currentAttr, initialHeight) }
 
-    // ── Hot-swap pointer ──────────────────────────────────────────────────────
+    // Hot-swap pointer.
 
     var activeBuffer: ScreenBuffer = primaryBuffer
         private set
@@ -44,7 +44,8 @@ internal class TerminalState(
     /**
      * Switches to the alternate screen (`CSI ? 1049 h`).
      *
-     * Callers must invoke [com.gagik.terminal.engine.CursorEngine.saveCursor] **before** this call (DECSC).
+     * Callers must invoke `CursorEngine.saveCursor()` before this call (DECSC).
+     * Re-entering the alternate screen clears any previous alternate content.
      * No-op when already in the alternate screen.
      */
     fun enterAltScreen() {
@@ -61,15 +62,16 @@ internal class TerminalState(
     /**
      * Returns to the primary screen (`CSI ? 1049 l`).
      *
-     * Callers must invoke [com.gagik.terminal.engine.CursorEngine.restoreCursor] **after** this call (DECRC).
-     * No-op when already on the primary screen.
+     * Callers must invoke `CursorEngine.restoreCursor()` after this call (DECRC).
+     * Alternate content becomes invisible after the switch and will be discarded
+     * on the next alternate entry or resize.
      */
     fun exitAltScreen() {
         if (!isAltScreenActive) return
         activeBuffer = primaryBuffer
     }
 
-    // ── Transparent engine accessors ──────────────────────────────────────────
+    // Transparent engine accessors.
 
     val ring
         get() = activeBuffer.ring
@@ -88,7 +90,7 @@ internal class TerminalState(
     fun resolveRingIndex(viewportRow: Int): Int =
         (activeBuffer.ring.size - dimensions.height).coerceAtLeast(0) + viewportRow
 
-    // ── Convenience Helpers ───────────────────────────────────────────────────
+    // Convenience helpers.
 
     /** Clears the phantom-column pending-wrap flag on the active cursor. */
     fun cancelPendingWrap() {

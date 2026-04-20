@@ -2,22 +2,17 @@ package com.gagik.terminal.buffer
 
 import com.gagik.terminal.model.Line
 
-
 /**
- * A fixed-capacity ring buffer of Lines.
- *
- * purely handles storage mechanics:
- * - 0 is the oldest logical line
- * - size-1 is the newest logical line
- * - managing the circular index
- *
- * @param capacity The maximum number of lines the ring can hold. Must be > 0.
- * @param lineFactory Factory function to create new Line instances for initialization.
+ * A fixed-capacity ring buffer of [Line]s.
  */
 internal class HistoryRing(
     val capacity: Int,
     private val lineFactory: () -> Line
 ) {
+    init {
+        require(capacity > 0) { "capacity must be > 0, was $capacity" }
+    }
+
     private val data: Array<Line> = Array(capacity) { lineFactory() }
 
     private var head: Int = 0 // physical index of the oldest element

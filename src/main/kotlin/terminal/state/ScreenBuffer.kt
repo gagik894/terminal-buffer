@@ -7,30 +7,27 @@ import com.gagik.terminal.model.SavedCursorState
 import com.gagik.terminal.store.ClusterStore
 
 /**
- * Represents a single cohesive terminal screen (Primary or Alternate).
+ * Represents a single cohesive terminal screen (primary or alternate).
  *
- * Each ScreenBuffer owns its entire memory arena — the ring, the cluster store,
- * the cursor, the DECSC save slot, and the active scroll margins.
+ * Each [ScreenBuffer] owns its entire memory arena: the ring, the cluster
+ * store, the cursor, the DECSC save slot, and the active scroll margins.
  *
- * ## Memory ownership
+ * Memory ownership:
  * [store] and [ring] are always co-owned. Every [Line] in the ring holds a
- * reference to [store]. The pair must always be replaced together — never
+ * reference to [store]. The pair must always be replaced together; never
  * replace one without the other. [replaceStorage] is the single safe entry
  * point for doing this.
  *
- * ## Resize lifecycle (absolute, not relative to the active screen)
- * - **Primary buffer** — must always be *reflowed* by [TerminalResizer] to preserve
- *   scrollback history, regardless of which screen is currently active.
- * - **Alternate buffer** — must always be *wiped* via [replaceStorage]. It has no
- *   scrollback; its content is transient. The host app receives SIGWINCH and
- *   redraws itself onto the fresh grid.
+ * Resize lifecycle:
+ * - the primary buffer must be reflowed by `TerminalResizer` so scrollback survives
+ * - the alternate buffer is always wiped via [replaceStorage]
+ * - alternate content is transient and recreated on each alt-screen entry
  */
 internal class ScreenBuffer(
     initialWidth: Int,
     initialHeight: Int,
     val maxHistory: Int,
 ) {
-    // store and ring are always replaced together via replaceStorage().
     var store = ClusterStore()
         internal set
 
@@ -40,17 +37,11 @@ internal class ScreenBuffer(
     val cursor = Cursor()
     val savedCursor = SavedCursorState()
 
-    var scrollTop: Int = 0; private set
-    var scrollBottom: Int = initialHeight - 1; private set
+    var scrollTop: Int = 0
+        private set
+    var scrollBottom: Int = initialHeight - 1
+        private set
 
-    // ── Scroll region ─────────────────────────────────────────────────────────
-
-    /**
-     * Returns `true` when the scroll margins cover the entire viewport.
-     *
-     * Takes the live [viewportHeight] rather than caching [initialHeight] so
-     * that the answer remains correct after a terminal resize.
-     */
     fun isFullViewportScroll(viewportHeight: Int): Boolean =
         scrollTop == 0 && scrollBottom == viewportHeight - 1
 
@@ -77,26 +68,43 @@ internal class ScreenBuffer(
         scrollBottom = viewportHeight - 1
     }
 
-    // ── Grid operations ───────────────────────────────────────────────────────
+    /**
+     * Clamps the DECSC save slot to the current viewport bounds after a resize.
+     *
+     * Pending wrap is preserved only if the clamped cursor still lands on the
+     * new right margin; otherwise it is cleared to avoid stale phantom-column
+     * state when DECRC restores later.
+     */
+    fun clampSavedCursorToBounds(newWidth: Int, newHeight: Int) {
+        if (!savedCursor.isSaved) return
+        savedCursor.col = savedCursor.col.coerceIn(0, newWidth - 1)
+        savedCursor.row = savedCursor.row.coerceIn(0, newHeight - 1)
+        savedCursor.pendingWrap = savedCursor.pendingWrap && savedCursor.col == newWidth - 1
+    }
 
     /**
-     * Clears the grid and fills it with [viewportHeight] blank lines.
-     * Reuses the existing [ring] and [store] — does not replace them.
+     * Clears every currently live line to release cluster handles, then rebuilds
+     * the visible viewport as blank lines while reusing the existing ring and store.
+     *
+     * This is the safe history-destroying path when the arena pair stays in
+     * place: every live line must be cleared before logical reachability is
+     * dropped, otherwise cluster payloads can leak in the shared [store].
      */
     fun clearGrid(penAttr: Int, viewportHeight: Int) {
+        for (i in 0 until ring.size) {
+            ring[i].clear(penAttr)
+        }
         ring.clear()
         repeat(viewportHeight) { ring.push().clear(penAttr) }
     }
 
     /**
      * Replaces the entire memory arena with a fresh store and ring sized to
-     * [newWidth] × [newHeight], then fills the new ring with blank lines.
+     * [newWidth] x [newHeight], then fills the new ring with blank lines.
      *
-     * Used exclusively by the **alternate buffer resize path**. The old store
-     * and ring are released to the GC as a unit — no per-slot free loop needed.
-     *
-     * **Never call this on the primary buffer.** The primary buffer must always
-     * be reflowed by [com.gagik.terminal.engine.TerminalResizer] to preserve scrollback history.
+     * This is the only safe way to swap [ring] and [store]; callers must never
+     * replace them independently because every [Line] in the ring closes over
+     * the active store instance.
      */
     fun replaceStorage(newWidth: Int, newHeight: Int, penAttr: Int) {
         store = ClusterStore()
@@ -105,15 +113,13 @@ internal class ScreenBuffer(
         scrollTop = 0
         scrollBottom = newHeight - 1
 
-        // Clamp active cursor and UNCONDITIONALLY clear pending wrap (grid is blank)
-        cursor.col = cursor.col.coerceAtMost(maxOf(0, newWidth - 1))
-        cursor.row = cursor.row.coerceAtMost(maxOf(0, newHeight - 1))
+        cursor.col = cursor.col.coerceIn(0, maxOf(0, newWidth - 1))
+        cursor.row = cursor.row.coerceIn(0, maxOf(0, newHeight - 1))
         cursor.pendingWrap = false
 
-        // Clamp saved cursor and UNCONDITIONALLY clear pending wrap (grid is blank)
         if (savedCursor.isSaved) {
-            savedCursor.col = savedCursor.col.coerceAtMost(maxOf(0, newWidth - 1))
-            savedCursor.row = savedCursor.row.coerceAtMost(maxOf(0, newHeight - 1))
+            savedCursor.col = savedCursor.col.coerceIn(0, maxOf(0, newWidth - 1))
+            savedCursor.row = savedCursor.row.coerceIn(0, maxOf(0, newHeight - 1))
             savedCursor.pendingWrap = false
         }
     }

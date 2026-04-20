@@ -7,6 +7,16 @@ import com.gagik.terminal.engine.MutationEngine
 import com.gagik.terminal.engine.TerminalResizer
 import com.gagik.terminal.state.TerminalState
 
+/**
+ * Concrete facade for the terminal-buffer core.
+ *
+ * The facade stays intentionally thin: focused adapters implement the public
+ * roles while the hot mutation and cursor logic remain in dedicated engines.
+ *
+ * Cross-cutting responsibilities owned here:
+ * - resize orchestration across both screen buffers
+ * - full terminal reset (RIS)
+ */
 internal class TerminalBuffer private constructor(
     private val components: Components
 ) : TerminalBufferApi,
@@ -16,12 +26,18 @@ internal class TerminalBuffer private constructor(
     TerminalModeController by TerminalModeControllerImpl(components.state, components.cursorEngine),
     TerminalInspector by TerminalInspectorImpl(components.state) {
 
-    private val state: TerminalState get() = components.state
+    private val state: TerminalState
+        get() = components.state
 
     constructor(initialWidth: Int, initialHeight: Int, maxHistory: Int = 1000) : this(
         createComponents(initialWidth, initialHeight, maxHistory)
     )
 
+    /**
+     * Reflows the primary screen, recreates the alternate screen, updates global
+     * dimensions and tab stops, then restores invariants that must hold even for
+     * the currently inactive buffer.
+     */
     override fun resize(newWidth: Int, newHeight: Int) {
         require(newWidth > 0) { "newWidth must be > 0, was $newWidth" }
         require(newHeight > 0) { "newHeight must be > 0, was $newHeight" }
@@ -31,21 +47,17 @@ internal class TerminalBuffer private constructor(
 
         if (newWidth == oldWidth && newHeight == oldHeight) return
 
-        // 1. Reflow the primary screen and build a new ClusterStore
         TerminalResizer.resizeBuffer(state.primaryBuffer, oldWidth, oldHeight, newWidth, newHeight)
-
-        // 2. Wipe and resize the alt screen
         state.altBuffer.replaceStorage(newWidth, newHeight, state.pen.currentAttr)
 
-        // 3. Update global state dimensions and margins
         state.dimensions.width = newWidth
         state.dimensions.height = newHeight
         state.tabStops.resize(newWidth)
 
-        // 4. Update the active margin bounds safely
-        if (state.activeBuffer.scrollBottom >= newHeight) {
-            state.activeBuffer.resetScrollRegion(newHeight)
-        }
+        state.primaryBuffer.resetScrollRegion(newHeight)
+        state.altBuffer.resetScrollRegion(newHeight)
+        state.primaryBuffer.clampSavedCursorToBounds(newWidth, newHeight)
+        state.altBuffer.clampSavedCursorToBounds(newWidth, newHeight)
         state.cancelPendingWrap()
     }
 

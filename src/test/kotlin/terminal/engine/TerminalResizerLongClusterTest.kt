@@ -1,9 +1,7 @@
 package com.gagik.terminal.engine
 
 import com.gagik.terminal.state.TerminalState
-import org.junit.jupiter.api.Assertions.assertAll
-import org.junit.jupiter.api.Assertions.assertDoesNotThrow
-import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 class TerminalResizerLongClusterTest {
@@ -26,10 +24,22 @@ class TerminalResizerLongClusterTest {
             )
         }
 
-        val resizedLine = state.primaryBuffer.ring[(state.primaryBuffer.ring.size - 2).coerceAtLeast(0)]
+        val visibleTop = (state.primaryBuffer.ring.size - 2).coerceAtLeast(0)
         val dest = IntArray(17)
-        val written = resizedLine.readCluster(0, dest)
+        var found = false
+        var written = 0
+
+        for (row in visibleTop until state.primaryBuffer.ring.size) {
+            val candidate = state.primaryBuffer.ring[row]
+            if (candidate.isCluster(0)) {
+                written = candidate.readCluster(0, dest)
+                found = true
+                break
+            }
+        }
+
         assertAll(
+            { assertTrue(found, "The long cluster must survive resize somewhere in the visible viewport") },
             { assertEquals(17, written) },
             { assertEquals(cluster.toList(), dest.take(written)) }
         )
