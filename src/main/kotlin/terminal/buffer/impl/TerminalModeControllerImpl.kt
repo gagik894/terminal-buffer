@@ -20,13 +20,18 @@ internal class TerminalModeControllerImpl(
 
 	override fun setOriginMode(enabled: Boolean) {
 		state.modes.isOriginMode = enabled
-		state.cursor.col = 0
-		state.cursor.row = if (enabled) state.scrollTop else 0
-		state.cancelPendingWrap()
+		cursorEngine.homeCursor()
 	}
 
 	override fun setApplicationCursorKeys(enabled: Boolean) {
 		state.modes.isApplicationCursorKeys = enabled
+	}
+
+	override fun setLeftRightMarginMode(enabled: Boolean) {
+		if (state.modes.isLeftRightMarginMode == enabled) return
+		state.modes.isLeftRightMarginMode = enabled
+		state.activeBuffer.resetLeftRightMargins(state.dimensions.width)
+		cursorEngine.homeCursor()
 	}
 
 	override fun setTreatAmbiguousAsWide(enabled: Boolean) {

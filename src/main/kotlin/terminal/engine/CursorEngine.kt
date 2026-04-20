@@ -19,8 +19,17 @@ internal class CursorEngine(private val state: TerminalState) {
 
     private val width: Int get() = state.dimensions.width
     private val height: Int get() = state.dimensions.height
+    private val leftMargin: Int get() = state.effectiveLeftMargin
+    private val rightMargin: Int get() = state.effectiveRightMargin
 
     // --- Cursor Positioning ----------------------------------------------
+
+    /** Homes the cursor using the active origin and horizontal-margin modes. */
+    fun homeCursor() {
+        state.cancelPendingWrap()
+        state.cursor.col = leftMargin
+        state.cursor.row = if (state.modes.isOriginMode) state.scrollTop else 0
+    }
 
     /**
      * Moves the cursor to the beginning of the current line (CR, U+000D).
@@ -28,7 +37,7 @@ internal class CursorEngine(private val state: TerminalState) {
      */
     fun carriageReturn() {
         state.cancelPendingWrap()
-        state.cursor.col = 0
+        state.cursor.col = leftMargin
     }
 
     /**
@@ -54,7 +63,12 @@ internal class CursorEngine(private val state: TerminalState) {
      */
     fun setCursor(col: Int, row: Int) {
         state.cancelPendingWrap()
-        state.cursor.col = state.dimensions.clampCol(col)
+        val targetCol = if (state.modes.isOriginMode && state.modes.isLeftRightMarginMode) {
+            leftMargin + col
+        } else {
+            col
+        }
+        state.cursor.col = targetCol.coerceIn(leftMargin, rightMargin)
 
         state.cursor.row = if (state.modes.isOriginMode) {
             (state.scrollTop + row).coerceIn(state.scrollTop, state.scrollBottom)
@@ -99,7 +113,7 @@ internal class CursorEngine(private val state: TerminalState) {
     fun cursorLeft(n: Int) {
         if (n <= 0) return
         state.cancelPendingWrap()
-        state.cursor.col = (state.cursor.col - n).coerceAtLeast(0)
+        state.cursor.col = (state.cursor.col - n).coerceAtLeast(leftMargin)
     }
 
     /**
@@ -108,7 +122,7 @@ internal class CursorEngine(private val state: TerminalState) {
     fun cursorRight(n: Int) {
         if (n <= 0) return
         state.cancelPendingWrap()
-        state.cursor.col = (state.cursor.col + n).coerceAtMost(width - 1)
+        state.cursor.col = (state.cursor.col + n).coerceAtMost(rightMargin)
     }
 
     /**
@@ -118,7 +132,7 @@ internal class CursorEngine(private val state: TerminalState) {
      */
     fun horizontalTab() {
         state.cancelPendingWrap()
-        state.cursor.col = state.tabStops.getNextStop(state.cursor.col)
+        state.cursor.col = minOf(state.tabStops.getNextStop(state.cursor.col), rightMargin)
     }
 
     // --- Save / Restore ----------------------------------------------
@@ -187,12 +201,12 @@ internal class CursorEngine(private val state: TerminalState) {
 
         state.modes.isOriginMode = state.savedCursor.isOriginMode
 
-        val restoredCol = state.savedCursor.col.coerceIn(0, width - 1)
+        val restoredCol = state.savedCursor.col.coerceIn(leftMargin, rightMargin)
         val restoredRow = state.savedCursor.row.coerceIn(0, height - 1)
 
         state.cursor.col = restoredCol
         state.cursor.row = restoredRow
-        state.cursor.pendingWrap = state.savedCursor.pendingWrap && restoredCol == width - 1
+        state.cursor.pendingWrap = state.savedCursor.pendingWrap && restoredCol == rightMargin
 
         state.pen.restoreAttr(state.savedCursor.attr)
     }

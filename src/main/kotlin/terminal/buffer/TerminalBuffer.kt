@@ -56,6 +56,8 @@ internal class TerminalBuffer private constructor(
 
         state.primaryBuffer.resetScrollRegion(newHeight)
         state.altBuffer.resetScrollRegion(newHeight)
+        state.primaryBuffer.resetLeftRightMargins(newWidth)
+        state.altBuffer.resetLeftRightMargins(newWidth)
         state.primaryBuffer.clampSavedCursorToBounds(newWidth, newHeight)
         state.altBuffer.clampSavedCursorToBounds(newWidth, newHeight)
         state.cancelPendingWrap()
@@ -67,6 +69,8 @@ internal class TerminalBuffer private constructor(
         }
         clearAll()
         state.activeBuffer.resetScrollRegion(state.dimensions.height)
+        state.primaryBuffer.resetLeftRightMargins(state.dimensions.width)
+        state.altBuffer.resetLeftRightMargins(state.dimensions.width)
         state.modes.reset()
         state.tabStops.resetToDefault()
     }
