@@ -7,10 +7,11 @@ import org.junit.jupiter.api.Test
 class TerminalWriterUnicodeTest {
 
     @Test
-    fun `writeText_combiningMark_doesNotConsumeSecondCell`() {
+    fun `writeCluster_combiningSequence_doesNotConsumeSecondCell`() {
         val buffer = TerminalBuffers.create(width = 6, height = 2)
 
-        buffer.writeText("e\u0301B")
+        buffer.writeCluster(intArrayOf('e'.code, 0x0301), charWidth = 1)
+        buffer.writeCodepoint('B'.code)
 
         val line = buffer.getLine(0)
         val clusterBuf = IntArray(4)
@@ -27,11 +28,14 @@ class TerminalWriterUnicodeTest {
     }
 
     @Test
-    fun `writeText_emojiZwjFamily_staysOneClusterAndOneVisualWidthSequence`() {
+    fun `writeCluster_emojiZwjFamily_staysOneClusterAndOneVisualWidthSequence`() {
         val buffer = TerminalBuffers.create(width = 8, height = 2)
-        val family = "\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67\u200D\uD83D\uDC66"
 
-        buffer.writeText(family + "X")
+        buffer.writeCluster(
+            intArrayOf(0x1F468, 0x200D, 0x1F469, 0x200D, 0x1F467, 0x200D, 0x1F466),
+            charWidth = 2
+        )
+        buffer.writeCodepoint('X'.code)
 
         val line = buffer.getLine(0)
         val clusterBuf = IntArray(8)
@@ -54,11 +58,10 @@ class TerminalWriterUnicodeTest {
     }
 
     @Test
-    fun `writeCodepoint_variationSelector_appendsToPreviousCellNotNextCell`() {
+    fun `writeCluster_variationSelector_appendsToPreviousCellNotNextCell`() {
         val buffer = TerminalBuffers.create(width = 6, height = 2)
 
-        buffer.writeCodepoint(0x2764)
-        buffer.writeCodepoint(0xFE0F)
+        buffer.writeCluster(intArrayOf(0x2764, 0xFE0F), charWidth = 1)
         buffer.writeCodepoint('X'.code)
 
         val line = buffer.getLine(0)

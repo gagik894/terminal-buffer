@@ -7,89 +7,101 @@ import com.gagik.terminal.state.TerminalState
 import com.gagik.terminal.util.UnicodeWidth
 
 internal class TerminalWriterImpl(
-	private val state: TerminalState,
-	private val mutationEngine: MutationEngine,
-	private val cursorEngine: CursorEngine
+    private val state: TerminalState,
+    private val mutationEngine: MutationEngine,
+    private val cursorEngine: CursorEngine
 ) : TerminalWriter {
 
-	override fun writeCodepoint(codepoint: Int) {
-		val charWidth = UnicodeWidth.calculate(codepoint, state.modes.treatAmbiguousAsWide)
-		mutationEngine.printCodepoint(codepoint, charWidth)
-	}
+    override fun writeCodepoint(codepoint: Int) {
+        val charWidth = UnicodeWidth.calculate(codepoint, state.modes.treatAmbiguousAsWide)
+        mutationEngine.printCodepoint(codepoint, charWidth)
+    }
+    override fun writeText(text: String) {
+        var i = 0
+        while (i < text.length) {
+            val cp = text.codePointAt(i)
+            val charWidth = UnicodeWidth.calculate(cp, state.modes.treatAmbiguousAsWide)
+            mutationEngine.printCodepoint(cp, charWidth)
+            i += Character.charCount(cp)
+        }
+    }
 
-	override fun writeText(text: String) {
-		var i = 0
-		while (i < text.length) {
-			val cp = text.codePointAt(i)
-			val charWidth = UnicodeWidth.calculate(cp, state.modes.treatAmbiguousAsWide)
-			mutationEngine.printCodepoint(cp, charWidth)
-			i += Character.charCount(cp)
-		}
-	}
+    override fun writeCluster(codepoints: IntArray, length: Int, charWidth: Int) {
+        require(length in 1..codepoints.size) { "length must be in 1..${codepoints.size}, was $length" }
+        require(charWidth == 1 || charWidth == 2) { "charWidth must be 1 or 2, was $charWidth" }
 
-	override fun newLine() = mutationEngine.newLine()
+        if (length == 1) {
+            mutationEngine.printCodepoint(codepoints[0], charWidth)
+        } else {
+            mutationEngine.printCluster(codepoints, length, charWidth)
+        }
+    }
 
-	override fun reverseLineFeed() = mutationEngine.reverseLineFeed()
+    override fun newLine() = mutationEngine.newLine()
 
-	override fun carriageReturn() = cursorEngine.carriageReturn()
+    override fun reverseLineFeed() = mutationEngine.reverseLineFeed()
 
-	override fun setScrollRegion(top: Int, bottom: Int) {
-		state.activeBuffer.setScrollRegion(top, bottom, state.modes.isOriginMode, state.dimensions.height)
-	}
+    override fun carriageReturn() = cursorEngine.carriageReturn()
 
-	override fun resetScrollRegion() {
-		state.activeBuffer.resetScrollRegion(state.dimensions.height)
-		cursorEngine.setCursorAbsolute(0, 0)
-	}
-	override fun scrollUp() = mutationEngine.scrollUp()
+    override fun setScrollRegion(top: Int, bottom: Int) {
+        state.activeBuffer.setScrollRegion(top, bottom, state.modes.isOriginMode, state.dimensions.height)
+    }
 
-	override fun scrollDown() = mutationEngine.scrollDown()
+    override fun resetScrollRegion() {
+        state.activeBuffer.resetScrollRegion(state.dimensions.height)
+        cursorEngine.setCursorAbsolute(0, 0)
+    }
 
-	override fun insertLines(count: Int) = mutationEngine.insertLines(count)
+    override fun scrollUp() = mutationEngine.scrollUp()
 
-	override fun deleteLines(count: Int) = mutationEngine.deleteLines(count)
+    override fun scrollDown() = mutationEngine.scrollDown()
 
-	override fun insertBlankCharacters(count: Int) = mutationEngine.insertBlankCharacters(count)
+    override fun insertLines(count: Int) = mutationEngine.insertLines(count)
 
-	override fun deleteCharacters(count: Int) = mutationEngine.deleteCharacters(count)
+    override fun deleteLines(count: Int) = mutationEngine.deleteLines(count)
 
-	override fun eraseLineToEnd() = mutationEngine.eraseLineToEnd()
+    override fun insertBlankCharacters(count: Int) = mutationEngine.insertBlankCharacters(count)
 
-	override fun eraseLineToCursor() = mutationEngine.eraseLineToCursor()
+    override fun deleteCharacters(count: Int) = mutationEngine.deleteCharacters(count)
 
-	override fun eraseCurrentLine() = mutationEngine.eraseCurrentLine()
+    override fun eraseLineToEnd() = mutationEngine.eraseLineToEnd()
 
-	override fun eraseScreenToEnd() = mutationEngine.eraseScreenToEnd()
+    override fun eraseLineToCursor() = mutationEngine.eraseLineToCursor()
 
-	override fun eraseScreenToCursor() = mutationEngine.eraseScreenToCursor()
+    override fun eraseCurrentLine() = mutationEngine.eraseCurrentLine()
 
-	override fun eraseEntireScreen() = mutationEngine.clearViewport()
+    override fun eraseScreenToEnd() = mutationEngine.eraseScreenToEnd()
 
-	override fun eraseScreenAndHistory() = mutationEngine.eraseScreenAndHistory()
+    override fun eraseScreenToCursor() = mutationEngine.eraseScreenToCursor()
 
-	override fun clearScreen() {
-		mutationEngine.clearViewport()
-		cursorEngine.setCursorAbsolute(0, 0)
-	}
+    override fun eraseEntireScreen() = mutationEngine.clearViewport()
 
-	override fun clearAll() {
-		resetPen()
-		mutationEngine.clearAllHistory()
-		cursorEngine.setCursorAbsolute(0, 0)
-		state.savedCursor.clear()
-	}
+    override fun eraseScreenAndHistory() = mutationEngine.eraseScreenAndHistory()
 
-	override fun setPenAttributes(
-		fg: Int,
-		bg: Int,
-		bold: Boolean,
-		italic: Boolean,
-		underline: Boolean
-	) {
-		state.pen.setAttributes(fg, bg, bold, italic, underline)
-	}
+    override fun clearScreen() {
+        mutationEngine.clearViewport()
+        cursorEngine.setCursorAbsolute(0, 0)
+    }
 
-	override fun resetPen() {
-		state.pen.reset()
-	}
+    override fun clearAll() {
+        resetPen()
+        mutationEngine.clearAllHistory()
+        cursorEngine.setCursorAbsolute(0, 0)
+        state.savedCursor.clear()
+        state.tabStops.resetToDefault()
+    }
+
+    override fun setPenAttributes(
+        fg: Int,
+        bg: Int,
+        bold: Boolean,
+        italic: Boolean,
+        underline: Boolean
+    ) {
+        state.pen.setAttributes(fg, bg, bold, italic, underline)
+    }
+
+    override fun resetPen() {
+        state.pen.reset()
+    }
 }

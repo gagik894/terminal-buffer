@@ -42,6 +42,19 @@ interface TerminalWriter {
     fun writeText(text: String)
 
     /**
+     * Writes one pre-segmented grapheme cluster to the grid.
+     *
+     * This is the parser-facing ingress for complex printable sequences such as
+     * combining-mark clusters, ZWJ emoji, and variation-selector sequences.
+     * Callers must provide the final display width of the grapheme (`1` or `2`).
+     *
+     * @param codepoints Codepoints that make up the grapheme cluster.
+     * @param length Number of valid codepoints in [codepoints].
+     * @param charWidth Final display width of the grapheme (`1` or `2`).
+     */
+    fun writeCluster(codepoints: IntArray, length: Int = codepoints.size, charWidth: Int)
+
+    /**
      * Executes a line feed (LF, `0x0A`).
      *
      * Moves the cursor down one row without resetting the column. Scrolls the

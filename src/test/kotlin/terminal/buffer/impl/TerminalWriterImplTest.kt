@@ -1,11 +1,11 @@
 package com.gagik.terminal.buffer.impl
 
+import com.gagik.terminal.codec.AttributeCodec
 import com.gagik.terminal.engine.CursorEngine
 import com.gagik.terminal.engine.MutationEngine
 import com.gagik.terminal.model.Attributes
 import com.gagik.terminal.state.TerminalState
-import org.junit.jupiter.api.Assertions.assertAll
-import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 class TerminalWriterImplTest {
@@ -22,8 +22,12 @@ class TerminalWriterImplTest {
             { assertEquals('X'.code, state.ring[state.resolveRingIndex(0)].getCodepoint(0)) },
             { assertEquals(1, state.cursor.col) },
             { assertEquals(0, state.cursor.row) },
-            { assertEquals(Attributes(3, 7, bold = true, italic = true, underline = false),
-                com.gagik.terminal.codec.AttributeCodec.unpack(state.ring[state.resolveRingIndex(0)].getPackedAttr(0))) }
+            {
+                assertEquals(
+                    Attributes(3, 7, bold = true, italic = true, underline = false),
+                    AttributeCodec.unpack(state.ring[state.resolveRingIndex(0)].getPackedAttr(0))
+                )
+            }
         )
     }
 
@@ -32,11 +36,29 @@ class TerminalWriterImplTest {
         val state = TerminalState(6, 2, 2)
         val writer = TerminalWriterImpl(state, MutationEngine(state), CursorEngine(state))
 
-        writer.writeText("A😀B")
+        writer.writeText("A\uD83D\uDE00B")
 
         assertAll(
-            { assertEquals("A😀B", state.ring[state.resolveRingIndex(0)].toTextTrimmed()) },
+            { assertEquals("A\uD83D\uDE00B", state.ring[state.resolveRingIndex(0)].toTextTrimmed()) },
             { assertEquals(4, state.cursor.col) }
+        )
+    }
+
+    @Test
+    fun `writes parser segmented cluster through explicit cluster api`() {
+        val state = TerminalState(6, 2, 2)
+        val writer = TerminalWriterImpl(state, MutationEngine(state), CursorEngine(state))
+
+        writer.writeCluster(intArrayOf('e'.code, 0x0301), charWidth = 1)
+
+        val dest = IntArray(4)
+        val written = state.ring[state.resolveRingIndex(0)].readCluster(0, dest)
+
+        assertAll(
+            { assertTrue(state.ring[state.resolveRingIndex(0)].isCluster(0)) },
+            { assertEquals(2, written) },
+            { assertEquals('e'.code, dest[0]) },
+            { assertEquals(0x0301, dest[1]) }
         )
     }
 
@@ -58,4 +80,3 @@ class TerminalWriterImplTest {
         )
     }
 }
-
