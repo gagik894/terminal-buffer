@@ -201,7 +201,7 @@ internal class CursorEngine(private val state: TerminalState) {
 
         state.modes.isOriginMode = state.savedCursor.isOriginMode
 
-        val restoredCol = state.savedCursor.col.coerceIn(0, width - 1)
+        val restoredCol = state.savedCursor.col.coerceIn(leftMargin, rightMargin)
         val restoredRow = state.savedCursor.row.coerceIn(0, height - 1)
 
         state.cursor.col = restoredCol

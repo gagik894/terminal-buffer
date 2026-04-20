@@ -472,9 +472,13 @@ internal class MutationEngine(
     private fun eraseLineToEndInternal(cRow: Int, cCol: Int) {
         val line = getLine(cRow)
         if (state.modes.isLeftRightMarginMode) {
+            if (cCol !in leftMargin..rightMargin) {
+                line.wrapped = false
+                return
+            }
             val start = maxOf(cCol, leftMargin)
             if (start <= rightMargin) {
-                annihilateAt(cRow, cCol)
+                annihilateAt(cRow, start)
                 line.clearRange(start, rightMargin + 1, state.pen.currentAttr)
             }
         } else {
@@ -495,9 +499,10 @@ internal class MutationEngine(
     private fun eraseLineToCursorInternal(cRow: Int, cCol: Int) {
         val line = getLine(cRow)
         if (state.modes.isLeftRightMarginMode) {
+            if (cCol !in leftMargin..rightMargin) return
             val end = minOf(cCol, rightMargin)
             if (end >= leftMargin) {
-                annihilateAt(cRow, cCol)
+                annihilateAt(cRow, end)
                 line.clearRange(leftMargin, end + 1, state.pen.currentAttr)
             }
         } else {

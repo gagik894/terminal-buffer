@@ -488,4 +488,76 @@ class TerminalLeftRightMarginTest {
             { assertTrue(state.cursor.pendingWrap) }
         )
     }
+
+    @Test
+    fun `restoreCursor_clampsToHorizontalMargins_whenDeclrmmActive`() {
+        val buffer = TerminalBuffers.create(width = 8, height = 3)
+        val state = stateOf(buffer)
+        buffer.positionCursor(7, 1)
+        buffer.saveCursor()
+        buffer.setLeftRightMarginMode(true)
+        buffer.setLeftRightMargins(3, 6)
+
+        buffer.restoreCursor()
+        buffer.writeCodepoint('X'.code)
+
+        assertAll(
+            { assertEquals(5, buffer.cursorCol) },
+            { assertEquals(1, buffer.cursorRow) },
+            { assertEquals('X'.code, buffer.getCodepointAt(5, 1)) },
+            { assertTrue(state.cursor.pendingWrap) }
+        )
+    }
+
+    @Test
+    fun `eraseLineToEnd_doesNotEraseOutsideHorizontalMargins_whenCursorIsOutside`() {
+        val buffer = TerminalBuffers.create(width = 8, height = 2)
+        val state = stateOf(buffer)
+        buffer.setLeftRightMarginMode(true)
+        buffer.setLeftRightMargins(3, 6)
+
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(0, 'L'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(2, 'a'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(3, 'b'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(4, 'c'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(7, 'R'.code, 0)
+        state.cursor.col = 0
+        state.cursor.row = 0
+
+        buffer.eraseLineToEnd()
+
+        assertAll(
+            { assertEquals('L'.code, buffer.getCodepointAt(0, 0)) },
+            { assertEquals('a'.code, buffer.getCodepointAt(2, 0)) },
+            { assertEquals('b'.code, buffer.getCodepointAt(3, 0)) },
+            { assertEquals('c'.code, buffer.getCodepointAt(4, 0)) },
+            { assertEquals('R'.code, buffer.getCodepointAt(7, 0)) }
+        )
+    }
+
+    @Test
+    fun `eraseLineToCursor_doesNotEraseOutsideHorizontalMargins_whenCursorIsOutside`() {
+        val buffer = TerminalBuffers.create(width = 8, height = 2)
+        val state = stateOf(buffer)
+        buffer.setLeftRightMarginMode(true)
+        buffer.setLeftRightMargins(3, 6)
+
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(0, 'L'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(2, 'a'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(3, 'b'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(4, 'c'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(7, 'R'.code, 0)
+        state.cursor.col = 7
+        state.cursor.row = 0
+
+        buffer.eraseLineToCursor()
+
+        assertAll(
+            { assertEquals('L'.code, buffer.getCodepointAt(0, 0)) },
+            { assertEquals('a'.code, buffer.getCodepointAt(2, 0)) },
+            { assertEquals('b'.code, buffer.getCodepointAt(3, 0)) },
+            { assertEquals('c'.code, buffer.getCodepointAt(4, 0)) },
+            { assertEquals('R'.code, buffer.getCodepointAt(7, 0)) }
+        )
+    }
 }
