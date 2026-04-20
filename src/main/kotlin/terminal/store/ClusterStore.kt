@@ -28,7 +28,9 @@ import com.gagik.terminal.store.ClusterStore.Companion.NO_FREE
  * Individual slots are returned via [free] and chained into an O(1) singly-linked
  * freelist. The next allocation that needs a slot pops the head of that list
  * before growing the slot table. Data bytes are not zeroed on free; they are
- * simply overwritten on the next [alloc].
+ * simply overwritten on the next [alloc]. Double-free is rejected: once a slot
+ * has been returned to the freelist, a second [free] of the same live handle
+ * throws [IllegalStateException] instead of silently corrupting allocator state.
  *
  * ## Thread safety
  *
@@ -68,6 +70,9 @@ internal class ClusterStore {
      * For a freed slot, stores the index of the next free slot, or [NO_FREE].
      */
     private var nextFree = IntArray(INITIAL_SLOT_CAPACITY) { NO_FREE }
+
+    /** `true` iff the slot currently owns a live cluster payload. */
+    private var isLive = BooleanArray(INITIAL_SLOT_CAPACITY)
 
     // Flat codepoint pool
     /** Contiguous pool of all cluster codepoints from all live slots. */
@@ -110,6 +115,7 @@ internal class ClusterStore {
         System.arraycopy(codepoints, offset, clusterData, start, length)
         slotStarts[slot] = start
         slotLengths[slot] = length
+        isLive[slot] = true
         return encodeHandle(slot)
     }
 
@@ -124,6 +130,10 @@ internal class ClusterStore {
     fun free(handle: Int) {
         if (handle > TerminalConstants.CLUSTER_HANDLE_MAX) return  // EMPTY, codepoint, or SPACER
         val slot = decodeSlot(handle)
+        if (!isLive[slot]) {
+            throw IllegalStateException("Cluster handle $handle was freed more than once")
+        }
+        isLive[slot] = false
         nextFree[slot] = freeHead
         freeHead = slot
     }
@@ -215,6 +225,7 @@ internal class ClusterStore {
         if (freeHead != NO_FREE) {
             val slot = freeHead
             freeHead = nextFree[slot]
+            nextFree[slot] = NO_FREE
             return slot
         }
         if (slotCount == slotStarts.size) growSlots()
@@ -234,6 +245,7 @@ internal class ClusterStore {
         slotStarts  = slotStarts.copyOf(newCap)
         slotLengths = slotLengths.copyOf(newCap)
         val grown   = nextFree.copyOf(newCap)
+        isLive      = isLive.copyOf(newCap)
         for (i in slotCount until newCap) grown[i] = NO_FREE
         nextFree = grown
     }

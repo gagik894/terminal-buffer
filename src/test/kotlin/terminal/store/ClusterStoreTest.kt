@@ -1,5 +1,6 @@
 package com.gagik.terminal.store
 
+import com.gagik.terminal.model.Line
 import com.gagik.terminal.model.TerminalConstants
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
@@ -204,6 +205,20 @@ class ClusterStoreTest {
         }
 
         @Test
+        fun `free same handle twice throws`() {
+            val store = ClusterStore()
+            val handle = store.alloc(intArrayOf(1, 2, 3))
+
+            store.free(handle)
+
+            val error = assertThrows(IllegalStateException::class.java) {
+                store.free(handle)
+            }
+
+            assertTrue(error.message!!.contains(handle.toString()))
+        }
+
+        @Test
         fun `free preserves all other live handles`() {
             val store = ClusterStore()
             val h0 = store.alloc(intArrayOf(10, 11))
@@ -296,6 +311,32 @@ class ClusterStoreTest {
                 { assertEquals(h0, r2) },
                 { assertEquals(-5, r3, "r3 must be a fresh slot since h2 was not freed") },
                 { assertCluster(store, h2, intArrayOf(3)) }
+            )
+        }
+
+        @Test
+        fun `freeRange does not double free live shifted handles`() {
+            val store = ClusterStore()
+            val line = Line(width = 4, store = store)
+            val attr = 0
+
+            line.setCluster(0, intArrayOf(10, 11), 2, attr)
+            line.setCluster(1, intArrayOf(20, 21), 2, attr)
+            line.setCluster(2, intArrayOf(30, 31), 2, attr)
+            val survivingHandle = line.rawCodepoint(2)
+
+            assertDoesNotThrow {
+                line.deleteCells(col = 0, count = 2, defaultAttr = attr)
+                line.clear(attr)
+            }
+
+            val reused = IntArray(3) { store.alloc(intArrayOf(100 + it, 200 + it)) }
+
+            assertAll(
+                { assertEquals(survivingHandle, reused[0], "Shifted live handle should be freed exactly once") },
+                { assertCluster(store, reused[0], intArrayOf(100, 200)) },
+                { assertCluster(store, reused[1], intArrayOf(101, 201)) },
+                { assertCluster(store, reused[2], intArrayOf(102, 202)) }
             )
         }
 
