@@ -182,6 +182,102 @@ class TerminalLeftRightMarginTest {
     }
 
     @Test
+    fun `il_onlyMovesCellsInsideHorizontalMargins`() {
+        val buffer = TerminalBuffers.create(width = 8, height = 4)
+        val state = stateOf(buffer)
+        buffer.setLeftRightMarginMode(true)
+        buffer.setLeftRightMargins(3, 6)
+        buffer.setScrollRegion(2, 4)
+
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(0, 'A'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(2, 'a'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(3, 'b'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(4, 'c'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(7, '!'.code, 0)
+
+        state.activeBuffer.ring[state.resolveRingIndex(1)].setCell(0, 'B'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(1)].setCell(2, 'd'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(1)].setCell(3, 'e'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(1)].setCell(4, 'f'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(1)].setCell(7, '?'.code, 0)
+
+        state.activeBuffer.ring[state.resolveRingIndex(2)].setCell(0, 'C'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(2)].setCell(2, 'g'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(2)].setCell(3, 'h'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(2)].setCell(4, 'i'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(2)].setCell(7, '.'.code, 0)
+
+        buffer.positionCursor(2, 1)
+        buffer.insertLines(1)
+
+        assertAll(
+            { assertEquals('A'.code, buffer.getCodepointAt(0, 0)) },
+            { assertEquals('a'.code, buffer.getCodepointAt(2, 0)) },
+            { assertEquals('b'.code, buffer.getCodepointAt(3, 0)) },
+            { assertEquals('c'.code, buffer.getCodepointAt(4, 0)) },
+            { assertEquals('!'.code, buffer.getCodepointAt(7, 0)) },
+            { assertEquals('B'.code, buffer.getCodepointAt(0, 1)) },
+            { assertEquals(0, buffer.getCodepointAt(2, 1)) },
+            { assertEquals(0, buffer.getCodepointAt(3, 1)) },
+            { assertEquals(0, buffer.getCodepointAt(4, 1)) },
+            { assertEquals('?'.code, buffer.getCodepointAt(7, 1)) },
+            { assertEquals('C'.code, buffer.getCodepointAt(0, 2)) },
+            { assertEquals('d'.code, buffer.getCodepointAt(2, 2)) },
+            { assertEquals('e'.code, buffer.getCodepointAt(3, 2)) },
+            { assertEquals('f'.code, buffer.getCodepointAt(4, 2)) },
+            { assertEquals('.'.code, buffer.getCodepointAt(7, 2)) }
+        )
+    }
+
+    @Test
+    fun `dl_onlyMovesCellsInsideHorizontalMargins`() {
+        val buffer = TerminalBuffers.create(width = 8, height = 4)
+        val state = stateOf(buffer)
+        buffer.setLeftRightMarginMode(true)
+        buffer.setLeftRightMargins(3, 6)
+        buffer.setScrollRegion(2, 4)
+
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(0, 'A'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(2, 'a'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(3, 'b'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(4, 'c'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(7, '!'.code, 0)
+
+        state.activeBuffer.ring[state.resolveRingIndex(1)].setCell(0, 'B'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(1)].setCell(2, 'd'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(1)].setCell(3, 'e'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(1)].setCell(4, 'f'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(1)].setCell(7, '?'.code, 0)
+
+        state.activeBuffer.ring[state.resolveRingIndex(2)].setCell(0, 'C'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(2)].setCell(2, 'g'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(2)].setCell(3, 'h'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(2)].setCell(4, 'i'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(2)].setCell(7, '.'.code, 0)
+
+        buffer.positionCursor(2, 1)
+        buffer.deleteLines(1)
+
+        assertAll(
+            { assertEquals('A'.code, buffer.getCodepointAt(0, 0)) },
+            { assertEquals('a'.code, buffer.getCodepointAt(2, 0)) },
+            { assertEquals('b'.code, buffer.getCodepointAt(3, 0)) },
+            { assertEquals('c'.code, buffer.getCodepointAt(4, 0)) },
+            { assertEquals('!'.code, buffer.getCodepointAt(7, 0)) },
+            { assertEquals('B'.code, buffer.getCodepointAt(0, 1)) },
+            { assertEquals('g'.code, buffer.getCodepointAt(2, 1)) },
+            { assertEquals('h'.code, buffer.getCodepointAt(3, 1)) },
+            { assertEquals('i'.code, buffer.getCodepointAt(4, 1)) },
+            { assertEquals('?'.code, buffer.getCodepointAt(7, 1)) },
+            { assertEquals('C'.code, buffer.getCodepointAt(0, 2)) },
+            { assertEquals(0, buffer.getCodepointAt(2, 2)) },
+            { assertEquals(0, buffer.getCodepointAt(3, 2)) },
+            { assertEquals(0, buffer.getCodepointAt(4, 2)) },
+            { assertEquals('.'.code, buffer.getCodepointAt(7, 2)) }
+        )
+    }
+
+    @Test
     fun `cr_movesToLeftMargin_whenLRActive`() {
         val buffer = TerminalBuffers.create(width = 8, height = 3)
         buffer.setLeftRightMarginMode(true)
@@ -193,6 +289,64 @@ class TerminalLeftRightMarginTest {
         assertAll(
             { assertEquals(2, buffer.cursorCol) },
             { assertEquals(1, buffer.cursorRow) }
+        )
+    }
+
+    @Test
+    fun `el_operations_onlyAffectHorizontalMarginRegion`() {
+        val buffer = TerminalBuffers.create(width = 8, height = 3)
+        val state = stateOf(buffer)
+        buffer.setLeftRightMarginMode(true)
+        buffer.setLeftRightMargins(3, 6)
+
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(0, 'L'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(2, 'a'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(3, 'b'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(4, 'c'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(5, 'd'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(7, 'R'.code, 0)
+
+        buffer.positionCursor(3, 0)
+        buffer.eraseLineToEnd()
+
+        assertAll(
+            { assertEquals('L'.code, buffer.getCodepointAt(0, 0)) },
+            { assertEquals('a'.code, buffer.getCodepointAt(2, 0)) },
+            { assertEquals(0, buffer.getCodepointAt(3, 0)) },
+            { assertEquals(0, buffer.getCodepointAt(4, 0)) },
+            { assertEquals(0, buffer.getCodepointAt(5, 0)) },
+            { assertEquals('R'.code, buffer.getCodepointAt(7, 0)) }
+        )
+
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(2, 'a'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(3, 'b'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(4, 'c'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(5, 'd'.code, 0)
+        buffer.positionCursor(4, 0)
+        buffer.eraseLineToCursor()
+
+        assertAll(
+            { assertEquals('L'.code, buffer.getCodepointAt(0, 0)) },
+            { assertEquals(0, buffer.getCodepointAt(2, 0)) },
+            { assertEquals(0, buffer.getCodepointAt(3, 0)) },
+            { assertEquals(0, buffer.getCodepointAt(4, 0)) },
+            { assertEquals('d'.code, buffer.getCodepointAt(5, 0)) },
+            { assertEquals('R'.code, buffer.getCodepointAt(7, 0)) }
+        )
+
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(2, 'a'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(3, 'b'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(4, 'c'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(5, 'd'.code, 0)
+        buffer.eraseCurrentLine()
+
+        assertAll(
+            { assertEquals('L'.code, buffer.getCodepointAt(0, 0)) },
+            { assertEquals(0, buffer.getCodepointAt(2, 0)) },
+            { assertEquals(0, buffer.getCodepointAt(3, 0)) },
+            { assertEquals(0, buffer.getCodepointAt(4, 0)) },
+            { assertEquals(0, buffer.getCodepointAt(5, 0)) },
+            { assertEquals('R'.code, buffer.getCodepointAt(7, 0)) }
         )
     }
 

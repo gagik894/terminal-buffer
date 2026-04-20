@@ -188,6 +188,19 @@ internal class Line(
     }
 
     /**
+     * Clears cells in `[startCol, endExclusive)`, freeing any cluster handles in
+     * that range and leaving cells outside the range untouched.
+     */
+    fun clearRange(startCol: Int, endExclusive: Int, attr: Int) {
+        val from = startCol.coerceIn(0, width)
+        val to = endExclusive.coerceIn(0, width)
+        if (from >= to) return
+        store.freeRange(codepoints, from, to)
+        codepoints.fill(TerminalConstants.EMPTY, from, to)
+        attrs.fill(attr, from, to)
+    }
+
+    /**
      * Inserts [count] blank cells at [col], shifting existing content to the right.
      * Cells shifted off the right edge are freed (cluster handles are released).
      * The wide-cluster leader at [col] must be annihilated by the caller before

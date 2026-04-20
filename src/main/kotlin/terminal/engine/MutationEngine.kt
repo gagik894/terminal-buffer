@@ -33,6 +33,7 @@ internal class MutationEngine(
     private val height: Int get() = state.dimensions.height
     private val leftMargin: Int get() = state.effectiveLeftMargin
     private val rightMargin: Int get() = state.effectiveRightMargin
+    private var clusterScratch = IntArray(16)
 
     /**
      * Wraps mutations that conceptually break phantom-column state.
@@ -173,6 +174,30 @@ internal class MutationEngine(
         }
 
         line.setCell(start, TerminalConstants.EMPTY, attr)
+    }
+
+    /**
+     * Deep-copies a horizontal slice from [src] to [dest].
+     *
+     * This helper is intentionally used only for rectangular LR-margin edits.
+     * It preserves cluster ownership correctly by copying cluster payloads into
+     * fresh slots before the source cells are later cleared or overwritten.
+     */
+    private fun copySlice(src: Line, dest: Line, left: Int, right: Int) {
+        for (col in left..right) {
+            val raw = src.rawCodepoint(col)
+            val attr = src.getPackedAttr(col)
+            if (raw <= TerminalConstants.CLUSTER_HANDLE_MAX) {
+                val cpLen = src.store.length(raw)
+                if (clusterScratch.size < cpLen) {
+                    clusterScratch = IntArray(cpLen)
+                }
+                src.store.readInto(raw, clusterScratch, 0)
+                dest.setCluster(col, clusterScratch, cpLen, attr)
+            } else {
+                dest.setCell(col, raw, attr)
+            }
+        }
     }
 
     /**
@@ -330,9 +355,24 @@ internal class MutationEngine(
 
         structuralMutation {
             mutateLines(count) { absCursorRow, absBottom, times ->
-                repeat(times) {
-                    state.ring.rotateDown(absCursorRow, absBottom)
-                    state.ring[absCursorRow].clear(state.pen.currentAttr)
+                if (!state.modes.isLeftRightMarginMode) {
+                    repeat(times) {
+                        state.ring.rotateDown(absCursorRow, absBottom)
+                        state.ring[absCursorRow].clear(state.pen.currentAttr)
+                    }
+                    return@mutateLines
+                }
+
+                val topRow = state.cursor.row
+                val bottomRow = state.scrollBottom
+                for (row in bottomRow downTo topRow + times) {
+                    copySlice(getLine(row - times), getLine(row), leftMargin, rightMargin)
+                    getLine(row).wrapped = false
+                }
+                for (row in topRow until topRow + times) {
+                    val line = getLine(row)
+                    line.clearRange(leftMargin, rightMargin + 1, state.pen.currentAttr)
+                    line.wrapped = false
                 }
             }
         }
@@ -344,9 +384,24 @@ internal class MutationEngine(
 
         structuralMutation {
             mutateLines(count) { absCursorRow, absBottom, times ->
-                repeat(times) {
-                    state.ring.rotateUp(absCursorRow, absBottom)
-                    state.ring[absBottom].clear(state.pen.currentAttr)
+                if (!state.modes.isLeftRightMarginMode) {
+                    repeat(times) {
+                        state.ring.rotateUp(absCursorRow, absBottom)
+                        state.ring[absBottom].clear(state.pen.currentAttr)
+                    }
+                    return@mutateLines
+                }
+
+                val topRow = state.cursor.row
+                val bottomRow = state.scrollBottom
+                for (row in topRow..bottomRow - times) {
+                    copySlice(getLine(row + times), getLine(row), leftMargin, rightMargin)
+                    getLine(row).wrapped = false
+                }
+                for (row in bottomRow - times + 1..bottomRow) {
+                    val line = getLine(row)
+                    line.clearRange(leftMargin, rightMargin + 1, state.pen.currentAttr)
+                    line.wrapped = false
                 }
             }
         }
@@ -415,9 +470,17 @@ internal class MutationEngine(
     }
 
     private fun eraseLineToEndInternal(cRow: Int, cCol: Int) {
-        annihilateAt(cRow, cCol)
         val line = getLine(cRow)
-        line.clearFromColumn(cCol, state.pen.currentAttr)
+        if (state.modes.isLeftRightMarginMode) {
+            val start = maxOf(cCol, leftMargin)
+            if (start <= rightMargin) {
+                annihilateAt(cRow, cCol)
+                line.clearRange(start, rightMargin + 1, state.pen.currentAttr)
+            }
+        } else {
+            annihilateAt(cRow, cCol)
+            line.clearFromColumn(cCol, state.pen.currentAttr)
+        }
         line.wrapped = false
     }
 
@@ -430,8 +493,17 @@ internal class MutationEngine(
     }
 
     private fun eraseLineToCursorInternal(cRow: Int, cCol: Int) {
-        annihilateAt(cRow, cCol)
-        getLine(cRow).clearToColumn(cCol, state.pen.currentAttr)
+        val line = getLine(cRow)
+        if (state.modes.isLeftRightMarginMode) {
+            val end = minOf(cCol, rightMargin)
+            if (end >= leftMargin) {
+                annihilateAt(cRow, cCol)
+                line.clearRange(leftMargin, end + 1, state.pen.currentAttr)
+            }
+        } else {
+            annihilateAt(cRow, cCol)
+            line.clearToColumn(cCol, state.pen.currentAttr)
+        }
     }
 
     /** Erases from the start of the line through the cursor (EL 1). */
@@ -447,7 +519,11 @@ internal class MutationEngine(
         val cRow = state.cursor.row
         if (cRow !in 0 until height) return@structuralMutation
         val line = getLine(cRow)
-        line.clear(state.pen.currentAttr)
+        if (state.modes.isLeftRightMarginMode) {
+            line.clearRange(leftMargin, rightMargin + 1, state.pen.currentAttr)
+        } else {
+            line.clear(state.pen.currentAttr)
+        }
         line.wrapped = false
     }
 
