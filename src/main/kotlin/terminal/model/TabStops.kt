@@ -40,10 +40,23 @@ internal class TabStops(private var width: Int) {
      * @param newWidth The new terminal width in columns.
      */
     fun resize(newWidth: Int) {
-        if (newWidth == width) return
-        stops = BooleanArray(newWidth) { i ->
-            if (i < stops.size) stops[i] else i % 8 == 0
+        val oldWidth = stops.size
+
+        if (newWidth <= oldWidth) {
+            // Truncate safely
+            stops = stops.copyOf(newWidth)
+            width = newWidth
+            return
         }
+
+        // Expand
+        stops = stops.copyOf(newWidth)
+
+        // Populate the newly created space with default 8-col VT stops
+        for (i in oldWidth until newWidth) {
+            stops[i] = (i % 8 == 0)
+        }
+
         width = newWidth
     }
 

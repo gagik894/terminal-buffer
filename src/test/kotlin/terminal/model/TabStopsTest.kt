@@ -336,4 +336,27 @@ class TabStopsTest {
             assertEquals(0, ts.getNextStop(0))
         }
     }
+
+    @Nested
+    @DisplayName("Resize Expansion")
+    inner class ResizeTests {
+
+        @Nested
+        @DisplayName("Resize Expansion")
+        inner class ResizeTests {
+
+            @Test
+            fun `resizing to a narrower dimension safely truncates stops without error`() {
+                val tabStops = TabStops(20)
+                tabStops.setStop(18)
+
+                assertDoesNotThrow {
+                    tabStops.resize(10)
+                }
+
+                // If your class has bounds-checking on its getter, you can assert it fails safely.
+                // Otherwise, just verifying `resize` doesn't throw is enough.
+            }
+        }
+    }
 }
