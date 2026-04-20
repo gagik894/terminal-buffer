@@ -75,11 +75,55 @@ internal class TerminalBuffer private constructor(
         state.tabStops.resetToDefault()
     }
 
+    override fun executeDeccolm(newWidth: Int) {
+        if (newWidth != 80 && newWidth != 132) return
+
+        val primarySaved = SavedCursorSnapshot.from(state.primaryBuffer.savedCursor)
+        val altSaved = SavedCursorSnapshot.from(state.altBuffer.savedCursor)
+
+        resize(newWidth, state.dimensions.height)
+        components.mutationEngine.deccolmReset(newWidth)
+
+        primarySaved.restoreInto(state.primaryBuffer.savedCursor)
+        altSaved.restoreInto(state.altBuffer.savedCursor)
+    }
+
     private data class Components(
         val state: TerminalState,
         val mutationEngine: MutationEngine,
         val cursorEngine: CursorEngine
     )
+
+    private data class SavedCursorSnapshot(
+        val col: Int,
+        val row: Int,
+        val attr: Int,
+        val pendingWrap: Boolean,
+        val isOriginMode: Boolean,
+        val isSaved: Boolean
+    ) {
+        fun restoreInto(target: com.gagik.terminal.model.SavedCursorState) {
+            target.col = col
+            target.row = row
+            target.attr = attr
+            target.pendingWrap = pendingWrap
+            target.isOriginMode = isOriginMode
+            target.isSaved = isSaved
+        }
+
+        companion object {
+            fun from(source: com.gagik.terminal.model.SavedCursorState): SavedCursorSnapshot {
+                return SavedCursorSnapshot(
+                    col = source.col,
+                    row = source.row,
+                    attr = source.attr,
+                    pendingWrap = source.pendingWrap,
+                    isOriginMode = source.isOriginMode,
+                    isSaved = source.isSaved
+                )
+            }
+        }
+    }
 
     private companion object {
         fun createComponents(initialWidth: Int, initialHeight: Int, maxHistory: Int): Components {

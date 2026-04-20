@@ -760,6 +760,33 @@ internal class MutationEngine(
         clearAllHistoryInternal()
     }
 
+    /**
+     * Performs the destructive post-resize reset phase of DECCOLM on the active buffer.
+     *
+     * Resize must happen first. Never call this directly on stale dimensions or
+     * before the width switch has been applied; [newWidth] and the active buffer
+     * geometry must already match.
+     *
+     * Sequence:
+     * 1. Clear the active display and its retained history
+     * 2. Home the active cursor to absolute `(0, 0)` regardless of DECOM
+     * 3. Reset vertical and horizontal margins to the full viewport
+     * 4. Reset tab stops to the default 8-column rhythm for [newWidth]
+     * 5. Cancel pending wrap
+     *
+     * This method intentionally does not touch either DECSC saved-cursor slot.
+     * The caller is responsible for any width change and for preserving saved
+     * cursor state across that resize when DECCOLM semantics require it.
+     */
+    fun deccolmReset(newWidth: Int) = structuralMutation {
+        clearAllHistoryInternal()
+        state.activeBuffer.cursor.col = 0
+        state.activeBuffer.cursor.row = 0
+        state.activeBuffer.resetScrollRegion(height)
+        state.activeBuffer.resetLeftRightMargins(newWidth)
+        state.tabStops.reset(newWidth)
+    }
+
     /** Executes a line feed relative to the active scroll region. */
     fun newLine() = structuralMutation {
         state.cursor.row = advanceRow(state.cursor.row)

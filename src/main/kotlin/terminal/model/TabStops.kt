@@ -69,7 +69,18 @@ internal class TabStops(private var width: Int) {
 
     /** Restores the default VT100 stop pattern for the current width. */
     fun resetToDefault() {
-        for (i in 0 until width) stops[i] = i % 8 == 0
+        reset(width)
+    }
+
+    /**
+     * Resets all tab stops to the standard VT100 8-column rhythm at [newWidth].
+     *
+     * Unlike [resize], this does not preserve custom stops. It is used by
+     * destructive terminal operations such as DECCOLM and hard reset.
+     */
+    fun reset(newWidth: Int) {
+        width = newWidth
+        stops = BooleanArray(newWidth) { col -> col % 8 == 0 }
     }
 
     // Query

@@ -266,6 +266,51 @@ class TabStopsTest {
         }
     }
 
+    @Nested
+    @DisplayName("reset(newWidth)")
+    inner class Reset {
+
+        @Test
+        fun `reset_withSameWidth_restoresDefaultStops`() {
+            val ts = TabStops(20)
+            ts.clearAll()
+            ts.setStop(3)
+
+            ts.reset(20)
+
+            assertEquals(8, ts.getNextStop(0))
+        }
+
+        @Test
+        fun `reset_withSameWidth_destroysCustomStops_and_restoresOnlyDefaultRhythm`() {
+            val ts = TabStops(20)
+            ts.clearAll()
+            ts.setStop(3)
+            ts.setStop(11)
+
+            ts.reset(20)
+
+            assertAll(
+                { assertEquals(8, ts.getNextStop(0)) },
+                { assertEquals(16, ts.getNextStop(8)) }
+            )
+        }
+
+        @Test
+        fun `reset_withNewWidth_rebuildsDefaultRhythmForThatWidth`() {
+            val ts = TabStops(20)
+            ts.clearAll()
+            ts.setStop(3)
+
+            ts.reset(10)
+
+            assertAll(
+                { assertEquals(8, ts.getNextStop(0)) },
+                { assertEquals(9, ts.getNextStop(8)) }
+            )
+        }
+    }
+
     // ----- resize -----------------------------------------------------------
 
     @Nested

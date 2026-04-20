@@ -45,4 +45,25 @@ interface TerminalBufferApi :
      * active, exits it first.
      */
     fun reset()
+
+    /**
+     * Executes DECCOLM (`CSI ? 3 h` / `CSI ? 3 l`) as a core-owned macro command.
+     *
+     * Valid widths are `80` and `132`; all other values are ignored.
+     *
+     * Sequence:
+     * 1. Resize both buffers to `newWidth × currentHeight`
+     * 2. Destructively clear the active display and its history
+     * 3. Home the active cursor to absolute `(0, 0)` regardless of DECOM
+     * 4. Reset active scroll margins to the full viewport
+     * 5. Reset active left/right margins to the full width
+     * 6. Reset tab stops to the default 8-column rhythm for the new width
+     * 7. Cancel pending wrap
+     * 8. Preserve both DECSC saved-cursor slots unchanged
+     *
+     * When the alternate screen is active, DECCOLM follows the xterm-style
+     * policy used by [resize]: the alternate screen is wiped at the new width
+     * while the primary screen is reflowed in the background.
+     */
+    fun executeDeccolm(newWidth: Int)
 }
