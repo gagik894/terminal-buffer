@@ -45,14 +45,14 @@ interface TerminalLineApi {
      * returns the number of codepoints written.
      *
      * **Zero-allocation contract:** the renderer allocates `dest` once at startup
-     * (an `IntArray` of size 16 covers every real-world cluster) and reuses it
-     * across all frames. This method never allocates.
+     * and reuses it across all frames. This method never allocates.
      *
      * Returns `0` for non-cluster cells; callers should check [isCluster] first
      * or treat a return value of `0` as "use [getCodepoint] instead".
      *
      * @param col  Column index (0-based).
-     * @param dest Destination array. Must have capacity >= actual cluster length.
+     * @param dest Destination array. Must have capacity >= actual cluster length;
+     * there is no fixed public upper bound guaranteed by this API.
      * @return     Number of codepoints written, or 0 if the cell is not a cluster.
      */
     fun readCluster(col: Int, dest: IntArray): Int = 0

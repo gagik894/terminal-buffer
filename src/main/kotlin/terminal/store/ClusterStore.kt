@@ -186,8 +186,9 @@ internal class ClusterStore {
      * [destOffset] and returns the number of codepoints written.
      *
      * **This is the canonical zero-allocation handoff to the renderer.**
-     * The renderer should allocate a single `IntArray(MAX_CLUSTER_SIZE)` once at
-     * startup and pass it here on every frame. No heap allocation occurs.
+     * Callers should allocate a reusable destination array large enough for the
+     * clusters they expect to render and pass it here on every frame. No heap
+     * allocation occurs.
      *
      * @param handle     A valid cluster handle returned by [alloc].
      * @param dest       Destination array. Must have capacity >= [length(handle)].
