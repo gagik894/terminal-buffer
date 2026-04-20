@@ -3,6 +3,7 @@ package com.gagik.terminal.buffer
 import com.gagik.terminal.TerminalBuffers
 import com.gagik.terminal.api.TerminalBufferApi
 import com.gagik.terminal.model.Attributes
+import com.gagik.terminal.model.TerminalModes
 import com.gagik.terminal.state.TerminalState
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
@@ -112,23 +113,45 @@ class TerminalBufferTest {
 	@Test
 	fun `reset exits alt buffer and restores current core mode defaults`() {
 		val buffer = newApiBuffer(width = 5, height = 3, maxHistory = 2)
+		val state = stateOf(buffer)
 		buffer.setInsertMode(true)
 		buffer.setAutoWrap(false)
 		buffer.setOriginMode(true)
 		buffer.setApplicationCursorKeys(true)
 		buffer.setTreatAmbiguousAsWide(true)
+		state.modes.isApplicationKeypad = true
+		state.modes.isNewLineMode = true
+		state.modes.isLeftRightMarginMode = true
+		state.modes.isReverseVideo = true
+		state.modes.isCursorVisible = false
+		state.modes.isCursorBlinking = true
+		state.modes.isBracketedPasteEnabled = true
+		state.modes.isFocusReportingEnabled = true
+		state.modes.mouseTrackingMode = TerminalModes.MouseTrackingMode.BUTTON_EVENT
+		state.modes.mouseEncodingMode = TerminalModes.MouseEncodingMode.SGR
+		state.modes.modifyOtherKeysMode = 2
 		buffer.enterAltBuffer()
 
 		buffer.reset()
 
-		val state = stateOf(buffer)
 		assertAll(
 			{ assertFalse(state.isAltScreenActive) },
 			{ assertFalse(state.modes.isInsertMode) },
 			{ assertTrue(state.modes.isAutoWrap) },
 			{ assertFalse(state.modes.isOriginMode) },
 			{ assertFalse(state.modes.isApplicationCursorKeys) },
+			{ assertFalse(state.modes.isApplicationKeypad) },
+			{ assertFalse(state.modes.isNewLineMode) },
+			{ assertFalse(state.modes.isLeftRightMarginMode) },
+			{ assertFalse(state.modes.isReverseVideo) },
+			{ assertTrue(state.modes.isCursorVisible) },
+			{ assertFalse(state.modes.isCursorBlinking) },
+			{ assertFalse(state.modes.isBracketedPasteEnabled) },
+			{ assertFalse(state.modes.isFocusReportingEnabled) },
 			{ assertFalse(state.modes.treatAmbiguousAsWide) },
+			{ assertEquals(TerminalModes.MouseTrackingMode.OFF, state.modes.mouseTrackingMode) },
+			{ assertEquals(TerminalModes.MouseEncodingMode.DEFAULT, state.modes.mouseEncodingMode) },
+			{ assertEquals(0, state.modes.modifyOtherKeysMode) },
 			{ assertEquals(0, buffer.cursorCol) },
 			{ assertEquals(0, buffer.cursorRow) }
 		)
