@@ -1,7 +1,7 @@
 package com.gagik.terminal.buffer.impl
 
 import com.gagik.terminal.TerminalBuffers
-import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 class TerminalWriterImplContractTest {
@@ -14,5 +14,19 @@ class TerminalWriterImplContractTest {
         buffer.horizontalTab()
 
         assertEquals(8, buffer.cursorCol, "clearAll must restore the default VT tab stops")
+    }
+
+    @Test
+    fun `writeText_remains_scalarOnly_and_does_not_segment_graphemes`() {
+        val buffer = TerminalBuffers.create(width = 6, height = 2)
+
+        buffer.writeText("e\u0301")
+
+        assertAll(
+            { assertFalse(buffer.getLine(0).isCluster(0), "Core writeText must stay scalar-only until parser segmentation exists") },
+            { assertEquals('e'.code, buffer.getCodepointAt(0, 0)) },
+            { assertEquals(0x0301, buffer.getCodepointAt(1, 0)) },
+            { assertEquals(2, buffer.cursorCol) }
+        )
     }
 }

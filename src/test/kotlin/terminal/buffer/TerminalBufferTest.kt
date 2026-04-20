@@ -3,14 +3,24 @@ package com.gagik.terminal.buffer
 import com.gagik.terminal.TerminalBuffers
 import com.gagik.terminal.api.TerminalBufferApi
 import com.gagik.terminal.model.Attributes
-import org.junit.jupiter.api.Assertions.assertAll
-import org.junit.jupiter.api.Assertions.assertEquals
+import com.gagik.terminal.state.TerminalState
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
 @DisplayName("TerminalBuffer Integration Test Suite")
 class TerminalBufferTest {
+
+	private fun stateOf(api: TerminalBufferApi): TerminalState {
+		val componentsField = api.javaClass.getDeclaredField("components")
+		componentsField.isAccessible = true
+		val components = componentsField.get(api)
+
+		val stateField = components.javaClass.getDeclaredField("state")
+		stateField.isAccessible = true
+		return stateField.get(components) as TerminalState
+	}
 
 	private fun newBuffer(width: Int = 4, height: Int = 3, maxHistory: Int = 5): TerminalBuffer {
 		return TerminalBuffer(width, height, maxHistory)
@@ -94,6 +104,31 @@ class TerminalBufferTest {
 			{ assertEquals(3, buffer.height) },
 			{ assertEquals(blankScreen(3), buffer.getScreenAsString()) },
 			{ assertEquals(blankScreen(3), buffer.getAllAsString()) },
+			{ assertEquals(0, buffer.cursorCol) },
+			{ assertEquals(0, buffer.cursorRow) }
+		)
+	}
+
+	@Test
+	fun `reset exits alt buffer and restores current core mode defaults`() {
+		val buffer = newApiBuffer(width = 5, height = 3, maxHistory = 2)
+		buffer.setInsertMode(true)
+		buffer.setAutoWrap(false)
+		buffer.setOriginMode(true)
+		buffer.setApplicationCursorKeys(true)
+		buffer.setTreatAmbiguousAsWide(true)
+		buffer.enterAltBuffer()
+
+		buffer.reset()
+
+		val state = stateOf(buffer)
+		assertAll(
+			{ assertFalse(state.isAltScreenActive) },
+			{ assertFalse(state.modes.isInsertMode) },
+			{ assertTrue(state.modes.isAutoWrap) },
+			{ assertFalse(state.modes.isOriginMode) },
+			{ assertFalse(state.modes.isApplicationCursorKeys) },
+			{ assertFalse(state.modes.treatAmbiguousAsWide) },
 			{ assertEquals(0, buffer.cursorCol) },
 			{ assertEquals(0, buffer.cursorRow) }
 		)
