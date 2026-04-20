@@ -27,7 +27,14 @@ interface TerminalReader {
     /** Returns the visible line at [row], or a shared void line when [row] is out of bounds. */
     fun getLine(row: Int): TerminalLineApi
 
-    /** Returns the raw stored codepoint at `[col, row]`, or `0` when out of bounds. */
+    /**
+     * Returns the display/base codepoint at `[col, row]`.
+     *
+     * - Plain cells return their stored Unicode scalar value.
+     * - Cluster cells return the leading codepoint of the grapheme sequence.
+     * - Wide-character spacer cells return `-1`.
+     * - Blank cells and out-of-bounds probes return `0`.
+     */
     fun getCodepointAt(col: Int, row: Int): Int
 
     /**
