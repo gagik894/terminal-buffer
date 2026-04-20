@@ -1,13 +1,13 @@
 # Terminal Buffer
 
 A high-performance terminal model/core in Kotlin. This repository builds the
-headless screen state engine only: grid memory, scrollback, wrap semantics,
+headless screen-state engine only: grid memory, scrollback, wrap semantics,
 resize reflow, attributes, alternate-screen state, and cluster-aware cell
 storage.
 
 ## Architecture
 
-- **TerminalBuffer** is the façade that coordinates the state, mutation, cursor,
+- **TerminalBuffer** is the facade that coordinates the state, mutation, cursor,
   mode, and reader/inspector surfaces.
 - **ScreenBuffer** owns one complete screen arena: `HistoryRing`, `ClusterStore`,
   cursor, saved cursor, and scroll margins.
@@ -32,6 +32,9 @@ The core is cluster-capable but not a grapheme segmenter.
   dispatch into the core.
 
 ## Parser / input handoff
+
+The detailed public contract lives in
+[`docs/terminal-core-contract.md`](docs/terminal-core-contract.md).
 
 - Parser-facing durable mode control lives on `TerminalModeController`.
 - Input/UI-facing durable mode reads live on `TerminalModeReader` via immutable
