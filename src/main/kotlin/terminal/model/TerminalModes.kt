@@ -52,9 +52,6 @@ internal class TerminalModes {
     /**
      * DEC left/right margin mode (DECLRMM, `CSI ? 69 h`).
      * False = full-width semantics (default).
-     *
-     * TODO Stage 2: wire into cursor clamping, wrap boundaries, and horizontal
-     * edit operations. Setting this flag today has no engine effect.
      */
     var isLeftRightMarginMode: Boolean = false
 
