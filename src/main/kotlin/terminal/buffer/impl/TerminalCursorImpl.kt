@@ -34,4 +34,6 @@ internal class TerminalCursorImpl(
 	override fun horizontalTab() = cursorEngine.horizontalTab()
 
 	override fun cursorForwardTab(count: Int) = cursorEngine.cursorForwardTab(count)
+
+	override fun cursorBackwardTab(count: Int) = cursorEngine.cursorBackwardTab(count)
 }

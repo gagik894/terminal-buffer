@@ -311,6 +311,29 @@ class TabStopsTest {
         }
     }
 
+    @Nested
+    @DisplayName("getPreviousStop")
+    inner class GetPreviousStop {
+
+        @Test
+        fun `returns nearest stop to left`() {
+            val ts = TabStops(24)
+
+            assertEquals(8, ts.getPreviousStop(15))
+            assertEquals(0, ts.getPreviousStop(8))
+        }
+
+        @Test
+        fun `clamps to left boundary`() {
+            val ts = TabStops(24)
+            ts.clearAll()
+
+            assertEquals(0, ts.getPreviousStop(15))
+            assertEquals(3, ts.getPreviousStop(15, leftBoundary = 3))
+            assertEquals(5, ts.getPreviousStop(2, leftBoundary = 5))
+        }
+    }
+
     // ----- resize -----------------------------------------------------------
 
     @Nested

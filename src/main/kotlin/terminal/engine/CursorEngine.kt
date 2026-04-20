@@ -16,8 +16,6 @@ import com.gagik.terminal.state.TerminalState
  * cause the next printed character to wrap from an unexpected position.
  */
 internal class CursorEngine(private val state: TerminalState) {
-
-    private val width: Int get() = state.dimensions.width
     private val height: Int get() = state.dimensions.height
     private val leftMargin: Int get() = state.effectiveLeftMargin
     private val rightMargin: Int get() = state.effectiveRightMargin
@@ -25,6 +23,11 @@ internal class CursorEngine(private val state: TerminalState) {
     /** Advances once to the next tab stop, clamped to the active right boundary. */
     private fun advanceToNextTabStop() {
         state.cursor.col = minOf(state.tabStops.getNextStop(state.cursor.col), rightMargin)
+    }
+
+    /** Retreats once to the previous tab stop, clamped to the active left boundary. */
+    private fun retreatToPreviousTabStop() {
+        state.cursor.col = state.tabStops.getPreviousStop(state.cursor.col, leftMargin)
     }
 
     // --- Cursor Positioning ----------------------------------------------
@@ -152,6 +155,21 @@ internal class CursorEngine(private val state: TerminalState) {
         val steps = if (count <= 0) 1 else count
         repeat(steps) {
             advanceToNextTabStop()
+        }
+    }
+
+    /**
+     * Moves the cursor backward by [count] tab stops (CBT, CSI Ps Z).
+     *
+     * A count of `0` uses the ANSI default of `1`. Movement never wraps:
+     * if fewer than [count] stops exist before the active left boundary,
+     * the cursor clamps there and remains pinned for the remaining steps.
+     */
+    fun cursorBackwardTab(count: Int = 1) {
+        state.cancelPendingWrap()
+        val steps = if (count <= 0) 1 else count
+        repeat(steps) {
+            retreatToPreviousTabStop()
         }
     }
 

@@ -104,4 +104,24 @@ internal class TabStops(private var width: Int) {
         }
         return margin
     }
+
+    /**
+     * Returns the nearest tab stop strictly to the left of [currentCol].
+     *
+     * If no stop exists to the left, returns [leftBoundary]. This lets callers
+     * implement CBT against either the full viewport (`0`) or an active
+     * DECLRMM left margin. Tab never wraps and never crosses the supplied
+     * left boundary.
+     *
+     * @param currentCol The cursor's current zero-based column index.
+     * @param leftBoundary The minimum column the cursor may land on.
+     * @return The column index the cursor should jump to.
+     */
+    fun getPreviousStop(currentCol: Int, leftBoundary: Int = 0): Int {
+        if (currentCol <= leftBoundary) return leftBoundary
+        for (i in currentCol - 1 downTo leftBoundary) {
+            if (i in 0 until width && stops[i]) return i
+        }
+        return leftBoundary
+    }
 }

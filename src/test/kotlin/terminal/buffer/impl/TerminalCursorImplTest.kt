@@ -86,5 +86,16 @@ class TerminalCursorImplTest {
 
         assertEquals(16, state.cursor.col)
     }
+
+    @Test
+    fun `cursorBackwardTab moves through stops via the facade`() {
+        val state = TerminalState(20, 1, 0)
+        val cursor = TerminalCursorImpl(state, CursorEngine(state))
+
+        cursor.positionCursor(19, 0)
+        cursor.cursorBackwardTab(2)
+
+        assertEquals(8, state.cursor.col)
+    }
 }
 

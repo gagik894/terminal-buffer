@@ -128,7 +128,7 @@ class CursorEngineTest {
         }
 
         @Test
-        fun `ignores origin mode — always absolute`() {
+        fun `ignores origin mode - always absolute`() {
             val s = state(); val e = engine(s)
             setScrollRegion(s, top = 2, bottom = 3)
             s.modes.isOriginMode = true
@@ -584,6 +584,54 @@ class CursorEngineTest {
         }
     }
 
+    @Nested
+    @DisplayName("cursorBackwardTab")
+    inner class CursorBackwardTab {
+
+        @Test
+        fun `defaults to one stop when count is zero`() {
+            val s = state(width = 20); val e = engine(s)
+            s.cursor.col = 16
+
+            e.cursorBackwardTab(0)
+
+            assertEquals(8, s.cursor.col)
+        }
+
+        @Test
+        fun `moves across multiple tab stops`() {
+            val s = state(width = 20); val e = engine(s)
+            s.cursor.col = 19
+
+            e.cursorBackwardTab(2)
+
+            assertEquals(8, s.cursor.col)
+        }
+
+        @Test
+        fun `respects declrmm left margin`() {
+            val s = state(width = 20); val e = engine(s)
+            s.modes.isLeftRightMarginMode = true
+            s.activeBuffer.setLeftRightMargins(left = 4, right = 14, viewportWidth = 20)
+            s.cursor.col = 10
+
+            e.cursorBackwardTab(2)
+
+            assertEquals(3, s.cursor.col)
+        }
+
+        @Test
+        fun `cancels pendingWrap`() {
+            val s = state(width = 20); val e = engine(s)
+            s.cursor.col = 16
+            s.cursor.pendingWrap = true
+
+            e.cursorBackwardTab(1)
+
+            assertFalse(s.cursor.pendingWrap)
+        }
+    }
+
     // ── saveCursor ────────────────────────────────────────────────────────
 
     @Nested
@@ -888,6 +936,14 @@ class CursorEngineTest {
             val s = state(width = 20); val e = engine(s)
             s.cursor.pendingWrap = true
             e.cursorForwardTab(1)
+            assertFalse(s.cursor.pendingWrap)
+        }
+
+        @Test
+        fun `cursorBackwardTab cancels wrap`() {
+            val s = state(width = 20); val e = engine(s)
+            s.cursor.pendingWrap = true
+            e.cursorBackwardTab(1)
             assertFalse(s.cursor.pendingWrap)
         }
 

@@ -133,4 +133,14 @@ interface TerminalCursor {
      * DECLRMM on, it is the active horizontal right margin.
      */
     fun cursorForwardTab(count: Int = 1)
+
+    /**
+     * Moves the cursor backward by [count] tab stops (CBT, `CSI Ps Z`).
+     *
+     * A count of `0` uses the ANSI default of `1`. The cursor never wraps:
+     * if fewer than [count] stops exist to the left, movement clamps at the
+     * active left boundary. With DECLRMM off, that boundary is column `0`;
+     * with DECLRMM on, it is the active horizontal left margin.
+     */
+    fun cursorBackwardTab(count: Int = 1)
 }
