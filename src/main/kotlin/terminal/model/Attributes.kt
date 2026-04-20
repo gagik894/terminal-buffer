@@ -8,6 +8,7 @@ data class Attributes(
     val bg: Int,
     val bold: Boolean,
     val italic: Boolean,
-    val underline: Boolean
+    val underline: Boolean,
+    val selectiveEraseProtected: Boolean = false
 )
 

@@ -50,7 +50,7 @@ internal class TerminalState(
      */
     fun enterAltScreen() {
         if (isAltScreenActive) return
-        altBuffer.clearGrid(pen.currentAttr, dimensions.height)
+        altBuffer.clearGrid(pen.blankAttr, dimensions.height)
         altBuffer.resetScrollRegion(dimensions.height)
         altBuffer.resetLeftRightMargins(dimensions.width)
         altBuffer.cursor.col = 0

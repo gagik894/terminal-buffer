@@ -170,11 +170,29 @@ interface TerminalWriter {
     /** Erases the entire current line without moving the cursor (EL 2, `CSI 2 K`). */
     fun eraseCurrentLine()
 
+    /** Selectively erases from the cursor to the end of the current line (DECSEL 0). */
+    fun selectiveEraseLineToEnd()
+
+    /** Selectively erases from the start of the current line through the cursor (DECSEL 1). */
+    fun selectiveEraseLineToCursor()
+
+    /** Selectively erases the entire current line without moving the cursor (DECSEL 2). */
+    fun selectiveEraseCurrentLine()
+
     /** Erases from the cursor to the end of the visible screen (ED 0, `CSI 0 J`). */
     fun eraseScreenToEnd()
 
     /** Erases from the start of the visible screen through the cursor (ED 1, `CSI 1 J`). */
     fun eraseScreenToCursor()
+
+    /** Selectively erases from the cursor through the end of the visible screen (DECSED 0). */
+    fun selectiveEraseScreenToEnd()
+
+    /** Selectively erases from the start of the visible screen through the cursor (DECSED 1). */
+    fun selectiveEraseScreenToCursor()
+
+    /** Selectively erases the entire visible screen without moving the cursor (DECSED 2). */
+    fun selectiveEraseEntireScreen()
 
     /** Erases the entire visible screen without moving the cursor (ED 2, `CSI 2 J`). */
     fun eraseEntireScreen()
@@ -220,6 +238,13 @@ interface TerminalWriter {
         italic: Boolean = false,
         underline: Boolean = false
     )
+
+    /**
+     * Enables or disables selective-erase protection on future printed cells (DECSCA).
+     *
+     * This affects DECSEL/DECSED only. Normal writes still overwrite protected cells.
+     */
+    fun setSelectiveEraseProtection(enabled: Boolean)
 
     /**
      * Resets the active pen to the terminal default attributes (`SGR 0`, `CSI 0 m`).

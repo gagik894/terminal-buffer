@@ -83,9 +83,21 @@ internal class TerminalWriterImpl(
 
     override fun eraseCurrentLine() = mutationEngine.eraseCurrentLine()
 
+    override fun selectiveEraseLineToEnd() = mutationEngine.selectiveEraseLineToEnd()
+
+    override fun selectiveEraseLineToCursor() = mutationEngine.selectiveEraseLineToCursor()
+
+    override fun selectiveEraseCurrentLine() = mutationEngine.selectiveEraseCurrentLine()
+
     override fun eraseScreenToEnd() = mutationEngine.eraseScreenToEnd()
 
     override fun eraseScreenToCursor() = mutationEngine.eraseScreenToCursor()
+
+    override fun selectiveEraseScreenToEnd() = mutationEngine.selectiveEraseScreenToEnd()
+
+    override fun selectiveEraseScreenToCursor() = mutationEngine.selectiveEraseScreenToCursor()
+
+    override fun selectiveEraseEntireScreen() = mutationEngine.selectiveEraseEntireScreen()
 
     override fun eraseEntireScreen() = mutationEngine.clearViewport()
 
@@ -112,6 +124,10 @@ internal class TerminalWriterImpl(
         underline: Boolean
     ) {
         state.pen.setAttributes(fg, bg, bold, italic, underline)
+    }
+
+    override fun setSelectiveEraseProtection(enabled: Boolean) {
+        state.pen.setSelectiveEraseProtection(enabled)
     }
 
     override fun resetPen() {

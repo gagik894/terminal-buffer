@@ -1,6 +1,7 @@
 package com.gagik.terminal.engine
 
 import com.gagik.terminal.buffer.HistoryRing
+import com.gagik.terminal.codec.AttributeCodec
 import com.gagik.terminal.model.Line
 import com.gagik.terminal.model.TerminalConstants
 import com.gagik.terminal.state.TerminalState
@@ -33,6 +34,7 @@ internal class MutationEngine(
     private val height: Int get() = state.dimensions.height
     private val leftMargin: Int get() = state.effectiveLeftMargin
     private val rightMargin: Int get() = state.effectiveRightMargin
+    private val blankAttr: Int get() = state.pen.blankAttr
     private var clusterScratch = IntArray(16)
 
     /**
@@ -68,14 +70,14 @@ internal class MutationEngine(
 
         if (state.isFullViewportScroll) {
             repeat(n) {
-                state.ring.push().clear(state.pen.currentAttr)
+                state.ring.push().clear(blankAttr)
             }
         } else {
             val absTop = state.resolveRingIndex(top)
             val absBottom = state.resolveRingIndex(bottom)
             repeat(n) {
                 state.ring.rotateUp(absTop, absBottom)
-                state.ring[absBottom].clear(state.pen.currentAttr)
+                state.ring[absBottom].clear(blankAttr)
             }
         }
     }
@@ -96,7 +98,7 @@ internal class MutationEngine(
         val absBottom = state.resolveRingIndex(bottom)
         repeat(n) {
             state.ring.rotateDown(absTop, absBottom)
-            state.ring[absTop].clear(state.pen.currentAttr)
+            state.ring[absTop].clear(blankAttr)
         }
     }
 
@@ -160,7 +162,7 @@ internal class MutationEngine(
         val line = getLine(row)
         val start = findClusterStart(line, col)
         val raw = line.rawCodepoint(start)
-        val attr = state.pen.currentAttr
+        val attr = blankAttr
 
         if (raw == TerminalConstants.WIDE_CHAR_SPACER) {
             line.setCell(start, TerminalConstants.EMPTY, attr)
@@ -198,6 +200,50 @@ internal class MutationEngine(
                 dest.setCell(col, raw, attr)
             }
         }
+    }
+
+    private fun occupantEndExclusive(line: Line, start: Int): Int {
+        if (start !in 0 until width) return start + 1
+        return if (start + 1 < width && line.rawCodepoint(start + 1) == TerminalConstants.WIDE_CHAR_SPACER) {
+            start + 2
+        } else {
+            start + 1
+        }
+    }
+
+    private fun isProtectedOccupant(line: Line, col: Int): Boolean {
+        if (col !in 0 until width) return false
+        val start = findClusterStart(line, col)
+        return start in 0 until width && AttributeCodec.isProtected(line.getPackedAttr(start))
+    }
+
+    /**
+     * Protection policy matrix:
+     * - printable writes overwrite protected and unprotected cells alike
+     * - normal erase paths (ED/EL and hard clears) ignore protection
+     * - selective erase paths (DECSED/DECSEL) skip protected cells
+     * - structural shifts and hard resets move or clear cells regardless of protection
+     *
+     * DECSCA therefore affects only selective erase. It does not make a cell
+     * immutable to later printable output.
+     */
+    private fun selectiveEraseRange(row: Int, startCol: Int, endExclusive: Int) {
+        if (row !in 0 until height) return
+        val line = getLine(row)
+        val from = startCol.coerceIn(0, width)
+        val to = endExclusive.coerceIn(0, width)
+        if (from >= to) return
+
+        var col = from
+        while (col < to) {
+            val start = findClusterStart(line, col).coerceIn(0, width - 1)
+            val next = occupantEndExclusive(line, start)
+            if (!isProtectedOccupant(line, start)) {
+                line.clearRange(start, minOf(next, width), blankAttr)
+            }
+            col = maxOf(col + 1, next)
+        }
+        line.wrapped = false
     }
 
     /**
@@ -241,7 +287,7 @@ internal class MutationEngine(
             if (line.rawCodepoint(cCol) == TerminalConstants.WIDE_CHAR_SPACER) {
                 annihilateAt(cRow, cCol)
             }
-            line.insertCellsInRange(cCol, widthInCells, rightMargin, state.pen.currentAttr)
+            line.insertCellsInRange(cCol, widthInCells, rightMargin, blankAttr)
         }
 
         annihilateAt(cRow, cCol)
@@ -358,7 +404,7 @@ internal class MutationEngine(
                 if (!state.modes.isLeftRightMarginMode) {
                     repeat(times) {
                         state.ring.rotateDown(absCursorRow, absBottom)
-                        state.ring[absCursorRow].clear(state.pen.currentAttr)
+                        state.ring[absCursorRow].clear(blankAttr)
                     }
                     return@mutateLines
                 }
@@ -371,7 +417,7 @@ internal class MutationEngine(
                 }
                 for (row in topRow until topRow + times) {
                     val line = getLine(row)
-                    line.clearRange(leftMargin, rightMargin + 1, state.pen.currentAttr)
+                    line.clearRange(leftMargin, rightMargin + 1, blankAttr)
                     line.wrapped = false
                 }
             }
@@ -387,7 +433,7 @@ internal class MutationEngine(
                 if (!state.modes.isLeftRightMarginMode) {
                     repeat(times) {
                         state.ring.rotateUp(absCursorRow, absBottom)
-                        state.ring[absBottom].clear(state.pen.currentAttr)
+                        state.ring[absBottom].clear(blankAttr)
                     }
                     return@mutateLines
                 }
@@ -400,7 +446,7 @@ internal class MutationEngine(
                 }
                 for (row in bottomRow - times + 1..bottomRow) {
                     val line = getLine(row)
-                    line.clearRange(leftMargin, rightMargin + 1, state.pen.currentAttr)
+                    line.clearRange(leftMargin, rightMargin + 1, blankAttr)
                     line.wrapped = false
                 }
             }
@@ -435,7 +481,7 @@ internal class MutationEngine(
                 annihilateAt(cRow, edgeCol)
             }
 
-            line.insertCellsInRange(cCol, safeCount, rightMargin, state.pen.currentAttr)
+            line.insertCellsInRange(cCol, safeCount, rightMargin, blankAttr)
         }
     }
 
@@ -465,7 +511,7 @@ internal class MutationEngine(
                 }
             }
 
-            getLine(cRow).deleteCellsInRange(cCol, safeCount, rightMargin, state.pen.currentAttr)
+            getLine(cRow).deleteCellsInRange(cCol, safeCount, rightMargin, blankAttr)
         }
     }
 
@@ -479,11 +525,11 @@ internal class MutationEngine(
             val start = maxOf(cCol, leftMargin)
             if (start <= rightMargin) {
                 annihilateAt(cRow, start)
-                line.clearRange(start, rightMargin + 1, state.pen.currentAttr)
+                line.clearRange(start, rightMargin + 1, blankAttr)
             }
         } else {
             annihilateAt(cRow, cCol)
-            line.clearFromColumn(cCol, state.pen.currentAttr)
+            line.clearFromColumn(cCol, blankAttr)
         }
         line.wrapped = false
     }
@@ -503,11 +549,11 @@ internal class MutationEngine(
             val end = minOf(cCol, rightMargin)
             if (end >= leftMargin) {
                 annihilateAt(cRow, end)
-                line.clearRange(leftMargin, end + 1, state.pen.currentAttr)
+                line.clearRange(leftMargin, end + 1, blankAttr)
             }
         } else {
             annihilateAt(cRow, cCol)
-            line.clearToColumn(cCol, state.pen.currentAttr)
+            line.clearToColumn(cCol, blankAttr)
         }
     }
 
@@ -525,11 +571,53 @@ internal class MutationEngine(
         if (cRow !in 0 until height) return@structuralMutation
         val line = getLine(cRow)
         if (state.modes.isLeftRightMarginMode) {
-            line.clearRange(leftMargin, rightMargin + 1, state.pen.currentAttr)
+            line.clearRange(leftMargin, rightMargin + 1, blankAttr)
         } else {
-            line.clear(state.pen.currentAttr)
+            line.clear(blankAttr)
         }
         line.wrapped = false
+    }
+
+    /** Selectively erases from the cursor through the end of the current line (DECSEL 0). */
+    fun selectiveEraseLineToEnd() = structuralMutation {
+        val cRow = state.cursor.row
+        val cCol = state.cursor.col
+        if (cRow !in 0 until height || cCol !in 0 until width) return@structuralMutation
+
+        if (state.modes.isLeftRightMarginMode) {
+            if (cCol !in leftMargin..rightMargin) {
+                getLine(cRow).wrapped = false
+                return@structuralMutation
+            }
+            selectiveEraseRange(cRow, maxOf(cCol, leftMargin), rightMargin + 1)
+        } else {
+            selectiveEraseRange(cRow, cCol, width)
+        }
+    }
+
+    /** Selectively erases from the start of the current line through the cursor (DECSEL 1). */
+    fun selectiveEraseLineToCursor() = structuralMutation {
+        val cRow = state.cursor.row
+        val cCol = state.cursor.col.coerceAtMost(width - 1)
+        if (cRow !in 0 until height || cCol < 0) return@structuralMutation
+
+        if (state.modes.isLeftRightMarginMode) {
+            if (cCol !in leftMargin..rightMargin) return@structuralMutation
+            selectiveEraseRange(cRow, leftMargin, cCol + 1)
+        } else {
+            selectiveEraseRange(cRow, 0, cCol + 1)
+        }
+    }
+
+    /** Selectively erases the entire current line without moving the cursor (DECSEL 2). */
+    fun selectiveEraseCurrentLine() = structuralMutation {
+        val cRow = state.cursor.row
+        if (cRow !in 0 until height) return@structuralMutation
+        if (state.modes.isLeftRightMarginMode) {
+            selectiveEraseRange(cRow, leftMargin, rightMargin + 1)
+        } else {
+            selectiveEraseRange(cRow, 0, width)
+        }
     }
 
     /** Erases from the cursor through the end of the visible screen (ED 0). */
@@ -543,7 +631,7 @@ internal class MutationEngine(
         }
 
         for (row in cRow + 1 until height) {
-            getLine(row).clear(state.pen.currentAttr)
+            getLine(row).clear(blankAttr)
         }
     }
 
@@ -553,12 +641,63 @@ internal class MutationEngine(
         if (cRow !in 0 until height) return@structuralMutation
 
         for (row in 0 until cRow) {
-            getLine(row).clear(state.pen.currentAttr)
+            getLine(row).clear(blankAttr)
         }
 
         val cCol = state.cursor.col.coerceAtMost(width - 1)
         if (cCol >= 0) {
             eraseLineToCursorInternal(cRow, cCol)
+        }
+    }
+
+    /** Selectively erases from the cursor through the end of the visible screen (DECSED 0). */
+    fun selectiveEraseScreenToEnd() = structuralMutation {
+        val cRow = state.cursor.row
+        val cCol = state.cursor.col
+        if (cRow !in 0 until height) return@structuralMutation
+
+        if (cCol in 0 until width) {
+            if (state.modes.isLeftRightMarginMode) {
+                if (cCol in leftMargin..rightMargin) {
+                    selectiveEraseRange(cRow, maxOf(cCol, leftMargin), rightMargin + 1)
+                } else {
+                    getLine(cRow).wrapped = false
+                }
+            } else {
+                selectiveEraseRange(cRow, cCol, width)
+            }
+        }
+
+        for (row in cRow + 1 until height) {
+            selectiveEraseRange(row, 0, width)
+        }
+    }
+
+    /** Selectively erases from the start of the visible screen through the cursor (DECSED 1). */
+    fun selectiveEraseScreenToCursor() = structuralMutation {
+        val cRow = state.cursor.row
+        if (cRow !in 0 until height) return@structuralMutation
+
+        for (row in 0 until cRow) {
+            selectiveEraseRange(row, 0, width)
+        }
+
+        val cCol = state.cursor.col.coerceAtMost(width - 1)
+        if (cCol >= 0) {
+            if (state.modes.isLeftRightMarginMode) {
+                if (cCol in leftMargin..rightMargin) {
+                    selectiveEraseRange(cRow, leftMargin, cCol + 1)
+                }
+            } else {
+                selectiveEraseRange(cRow, 0, cCol + 1)
+            }
+        }
+    }
+
+    /** Selectively erases the entire visible screen without moving the cursor (DECSED 2). */
+    fun selectiveEraseEntireScreen() = structuralMutation {
+        for (row in 0 until height) {
+            selectiveEraseRange(row, 0, width)
         }
     }
 
@@ -602,7 +741,7 @@ internal class MutationEngine(
 
     private fun clearViewportInternal() {
         for (row in 0 until height.coerceAtMost(state.ring.size)) {
-            getLine(row).clear(state.pen.currentAttr)
+            getLine(row).clear(blankAttr)
         }
     }
 
@@ -613,7 +752,7 @@ internal class MutationEngine(
 
     /** Clears both the viewport and retained history on the active buffer. */
     private fun clearAllHistoryInternal() {
-        state.activeBuffer.clearGrid(state.pen.currentAttr, height)
+        state.activeBuffer.clearGrid(blankAttr, height)
     }
 
     /** Clears the active buffer's viewport and scrollback history. */

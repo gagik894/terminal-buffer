@@ -48,7 +48,7 @@ internal class TerminalBuffer private constructor(
         if (newWidth == oldWidth && newHeight == oldHeight) return
 
         TerminalResizer.resizeBuffer(state.primaryBuffer, oldWidth, oldHeight, newWidth, newHeight)
-        state.altBuffer.replaceStorage(newWidth, newHeight, state.pen.currentAttr)
+        state.altBuffer.replaceStorage(newWidth, newHeight, state.pen.blankAttr)
 
         state.dimensions.width = newWidth
         state.dimensions.height = newHeight
