@@ -42,7 +42,14 @@ internal object AttributeCodec {
      * - The italic attribute is stored in bit 11.
      * - The underline attribute is stored in bit 12.
      */
-    fun pack(fg: Int, bg: Int, bold: Boolean, italic: Boolean, underline: Boolean): Int {
+    fun pack(
+        fg: Int,
+        bg: Int,
+        bold: Boolean,
+        italic: Boolean,
+        underline: Boolean,
+        protected: Boolean = false
+    ): Int {
         require(fg in 0..MAX_COLOR) { "fg must be in 0..$MAX_COLOR, was $fg" }
         require(bg in 0..MAX_COLOR) { "bg must be in 0..$MAX_COLOR, was $bg" }
 
@@ -51,6 +58,7 @@ internal object AttributeCodec {
         if (bold) v = v or (1 shl 10)
         if (italic) v = v or (1 shl 11)
         if (underline) v = v or (1 shl 12)
+        if (protected) v = v or (1 shl 13)
         return v
     }
 
@@ -89,6 +97,18 @@ internal object AttributeCodec {
      */
     fun isUnderline(v: Int) = v and (1 shl 12) != 0
 
+    /** Checks if selective-erase protection is set in the packed attribute Int. */
+    fun isProtected(v: Int) = v and (1 shl 13) != 0
+
+    /** Returns [v] with only the selective-erase protection bit changed. */
+    fun withProtected(v: Int, enabled: Boolean): Int {
+        return if (enabled) {
+            v or (1 shl 13)
+        } else {
+            v and (1 shl 13).inv()
+        }
+    }
+
     /**
      * Unpacks a packed attribute Int into a structured Attributes instance.
      * @param v Packed attribute value
@@ -100,7 +120,8 @@ internal object AttributeCodec {
             bg = background(v),
             bold = isBold(v),
             italic = isItalic(v),
-            underline = isUnderline(v)
+            underline = isUnderline(v),
+            selectiveEraseProtected = isProtected(v)
         )
     }
 }

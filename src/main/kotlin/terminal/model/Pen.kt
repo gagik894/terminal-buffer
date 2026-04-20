@@ -12,12 +12,20 @@ internal class Pen {
 
     private val defaultAttr = AttributeCodec.pack(
         fg = 0, bg = 0,
-        bold = false, italic = false, underline = false
+        bold = false, italic = false, underline = false, protected = false
     )
 
     /** Current packed attributes for the pen state */
     var currentAttr: Int = defaultAttr
         private set
+
+    /** Current blank-fill attribute with selective-erase protection stripped off. */
+    val blankAttr: Int
+        get() = AttributeCodec.withProtected(currentAttr, enabled = false)
+
+    /** Whether future printed cells are protected from DECSEL/DECSED. */
+    val isSelectiveEraseProtected: Boolean
+        get() = AttributeCodec.isProtected(currentAttr)
 
     /**
      * Sets the current drawing style.
@@ -36,8 +44,21 @@ internal class Pen {
     ) {
         val safeFg = fg.coerceIn(0, AttributeCodec.MAX_ANSI_COLOR)
         val safeBg = bg.coerceIn(0, AttributeCodec.MAX_ANSI_COLOR)
+        val isProtected = AttributeCodec.isProtected(currentAttr)
 
-        currentAttr = AttributeCodec.pack(safeFg, safeBg, bold, italic, underline)
+        currentAttr = AttributeCodec.pack(
+            safeFg,
+            safeBg,
+            bold,
+            italic,
+            underline,
+            protected = isProtected
+        )
+    }
+
+    /** Enables or disables selective-erase protection for future printable writes (DECSCA). */
+    fun setSelectiveEraseProtection(enabled: Boolean) {
+        currentAttr = AttributeCodec.withProtected(currentAttr, enabled)
     }
 
     /**
