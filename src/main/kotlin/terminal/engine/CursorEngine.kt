@@ -6,7 +6,7 @@ import com.gagik.terminal.state.TerminalState
  * Handles cursor and pen state operations that require no grid mutation.
  *
  * Owns: cursor positioning, pen save/restore (DECSC/DECRC), carriage return,
- * and horizontal tab. Does NOT touch the ring, lines, or any physical grid memory.
+ * and tab navigation. Does NOT touch the ring, lines, or any physical grid memory.
  *
  * ## Pending-wrap invariant
  *
@@ -21,6 +21,11 @@ internal class CursorEngine(private val state: TerminalState) {
     private val height: Int get() = state.dimensions.height
     private val leftMargin: Int get() = state.effectiveLeftMargin
     private val rightMargin: Int get() = state.effectiveRightMargin
+
+    /** Advances once to the next tab stop, clamped to the active right boundary. */
+    private fun advanceToNextTabStop() {
+        state.cursor.col = minOf(state.tabStops.getNextStop(state.cursor.col), rightMargin)
+    }
 
     // --- Cursor Positioning ----------------------------------------------
 
@@ -132,7 +137,22 @@ internal class CursorEngine(private val state: TerminalState) {
      */
     fun horizontalTab() {
         state.cancelPendingWrap()
-        state.cursor.col = minOf(state.tabStops.getNextStop(state.cursor.col), rightMargin)
+        advanceToNextTabStop()
+    }
+
+    /**
+     * Advances the cursor forward by [count] tab stops (CHT, CSI Ps I).
+     *
+     * A count of `0` uses the ANSI default of `1`. Movement never wraps:
+     * if fewer than [count] stops exist before the active right boundary,
+     * the cursor clamps there and remains pinned for the remaining steps.
+     */
+    fun cursorForwardTab(count: Int = 1) {
+        state.cancelPendingWrap()
+        val steps = if (count <= 0) 1 else count
+        repeat(steps) {
+            advanceToNextTabStop()
+        }
     }
 
     // --- Save / Restore ----------------------------------------------

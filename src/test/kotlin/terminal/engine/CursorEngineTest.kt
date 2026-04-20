@@ -526,6 +526,64 @@ class CursorEngineTest {
         }
     }
 
+    @Nested
+    @DisplayName("cursorForwardTab")
+    inner class CursorForwardTab {
+
+        @Test
+        fun `defaults to one stop when count is zero`() {
+            val s = state(width = 20); val e = engine(s)
+            s.cursor.col = 0
+
+            e.cursorForwardTab(0)
+
+            assertEquals(8, s.cursor.col)
+        }
+
+        @Test
+        fun `moves across multiple tab stops`() {
+            val s = state(width = 20); val e = engine(s)
+            s.cursor.col = 0
+
+            e.cursorForwardTab(2)
+
+            assertEquals(16, s.cursor.col)
+        }
+
+        @Test
+        fun `clamps at the active right boundary`() {
+            val s = state(width = 20); val e = engine(s)
+            s.cursor.col = 9
+
+            e.cursorForwardTab(2)
+
+            assertEquals(19, s.cursor.col)
+        }
+
+        @Test
+        fun `respects declrmm right margin`() {
+            val s = state(width = 20); val e = engine(s)
+            s.modes.isLeftRightMarginMode = true
+            s.activeBuffer.setLeftRightMargins(left = 3, right = 6, viewportWidth = 20)
+            s.cursor.col = 0
+
+            e.cursorForwardTab(2)
+
+            assertEquals(5, s.cursor.col)
+        }
+
+        @Test
+        fun `cancels pendingWrap`() {
+            val s = state(width = 20); val e = engine(s)
+            s.cursor.col = 0
+            s.cursor.pendingWrap = true
+
+            e.cursorForwardTab(2)
+
+            assertFalse(s.cursor.pendingWrap)
+        }
+    }
+
     // ── saveCursor ────────────────────────────────────────────────────────
 
     @Nested
@@ -823,6 +881,14 @@ class CursorEngineTest {
             val s = state(width = 20); val e = engine(s)
             s.cursor.pendingWrap = true
             e.horizontalTab(); assertFalse(s.cursor.pendingWrap)
+        }
+
+        @Test
+        fun `cursorForwardTab cancels wrap`() {
+            val s = state(width = 20); val e = engine(s)
+            s.cursor.pendingWrap = true
+            e.cursorForwardTab(1)
+            assertFalse(s.cursor.pendingWrap)
         }
 
         @Test

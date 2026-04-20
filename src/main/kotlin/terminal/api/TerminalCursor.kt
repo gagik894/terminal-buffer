@@ -123,4 +123,14 @@ interface TerminalCursor {
      * the active horizontal right margin. HT never triggers a line wrap.
      */
     fun horizontalTab()
+
+    /**
+     * Advances the cursor forward by [count] tab stops (CHT, `CSI Ps I`).
+     *
+     * A count of `0` uses the ANSI default of `1`. The cursor never wraps:
+     * if fewer than [count] stops remain, movement clamps at the active right
+     * boundary. With DECLRMM off, that boundary is `width - 1`; with
+     * DECLRMM on, it is the active horizontal right margin.
+     */
+    fun cursorForwardTab(count: Int = 1)
 }

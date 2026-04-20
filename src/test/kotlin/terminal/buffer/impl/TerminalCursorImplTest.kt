@@ -75,5 +75,16 @@ class TerminalCursorImplTest {
         cursor.horizontalTab()
         assertEquals(19, state.cursor.col)
     }
+
+    @Test
+    fun `cursorForwardTab advances through multiple stops via the facade`() {
+        val state = TerminalState(20, 1, 0)
+        val cursor = TerminalCursorImpl(state, CursorEngine(state))
+
+        cursor.positionCursor(0, 0)
+        cursor.cursorForwardTab(2)
+
+        assertEquals(16, state.cursor.col)
+    }
 }
 
