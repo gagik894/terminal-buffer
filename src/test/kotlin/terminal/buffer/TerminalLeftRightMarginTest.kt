@@ -1,0 +1,337 @@
+package com.gagik.terminal.buffer
+
+import com.gagik.terminal.TerminalBuffers
+import com.gagik.terminal.api.TerminalBufferApi
+import com.gagik.terminal.state.TerminalState
+import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Test
+
+class TerminalLeftRightMarginTest {
+
+    private fun stateOf(api: TerminalBufferApi): TerminalState {
+        val componentsField = api.javaClass.getDeclaredField("components")
+        componentsField.isAccessible = true
+        val components = componentsField.get(api)
+
+        val stateField = components.javaClass.getDeclaredField("state")
+        stateField.isAccessible = true
+        return stateField.get(components) as TerminalState
+    }
+
+    @Test
+    fun `declrm_enable_homesTheCursor`() {
+        val buffer = TerminalBuffers.create(width = 8, height = 4)
+        buffer.positionCursor(5, 2)
+
+        buffer.setLeftRightMarginMode(true)
+
+        assertAll(
+            { assertEquals(0, buffer.cursorCol) },
+            { assertEquals(0, buffer.cursorRow) }
+        )
+    }
+
+    @Test
+    fun `declrm_disable_homesTheCursor`() {
+        val buffer = TerminalBuffers.create(width = 8, height = 4)
+        buffer.setLeftRightMarginMode(true)
+        buffer.setLeftRightMargins(3, 6)
+        buffer.positionCursor(4, 2)
+
+        buffer.setLeftRightMarginMode(false)
+
+        val state = stateOf(buffer)
+        assertAll(
+            { assertFalse(state.modes.isLeftRightMarginMode) },
+            { assertEquals(0, buffer.cursorCol) },
+            { assertEquals(0, buffer.cursorRow) },
+            { assertEquals(0, state.activeBuffer.leftMargin) },
+            { assertEquals(7, state.activeBuffer.rightMargin) }
+        )
+    }
+
+    @Test
+    fun `setMargins_withDecLrmOff_isIgnored`() {
+        val buffer = TerminalBuffers.create(width = 8, height = 4)
+        val state = stateOf(buffer)
+        buffer.positionCursor(4, 1)
+
+        buffer.setLeftRightMargins(3, 6)
+
+        assertAll(
+            { assertFalse(state.modes.isLeftRightMarginMode) },
+            { assertEquals(0, state.activeBuffer.leftMargin) },
+            { assertEquals(7, state.activeBuffer.rightMargin) },
+            { assertEquals(4, buffer.cursorCol) },
+            { assertEquals(1, buffer.cursorRow) }
+        )
+    }
+
+    @Test
+    fun `setMargins_degenerateRange_isIgnored`() {
+        val buffer = TerminalBuffers.create(width = 8, height = 4)
+        val state = stateOf(buffer)
+        buffer.setLeftRightMarginMode(true)
+        buffer.setLeftRightMargins(3, 6)
+        buffer.positionCursor(4, 1)
+
+        buffer.setLeftRightMargins(5, 5)
+
+        assertAll(
+            { assertEquals(2, state.activeBuffer.leftMargin) },
+            { assertEquals(5, state.activeBuffer.rightMargin) },
+            { assertEquals(4, buffer.cursorCol) },
+            { assertEquals(1, buffer.cursorRow) }
+        )
+    }
+
+    @Test
+    fun `setMargins_success_homesTheCursor`() {
+        val buffer = TerminalBuffers.create(width = 8, height = 4)
+        buffer.setLeftRightMarginMode(true)
+        buffer.positionCursor(4, 2)
+
+        buffer.setLeftRightMargins(3, 6)
+
+        assertAll(
+            { assertEquals(2, buffer.cursorCol) },
+            { assertEquals(0, buffer.cursorRow) }
+        )
+    }
+
+    @Test
+    fun `write_wrapsAtRightMargin_notAtScreenEdge`() {
+        val buffer = TerminalBuffers.create(width = 8, height = 3)
+        buffer.setLeftRightMarginMode(true)
+        buffer.setLeftRightMargins(3, 5)
+
+        buffer.writeText("ABCD")
+
+        assertAll(
+            { assertEquals('A'.code, buffer.getCodepointAt(2, 0)) },
+            { assertEquals('B'.code, buffer.getCodepointAt(3, 0)) },
+            { assertEquals('C'.code, buffer.getCodepointAt(4, 0)) },
+            { assertEquals('D'.code, buffer.getCodepointAt(2, 1)) },
+            { assertEquals(3, buffer.cursorCol) },
+            { assertEquals(1, buffer.cursorRow) }
+        )
+    }
+
+    @Test
+    fun `write_decawmOff_clampedAtRightMargin`() {
+        val buffer = TerminalBuffers.create(width = 8, height = 3)
+        buffer.setLeftRightMarginMode(true)
+        buffer.setLeftRightMargins(3, 5)
+        buffer.setAutoWrap(false)
+
+        buffer.writeText("ABCD")
+
+        assertAll(
+            { assertEquals('A'.code, buffer.getCodepointAt(2, 0)) },
+            { assertEquals('B'.code, buffer.getCodepointAt(3, 0)) },
+            { assertEquals('D'.code, buffer.getCodepointAt(4, 0)) },
+            { assertEquals(4, buffer.cursorCol) },
+            { assertEquals(0, buffer.cursorRow) }
+        )
+    }
+
+    @Test
+    fun `ich_doesNotPushContentBeyondRightMargin`() {
+        val buffer = TerminalBuffers.create(width = 8, height = 2)
+        val state = stateOf(buffer)
+        buffer.setLeftRightMarginMode(true)
+        buffer.setLeftRightMargins(3, 6)
+        buffer.writeText("ABCD")
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(6, 'X'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(7, 'Y'.code, 0)
+        buffer.positionCursor(3, 0)
+
+        buffer.insertBlankCharacters(2)
+
+        assertAll(
+            { assertEquals('A'.code, buffer.getCodepointAt(2, 0)) },
+            { assertEquals(0, buffer.getCodepointAt(3, 0)) },
+            { assertEquals(0, buffer.getCodepointAt(4, 0)) },
+            { assertEquals('B'.code, buffer.getCodepointAt(5, 0)) },
+            { assertEquals('X'.code, buffer.getCodepointAt(6, 0)) },
+            { assertEquals('Y'.code, buffer.getCodepointAt(7, 0)) }
+        )
+    }
+
+    @Test
+    fun `dch_doesNotPullContentFromBeyondRightMargin`() {
+        val buffer = TerminalBuffers.create(width = 8, height = 2)
+        val state = stateOf(buffer)
+        buffer.setLeftRightMarginMode(true)
+        buffer.setLeftRightMargins(3, 6)
+        buffer.writeText("ABCD")
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(6, 'X'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(7, 'Y'.code, 0)
+        buffer.positionCursor(3, 0)
+
+        buffer.deleteCharacters(2)
+
+        assertAll(
+            { assertEquals('A'.code, buffer.getCodepointAt(2, 0)) },
+            { assertEquals('D'.code, buffer.getCodepointAt(3, 0)) },
+            { assertEquals(0, buffer.getCodepointAt(4, 0)) },
+            { assertEquals(0, buffer.getCodepointAt(5, 0)) },
+            { assertEquals('X'.code, buffer.getCodepointAt(6, 0)) },
+            { assertEquals('Y'.code, buffer.getCodepointAt(7, 0)) }
+        )
+    }
+
+    @Test
+    fun `cr_movesToLeftMargin_whenLRActive`() {
+        val buffer = TerminalBuffers.create(width = 8, height = 3)
+        buffer.setLeftRightMarginMode(true)
+        buffer.setLeftRightMargins(3, 6)
+        buffer.positionCursor(5, 1)
+
+        buffer.carriageReturn()
+
+        assertAll(
+            { assertEquals(2, buffer.cursorCol) },
+            { assertEquals(1, buffer.cursorRow) }
+        )
+    }
+
+    @Test
+    fun `ht_stopsAtRightMargin`() {
+        val buffer = TerminalBuffers.create(width = 20, height = 2)
+        buffer.setLeftRightMarginMode(true)
+        buffer.setLeftRightMargins(3, 6)
+
+        buffer.horizontalTab()
+
+        assertEquals(5, buffer.cursorCol)
+    }
+
+    @Test
+    fun `cursorAddressing_clampedToLRRegion`() {
+        val buffer = TerminalBuffers.create(width = 8, height = 4)
+        buffer.setLeftRightMarginMode(true)
+        buffer.setLeftRightMargins(3, 6)
+
+        buffer.positionCursor(0, 1)
+        assertEquals(2, buffer.cursorCol)
+
+        buffer.positionCursor(99, 2)
+        assertAll(
+            { assertEquals(5, buffer.cursorCol) },
+            { assertEquals(2, buffer.cursorRow) }
+        )
+    }
+
+    @Test
+    fun `decom_plus_lr_doublyRelativeAddressing`() {
+        val buffer = TerminalBuffers.create(width = 8, height = 6)
+        buffer.setLeftRightMarginMode(true)
+        buffer.setLeftRightMargins(3, 6)
+        buffer.setScrollRegion(2, 5)
+        buffer.setOriginMode(true)
+
+        buffer.positionCursor(1, 1)
+
+        assertAll(
+            { assertEquals(3, buffer.cursorCol) },
+            { assertEquals(2, buffer.cursorRow) }
+        )
+    }
+
+    @Test
+    fun `existingScrollRegion_unaffectedByLRMargins`() {
+        val buffer = TerminalBuffers.create(width = 8, height = 4)
+        val state = stateOf(buffer)
+        buffer.setScrollRegion(2, 3)
+        buffer.setLeftRightMarginMode(true)
+        buffer.setLeftRightMargins(3, 5)
+
+        state.activeBuffer.ring[state.resolveRingIndex(0)].setCell(0, 'T'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(1)].setCell(0, 'A'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(2)].setCell(0, 'B'.code, 0)
+        state.activeBuffer.ring[state.resolveRingIndex(3)].setCell(0, 'Z'.code, 0)
+
+        buffer.positionCursor(2, 2)
+        buffer.newLine()
+
+        assertAll(
+            { assertEquals('T'.code, buffer.getCodepointAt(0, 0)) },
+            { assertEquals('B'.code, buffer.getCodepointAt(0, 1)) },
+            { assertEquals(0, buffer.getCodepointAt(0, 2)) },
+            { assertEquals('Z'.code, buffer.getCodepointAt(0, 3)) }
+        )
+    }
+
+    @Test
+    fun `resize_resetsLRMarginsToFullWidth`() {
+        val buffer = TerminalBuffers.create(width = 8, height = 4)
+        val state = stateOf(buffer)
+        buffer.setLeftRightMarginMode(true)
+        buffer.setLeftRightMargins(3, 6)
+        buffer.enterAltBuffer()
+        buffer.setLeftRightMargins(2, 5)
+
+        buffer.resize(10, 4)
+
+        assertAll(
+            { assertEquals(0, state.primaryBuffer.leftMargin) },
+            { assertEquals(9, state.primaryBuffer.rightMargin) },
+            { assertEquals(0, state.altBuffer.leftMargin) },
+            { assertEquals(9, state.altBuffer.rightMargin) }
+        )
+    }
+
+    @Test
+    fun `altBufferSwitch_hasIndependentLRMargins`() {
+        val buffer = TerminalBuffers.create(width = 8, height = 4)
+        val state = stateOf(buffer)
+        buffer.setLeftRightMarginMode(true)
+        buffer.setLeftRightMargins(3, 6)
+
+        buffer.enterAltBuffer()
+
+        assertAll(
+            { assertEquals(0, state.altBuffer.leftMargin) },
+            { assertEquals(7, state.altBuffer.rightMargin) }
+        )
+
+        buffer.setLeftRightMargins(2, 5)
+        buffer.exitAltBuffer()
+
+        assertAll(
+            { assertEquals(2, state.primaryBuffer.leftMargin) },
+            { assertEquals(5, state.primaryBuffer.rightMargin) },
+            { assertEquals(1, state.altBuffer.leftMargin) },
+            { assertEquals(4, state.altBuffer.rightMargin) }
+        )
+
+        buffer.enterAltBuffer()
+
+        assertAll(
+            { assertEquals(0, state.altBuffer.leftMargin) },
+            { assertEquals(7, state.altBuffer.rightMargin) },
+            { assertEquals(2, state.primaryBuffer.leftMargin) },
+            { assertEquals(5, state.primaryBuffer.rightMargin) }
+        )
+    }
+
+    @Test
+    fun `restoreCursor_preservesPendingWrapAtHorizontalRightMargin`() {
+        val buffer = TerminalBuffers.create(width = 8, height = 3)
+        buffer.setLeftRightMarginMode(true)
+        buffer.setLeftRightMargins(3, 5)
+        buffer.writeText("ABC")
+        buffer.saveCursor()
+
+        buffer.positionCursor(2, 1)
+        buffer.restoreCursor()
+
+        val state = stateOf(buffer)
+        assertAll(
+            { assertEquals(4, buffer.cursorCol) },
+            { assertEquals(0, buffer.cursorRow) },
+            { assertTrue(state.cursor.pendingWrap) }
+        )
+    }
+}

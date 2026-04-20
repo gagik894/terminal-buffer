@@ -13,7 +13,12 @@ interface TerminalCursor {
      *
      * When DECOM is active, [row] is relative to the top of the scroll region
      * and clamped within it. When DECOM is inactive, [row] is absolute in the
-     * viewport. [col] is always absolute.
+     * viewport.
+     *
+     * Column handling depends on DECLRMM:
+     * - with DECLRMM off, [col] is absolute in the viewport
+     * - with DECLRMM on and DECOM off, [col] is absolute but clamped to the active horizontal margins
+     * - with both DECLRMM and DECOM on, [col] is relative to the left margin
      *
      * @param col Target column (0-based).
      * @param row Target row (0-based).
@@ -41,15 +46,20 @@ interface TerminalCursor {
     fun cursorDown(n: Int = 1)
 
     /**
-     * Moves the cursor left by [n] columns, clamped to column 0 (CUB, `CSI n D`).
+     * Moves the cursor left by [n] columns (CUB, `CSI n D`).
+     *
+     * Clamps to column 0 when DECLRMM is off, or to the active left margin when
+     * DECLRMM is on.
      *
      * @param n Number of columns. Non-positive values are no-ops.
      */
     fun cursorLeft(n: Int = 1)
 
     /**
-     * Moves the cursor right by [n] columns, clamped to the right margin
-     * (CUF, `CSI n C`).
+     * Moves the cursor right by [n] columns (CUF, `CSI n C`).
+     *
+     * Clamps to the viewport right edge when DECLRMM is off, or to the active
+     * right margin when DECLRMM is on.
      *
      * @param n Number of columns. Non-positive values are no-ops.
      */
@@ -108,8 +118,9 @@ interface TerminalCursor {
     /**
      * Advances the cursor to the next tab stop (HT, `0x09`).
      *
-     * Clamps to the right margin (`width - 1`) when no stop exists to the right.
-     * Never triggers a line wrap.
+     * Clamps to the active right boundary when no stop exists to the right.
+     * With DECLRMM off, that boundary is `width - 1`; with DECLRMM on, it is
+     * the active horizontal right margin. HT never triggers a line wrap.
      */
     fun horizontalTab()
 }

@@ -31,6 +31,8 @@ internal class MutationEngine(
 ) {
     private val width: Int get() = state.dimensions.width
     private val height: Int get() = state.dimensions.height
+    private val leftMargin: Int get() = state.effectiveLeftMargin
+    private val rightMargin: Int get() = state.effectiveRightMargin
 
     /**
      * Wraps mutations that conceptually break phantom-column state.
@@ -187,8 +189,9 @@ internal class MutationEngine(
         val widthInCells = if (charWidth == 2) 2 else 1
 
         if (cRow !in 0 until height || cCol !in 0 until width) return
+        if (cCol !in leftMargin..rightMargin) return
 
-        if (widthInCells == 2 && cCol >= width - 1 && !state.modes.isAutoWrap) {
+        if (widthInCells == 2 && cCol >= rightMargin && !state.modes.isAutoWrap) {
             return
         }
 
@@ -197,14 +200,14 @@ internal class MutationEngine(
         if (state.cursor.pendingWrap) {
             state.cursor.pendingWrap = false
             line.wrapped = true
-            cCol = 0
+            cCol = leftMargin
             cRow = advanceRow(cRow)
             line = getLine(cRow)
         }
 
-        if (widthInCells == 2 && cCol >= width - 1) {
+        if (widthInCells == 2 && cCol >= rightMargin) {
             annihilateAt(cRow, cCol)
-            cCol = 0
+            cCol = leftMargin
             cRow = advanceRow(cRow)
             line = getLine(cRow)
         }
@@ -213,11 +216,11 @@ internal class MutationEngine(
             if (line.rawCodepoint(cCol) == TerminalConstants.WIDE_CHAR_SPACER) {
                 annihilateAt(cRow, cCol)
             }
-            line.insertCells(cCol, widthInCells, state.pen.currentAttr)
+            line.insertCellsInRange(cCol, widthInCells, rightMargin, state.pen.currentAttr)
         }
 
         annihilateAt(cRow, cCol)
-        if (widthInCells == 2 && cCol + 1 < width) {
+        if (widthInCells == 2 && cCol + 1 <= rightMargin) {
             annihilateAt(cRow, cCol + 1)
         }
 
@@ -229,8 +232,8 @@ internal class MutationEngine(
             cCol += 1
         }
 
-        if (cCol >= width) {
-            state.cursor.col = width - 1
+        if (cCol > rightMargin) {
+            state.cursor.col = rightMargin
             state.cursor.row = cRow
             state.cursor.pendingWrap = state.modes.isAutoWrap
             return
@@ -256,12 +259,12 @@ internal class MutationEngine(
             charWidth != 2 &&
             !state.cursor.pendingWrap &&
             cRow in 0 until height &&
-            cCol in 0 until width
+            cCol in leftMargin..rightMargin
         ) {
             val line = getLine(cRow)
             if (line.rawCodepoint(cCol) == TerminalConstants.EMPTY) {
                 line.setCell(cCol, codepoint, attr)
-                if (cCol == width - 1) {
+                if (cCol == rightMargin) {
                     if (state.modes.isAutoWrap) {
                         state.cursor.pendingWrap = true
                     } else {
@@ -360,6 +363,7 @@ internal class MutationEngine(
             val cRow = state.cursor.row
             val cCol = state.cursor.col
             if (cRow !in 0 until height || cCol !in 0 until width) return@structuralMutation
+            if (cCol !in leftMargin..rightMargin) return@structuralMutation
 
             val line = getLine(cRow)
 
@@ -367,16 +371,16 @@ internal class MutationEngine(
                 annihilateAt(cRow, cCol)
             }
 
-            val safeCount = count.coerceAtMost(width - cCol)
-            val edgeCol = width - safeCount
+            val safeCount = count.coerceAtMost(rightMargin - cCol + 1)
+            val edgeCol = rightMargin - safeCount + 1
 
-            if (edgeCol > cCol && edgeCol < width &&
+            if (edgeCol > cCol && edgeCol <= rightMargin &&
                 line.rawCodepoint(edgeCol) == TerminalConstants.WIDE_CHAR_SPACER
             ) {
                 annihilateAt(cRow, edgeCol)
             }
 
-            line.insertCells(cCol, safeCount, state.pen.currentAttr)
+            line.insertCellsInRange(cCol, safeCount, rightMargin, state.pen.currentAttr)
         }
     }
 
@@ -391,19 +395,22 @@ internal class MutationEngine(
             val cRow = state.cursor.row
             val cCol = state.cursor.col
             if (cRow !in 0 until height || cCol !in 0 until width) return@structuralMutation
+            if (cCol !in leftMargin..rightMargin) return@structuralMutation
 
-            val safeCount = count.coerceAtMost(width - cCol)
+            val safeCount = count.coerceAtMost(rightMargin - cCol + 1)
 
             annihilateAt(cRow, cCol)
 
-            if (safeCount < width - cCol) {
+            if (safeCount < rightMargin - cCol + 1) {
                 val rightEdge = cCol + safeCount
-                if (getLine(cRow).rawCodepoint(rightEdge) == TerminalConstants.WIDE_CHAR_SPACER) {
+                if (rightEdge <= rightMargin &&
+                    getLine(cRow).rawCodepoint(rightEdge) == TerminalConstants.WIDE_CHAR_SPACER
+                ) {
                     annihilateAt(cRow, rightEdge)
                 }
             }
 
-            getLine(cRow).deleteCells(cCol, safeCount, state.pen.currentAttr)
+            getLine(cRow).deleteCellsInRange(cCol, safeCount, rightMargin, state.pen.currentAttr)
         }
     }
 

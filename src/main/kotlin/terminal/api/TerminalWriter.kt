@@ -73,7 +73,8 @@ interface TerminalWriter {
     /**
      * Executes a carriage return (CR, `0x0D`).
      *
-     * Moves the cursor to column 0 on the current row.
+     * Moves the cursor to the active left boundary on the current row. With
+     * DECLRMM off that is column 0; with DECLRMM on it is the left margin.
      */
     fun carriageReturn()
 
@@ -82,12 +83,25 @@ interface TerminalWriter {
      *
      * [top] and [bottom] are 1-based inclusive row numbers per the DECSTBM
      * convention. Both are clamped to viewport bounds; degenerate ranges are
-     * ignored. Homes the cursor per the current DECOM state.
+     * ignored. Homes the cursor per the current DECOM state and active
+     * horizontal-margin mode.
      *
      * @param top First row of the scroll region (1-based, inclusive).
      * @param bottom Last row of the scroll region (1-based, inclusive).
      */
     fun setScrollRegion(top: Int, bottom: Int)
+
+    /**
+     * Sets the active horizontal margins (DECSLRM, `CSI left ; right s`).
+     *
+     * [left] and [right] are 1-based inclusive columns per the DECSLRM
+     * convention. The request is ignored unless DECLRMM is active. Degenerate
+     * ranges are ignored. A successful margin change homes the cursor.
+     *
+     * @param left Left margin column (1-based, inclusive).
+     * @param right Right margin column (1-based, inclusive).
+     */
+    fun setLeftRightMargins(left: Int, right: Int)
 
     /** Resets the scroll region to the full viewport and homes the cursor. */
     fun resetScrollRegion()

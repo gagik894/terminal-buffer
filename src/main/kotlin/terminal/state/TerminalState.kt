@@ -52,6 +52,7 @@ internal class TerminalState(
         if (isAltScreenActive) return
         altBuffer.clearGrid(pen.currentAttr, dimensions.height)
         altBuffer.resetScrollRegion(dimensions.height)
+        altBuffer.resetLeftRightMargins(dimensions.width)
         altBuffer.cursor.col = 0
         altBuffer.cursor.row = 0
         altBuffer.cursor.pendingWrap = false
@@ -83,6 +84,10 @@ internal class TerminalState(
         get() = activeBuffer.scrollTop
     val scrollBottom
         get() = activeBuffer.scrollBottom
+    val effectiveLeftMargin: Int
+        get() = if (modes.isLeftRightMarginMode) activeBuffer.leftMargin else 0
+    val effectiveRightMargin: Int
+        get() = if (modes.isLeftRightMarginMode) activeBuffer.rightMargin else dimensions.width - 1
 
     val isFullViewportScroll: Boolean
         get() = activeBuffer.isFullViewportScroll(dimensions.height)

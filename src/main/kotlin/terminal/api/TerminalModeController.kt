@@ -26,6 +26,14 @@ interface TerminalModeController {
     fun setApplicationCursorKeys(enabled: Boolean)
 
     /**
+     * Enables or disables left/right margin mode (DECLRMM, `CSI ? 69 h` / `CSI ? 69 l`).
+     *
+     * The mode flag is global, while the actual horizontal margins are stored
+     * per screen buffer. Enabling or disabling the mode homes the cursor.
+     */
+    fun setLeftRightMarginMode(enabled: Boolean)
+
+    /**
      * Controls how East Asian Ambiguous codepoints are measured for future writes.
      *
      * Existing stored content is not reinterpreted when this flag changes.

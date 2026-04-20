@@ -42,6 +42,11 @@ internal class ScreenBuffer(
     var scrollBottom: Int = initialHeight - 1
         private set
 
+    var leftMargin: Int = 0
+        private set
+    var rightMargin: Int = initialWidth - 1
+        private set
+
     fun isFullViewportScroll(viewportHeight: Int): Boolean =
         scrollTop == 0 && scrollBottom == viewportHeight - 1
 
@@ -51,13 +56,19 @@ internal class ScreenBuffer(
      * [top] and [bottom] are 1-based per the escape sequence convention.
      * Degenerate ranges are silently ignored.
      */
-    fun setScrollRegion(top: Int, bottom: Int, isOriginMode: Boolean, viewportHeight: Int) {
+    fun setScrollRegion(
+        top: Int,
+        bottom: Int,
+        isOriginMode: Boolean,
+        viewportHeight: Int,
+        homeCol: Int = 0
+    ) {
         val t = (top - 1).coerceIn(0, viewportHeight - 1)
         val b = (bottom - 1).coerceIn(0, viewportHeight - 1)
         if (t >= b) return
         scrollTop = t
         scrollBottom = b
-        cursor.col = 0
+        cursor.col = homeCol.coerceIn(0, rightMargin)
         cursor.row = if (isOriginMode) t else 0
         cursor.pendingWrap = false
     }
@@ -66,6 +77,27 @@ internal class ScreenBuffer(
     fun resetScrollRegion(viewportHeight: Int) {
         scrollTop = 0
         scrollBottom = viewportHeight - 1
+    }
+
+    /**
+     * Sets the horizontal margins from 1-based DECSLRM parameters.
+     *
+     * Returns `true` when a non-degenerate range was applied and `false` when
+     * the request was ignored.
+     */
+    fun setLeftRightMargins(left: Int, right: Int, viewportWidth: Int): Boolean {
+        val l = (left - 1).coerceIn(0, viewportWidth - 1)
+        val r = (right - 1).coerceIn(0, viewportWidth - 1)
+        if (l >= r) return false
+        leftMargin = l
+        rightMargin = r
+        return true
+    }
+
+    /** Resets horizontal margins to the full viewport width. */
+    fun resetLeftRightMargins(viewportWidth: Int) {
+        leftMargin = 0
+        rightMargin = viewportWidth - 1
     }
 
     /**
@@ -112,6 +144,8 @@ internal class ScreenBuffer(
         repeat(newHeight) { ring.push().clear(penAttr) }
         scrollTop = 0
         scrollBottom = newHeight - 1
+        leftMargin = 0
+        rightMargin = newWidth - 1
 
         cursor.col = cursor.col.coerceIn(0, maxOf(0, newWidth - 1))
         cursor.row = cursor.row.coerceIn(0, maxOf(0, newHeight - 1))

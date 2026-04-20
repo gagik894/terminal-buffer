@@ -194,12 +194,23 @@ internal class Line(
      * this method is invoked.
      */
     fun insertCells(col: Int, count: Int, defaultAttr: Int) {
-        if (col !in 0 until width || count <= 0) return
-        val safeCount  = count.coerceAtMost(width - col)
-        val shiftCount = width - col - safeCount
+        insertCellsInRange(col, count, width - 1, defaultAttr)
+    }
 
-        // Free handles that will fall off the right edge.
-        store.freeRange(codepoints, width - safeCount, width)
+    /**
+     * Inserts [count] blank cells at [col], shifting existing content to the
+     * right within `[col, rightInclusive]` only.
+     */
+    fun insertCellsInRange(col: Int, count: Int, rightInclusive: Int, defaultAttr: Int) {
+        if (col !in 0 until width || count <= 0) return
+        if (rightInclusive !in 0 until width || col > rightInclusive) return
+
+        val safeCount = count.coerceAtMost(rightInclusive - col + 1)
+        val shiftCount = rightInclusive - col + 1 - safeCount
+        val clearStart = rightInclusive - safeCount + 1
+
+        // Free handles that will fall off the active range.
+        store.freeRange(codepoints, clearStart, rightInclusive + 1)
 
         if (shiftCount > 0) {
             System.arraycopy(codepoints, col, codepoints, col + safeCount, shiftCount)
@@ -222,10 +233,19 @@ internal class Line(
      * @param defaultAttr Packed attribute used to fill the vacated trailing cells.
      */
     fun deleteCells(col: Int, count: Int, defaultAttr: Int) {
-        if (col !in 0 until width || count <= 0) return
+        deleteCellsInRange(col, count, width - 1, defaultAttr)
+    }
 
-        val safeCount = count.coerceAtMost(width - col)
-        val shiftCount = width - col - safeCount
+    /**
+     * Deletes [count] cells at [col], shifting surviving content left within
+     * `[col, rightInclusive]` only.
+     */
+    fun deleteCellsInRange(col: Int, count: Int, rightInclusive: Int, defaultAttr: Int) {
+        if (col !in 0 until width || count <= 0) return
+        if (rightInclusive !in 0 until width || col > rightInclusive) return
+
+        val safeCount = count.coerceAtMost(rightInclusive - col + 1)
+        val shiftCount = rightInclusive - col + 1 - safeCount
 
         // Free cluster handles for the cells being deleted before the shift overwrites them.
         store.freeRange(codepoints, col, col + safeCount)
@@ -239,9 +259,9 @@ internal class Line(
         // Fill the vacated trailing cells with blanks.
         // Do NOT call store.freeRange() here: the cluster handles that previously
         // occupied these slots were shifted left above and are still live.
-        val clearStart = width - safeCount
-        codepoints.fill(TerminalConstants.EMPTY, clearStart, width)
-        attrs.fill(defaultAttr, clearStart, width)
+        val clearStart = rightInclusive - safeCount + 1
+        codepoints.fill(TerminalConstants.EMPTY, clearStart, rightInclusive + 1)
+        attrs.fill(defaultAttr, clearStart, rightInclusive + 1)
     }
 
     /**
