@@ -27,7 +27,10 @@ interface TerminalBufferApi :
      * the corresponding position in the reflowed content. Scrollback history is
      * preserved within the configured capacity. Both the primary and alternate
      * grids are resized, and both screen buffers reset their scroll regions to
-     * the full viewport. Saved-cursor state is clamped to the new bounds.
+     * the full viewport. Tab stops are resized non-destructively: surviving
+     * custom stops are preserved, stops past the new width are dropped, and any
+     * newly exposed columns receive the default 8-column VT rhythm. Saved-cursor
+     * state is clamped to the new bounds.
      *
      * @param newWidth New terminal width in cells. Must be > 0.
      * @param newHeight New terminal height in rows. Must be > 0.

@@ -488,6 +488,36 @@ class CursorEngineTest {
         }
 
         @Test
+        fun `clamps to active right margin when lr margins are narrower than the next stop`() {
+            val s = state(width = 20); val e = engine(s)
+            s.modes.isLeftRightMarginMode = true
+            s.activeBuffer.setLeftRightMargins(left = 3, right = 6, viewportWidth = 20)
+            s.cursor.col = 2
+
+            e.horizontalTab()
+
+            assertEquals(5, s.cursor.col)
+        }
+
+        @Test
+        fun `never wraps when already at the active right boundary`() {
+            val s = state(width = 20, height = 3); val e = engine(s)
+            s.modes.isLeftRightMarginMode = true
+            s.activeBuffer.setLeftRightMargins(left = 3, right = 6, viewportWidth = 20)
+            s.cursor.col = 5
+            s.cursor.row = 2
+            s.cursor.pendingWrap = true
+
+            e.horizontalTab()
+
+            assertAll(
+                { assertEquals(5, s.cursor.col) },
+                { assertEquals(2, s.cursor.row) },
+                { assertFalse(s.cursor.pendingWrap) }
+            )
+        }
+
+        @Test
         fun `does not mutate the grid`() {
             val s = state(width = 20); val e = engine(s)
             seed(s, 0, "AB"); val before = snapshot(s)

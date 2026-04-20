@@ -56,5 +56,24 @@ class TerminalCursorImplTest {
 
         assertEquals(8, state.cursor.col)
     }
+
+    @Test
+    fun `set clear and clearAll tab stop helpers round trip through the facade semantics`() {
+        val state = TerminalState(20, 1, 0)
+        val cursor = TerminalCursorImpl(state, CursorEngine(state))
+
+        cursor.clearAllTabStops()
+        cursor.positionCursor(5, 0)
+        cursor.setTabStop()
+        cursor.resetCursor()
+        cursor.horizontalTab()
+        assertEquals(5, state.cursor.col)
+
+        cursor.positionCursor(5, 0)
+        cursor.clearTabStop()
+        cursor.resetCursor()
+        cursor.horizontalTab()
+        assertEquals(19, state.cursor.col)
+    }
 }
 

@@ -156,4 +156,40 @@ class TerminalBufferTest {
 			{ assertEquals(0, buffer.cursorRow) }
 		)
 	}
+
+	@Test
+	fun `reset restores default tab stops after custom tab configuration`() {
+		val buffer = newApiBuffer(width = 20, height = 2)
+		buffer.clearAllTabStops()
+		buffer.positionCursor(5, 0)
+		buffer.setTabStop()
+		buffer.reset()
+		buffer.horizontalTab()
+
+		assertEquals(8, buffer.cursorCol)
+	}
+
+	@Test
+	fun `resize preserves surviving custom tab stops and discards truncated ones`() {
+		val buffer = newApiBuffer(width = 20, height = 2)
+		val state = stateOf(buffer)
+
+		buffer.clearAllTabStops()
+		buffer.positionCursor(5, 0)
+		buffer.setTabStop()
+		buffer.positionCursor(15, 0)
+		buffer.setTabStop()
+
+		buffer.resize(newWidth = 10, newHeight = 2)
+		assertAll(
+			{ assertEquals(5, state.tabStops.getNextStop(0)) },
+			{ assertEquals(9, state.tabStops.getNextStop(5)) }
+		)
+
+		buffer.resize(newWidth = 20, newHeight = 2)
+		assertAll(
+			{ assertEquals(5, state.tabStops.getNextStop(0)) },
+			{ assertEquals(16, state.tabStops.getNextStop(10)) }
+		)
+	}
 }
