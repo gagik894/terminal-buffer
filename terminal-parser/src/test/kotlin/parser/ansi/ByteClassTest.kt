@@ -1,4 +1,4 @@
-package com.gagik.parser.model
+package com.gagik.parser.ansi
 
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
@@ -102,7 +102,8 @@ class ByteClassTest {
         fun `UTF8 payload sentinel is outside ASCII class count`() {
             assertAll(
                 { assertEquals(ByteClass.COUNT, ByteClass.UTF8_PAYLOAD) },
-                { assertTrue(ByteClass.UTF8_PAYLOAD !in 0 until ByteClass.COUNT) }
+                { assertTrue(ByteClass.UTF8_PAYLOAD !in 0 until ByteClass.COUNT) },
+                { assertEquals(ByteClass.UTF8_PAYLOAD + 1, ByteClass.ROUTING_COUNT) }
             )
         }
 

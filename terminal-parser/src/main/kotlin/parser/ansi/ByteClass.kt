@@ -1,6 +1,6 @@
-package com.gagik.parser.model
+package com.gagik.parser.ansi
 
-import com.gagik.parser.model.ByteClass.UTF8_PAYLOAD
+import com.gagik.parser.ansi.ByteClass.UTF8_PAYLOAD
 
 
 /**
@@ -99,6 +99,9 @@ internal object ByteClass {
      * In the default parser configuration, callers must send these bytes to the UTF-8 decoder.
      */
     const val UTF8_PAYLOAD: Int = 15
+
+    /** Total number of byte classes routable through the ANSI state matrix. */
+    const val ROUTING_COUNT: Int = 16
 
     /**
      * Returns the byte class for ASCII/control-domain bytes, or [UTF8_PAYLOAD] for 0x80..0xFF.
