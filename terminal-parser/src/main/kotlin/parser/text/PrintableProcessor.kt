@@ -19,7 +19,7 @@ import com.gagik.parser.utf8.Utf8Decoder
  * - ASCII bytes are emitted as codepoints directly through [acceptAsciiByte].
  * - UTF-8 bytes are decoded through [Utf8Decoder].
  * - U+FFFD replacement output is treated as normal printable input.
- * - Charset mapping is a placeholder boundary; real charset translation is added in the charset phase.
+ * - GL charset mapping is applied through [CharsetMapper] before grapheme assembly.
  * - Grapheme segmentation is delegated to [GraphemeAssembler].
  */
 internal class PrintableProcessor(
@@ -105,12 +105,8 @@ internal class PrintableProcessor(
     }
 
     private fun acceptCodepoint(state: ParserState, codepoint: Int) {
-        val mapped = mapCharset(state, codepoint)
+        val mapped = CharsetMapper.map(state, codepoint)
         graphemeAssembler.accept(state, mapped)
-    }
-
-    private fun mapCharset(state: ParserState, codepoint: Int): Int {
-        return CharsetMapper.map(state, codepoint)
     }
 }
 
@@ -262,7 +258,11 @@ internal class PrintableProcessorActionSink(
     private val processor: PrintableProcessor,
 ) : PrintableActionSink {
     override fun onAsciiByte(state: ParserState, byteValue: Int) {
-        processor.acceptAsciiByte(state, byteValue)
+        if (processor.hasPendingUtf8Sequence()) {
+            processor.acceptUtf8DecoderByte(state, byteValue)
+        } else {
+            processor.acceptAsciiByte(state, byteValue)
+        }
     }
 
     override fun onUtf8Byte(state: ParserState, byteValue: Int) {
