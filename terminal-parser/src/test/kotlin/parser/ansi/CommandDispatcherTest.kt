@@ -1,8 +1,8 @@
 package com.gagik.parser.ansi
 
 import com.gagik.parser.runtime.ParserState
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertTrue
+import com.gagik.parser.text.PrintableProcessor
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -11,20 +11,34 @@ import org.junit.jupiter.api.Test
 class CommandDispatcherTest {
 
     private fun executeControl(byteValue: Int): RecordingTerminalCommandSink {
+        return executeControl(ParserState(), byteValue)
+    }
+
+    private fun executeControl(
+        state: ParserState,
+        byteValue: Int,
+    ): RecordingTerminalCommandSink {
         val sink = RecordingTerminalCommandSink()
         AnsiCommandDispatcher.executeControl(
             sink = sink,
-            state = ParserState(),
+            state = state,
             controlByte = byteValue
         )
         return sink
     }
 
-    private fun dispatchEsc(finalByte: Char): RecordingTerminalCommandSink {
+    private fun dispatchEsc(
+        finalByte: Char,
+        state: ParserState = ParserState(),
+        intermediates: Int = 0,
+        intermediateCount: Int = 0,
+    ): RecordingTerminalCommandSink {
         val sink = RecordingTerminalCommandSink()
+        state.intermediates = intermediates
+        state.intermediateCount = intermediateCount
         AnsiCommandDispatcher.dispatchEsc(
             sink = sink,
-            state = ParserState(),
+            state = state,
             finalByte = finalByte.code
         )
         return sink
@@ -104,6 +118,45 @@ class CommandDispatcherTest {
         }
 
         @Test
+        fun `SO and SI switch GL between G1 and G0 without terminal sink events`() {
+            val state = ParserState()
+
+            val soSink = executeControl(state, 0x0E)
+            val siSink = executeControl(state, 0x0F)
+
+            assertAll(
+                { assertTrue(soSink.events.isEmpty()) },
+                { assertTrue(siSink.events.isEmpty()) },
+                { assertEquals(0, state.glSlot) },
+                { assertEquals(-1, state.singleShiftSlot) }
+            )
+        }
+
+        @Test
+        fun `SO selects G1 and SI selects G0 without mutating charset designations`() {
+            val state = ParserState()
+            state.charsets[1] = ParserState.CHARSET_DEC_SPECIAL_GRAPHICS
+            state.charsets[2] = ParserState.CHARSET_DEC_SPECIAL_GRAPHICS
+            state.singleShiftSlot = 2
+
+            executeControl(state, 0x0E)
+            assertAll(
+                { assertEquals(1, state.glSlot) },
+                { assertEquals(-1, state.singleShiftSlot) },
+                { assertArrayEquals(intArrayOf(0, 1, 1, 0), state.charsets) }
+            )
+
+            state.singleShiftSlot = 3
+            executeControl(state, 0x0F)
+
+            assertAll(
+                { assertEquals(0, state.glSlot) },
+                { assertEquals(-1, state.singleShiftSlot) },
+                { assertArrayEquals(intArrayOf(0, 1, 1, 0), state.charsets) }
+            )
+        }
+
+        @Test
         fun `unsupported C0 controls are ignored`() {
             assertTrue(executeControl(0x00).events.isEmpty())
         }
@@ -140,6 +193,123 @@ class CommandDispatcherTest {
             assertEquals(listOf("reverseIndex"), dispatchEsc('M').events)
         }
 
+        @Test
+        fun `plain ESC commands require no intermediate bytes`() {
+            assertAll(
+                { assertTrue(dispatchEsc('7', intermediates = '#'.code, intermediateCount = 1).events.isEmpty()) },
+                { assertTrue(dispatchEsc('D', intermediates = '#'.code, intermediateCount = 1).events.isEmpty()) },
+                {
+                    assertTrue(
+                        dispatchEsc(
+                            finalByte = 'M',
+                            intermediates = '#'.code or ('$'.code shl 8),
+                            intermediateCount = 2,
+                        ).events.isEmpty()
+                    )
+                }
+            )
+        }
+
+        @Test
+        fun `ESC left paren 0 designates G0 DEC Special Graphics`() {
+            val state = ParserState()
+            val sink = dispatchEsc('0', state, intermediates = '('.code, intermediateCount = 1)
+
+            assertAll(
+                { assertEquals(ParserState.CHARSET_DEC_SPECIAL_GRAPHICS, state.charsets[0]) },
+                { assertEquals(ParserState.CHARSET_ASCII, state.charsets[1]) },
+                { assertTrue(sink.events.isEmpty()) }
+            )
+        }
+
+        @Test
+        fun `ESC right paren 0 designates G1 DEC Special Graphics`() {
+            val state = ParserState()
+            val sink = dispatchEsc('0', state, intermediates = ')'.code, intermediateCount = 1)
+
+            assertAll(
+                { assertEquals(ParserState.CHARSET_ASCII, state.charsets[0]) },
+                { assertEquals(ParserState.CHARSET_DEC_SPECIAL_GRAPHICS, state.charsets[1]) },
+                { assertTrue(sink.events.isEmpty()) }
+            )
+        }
+
+        @Test
+        fun `ESC star 0 and ESC plus 0 designate G2 and G3 DEC Special Graphics`() {
+            val state = ParserState()
+
+            val g2Sink = dispatchEsc('0', state, intermediates = '*'.code, intermediateCount = 1)
+            val g3Sink = dispatchEsc('0', state, intermediates = '+'.code, intermediateCount = 1)
+
+            assertAll(
+                { assertEquals(ParserState.CHARSET_DEC_SPECIAL_GRAPHICS, state.charsets[2]) },
+                { assertEquals(ParserState.CHARSET_DEC_SPECIAL_GRAPHICS, state.charsets[3]) },
+                { assertTrue(g2Sink.events.isEmpty()) },
+                { assertTrue(g3Sink.events.isEmpty()) }
+            )
+        }
+
+        @Test
+        fun `ESC charset B designates ASCII for all supported G slots`() {
+            val state = ParserState()
+            state.charsets[0] = ParserState.CHARSET_DEC_SPECIAL_GRAPHICS
+            state.charsets[1] = ParserState.CHARSET_DEC_SPECIAL_GRAPHICS
+            state.charsets[2] = ParserState.CHARSET_DEC_SPECIAL_GRAPHICS
+            state.charsets[3] = ParserState.CHARSET_DEC_SPECIAL_GRAPHICS
+
+            dispatchEsc('B', state, intermediates = '('.code, intermediateCount = 1)
+            dispatchEsc('B', state, intermediates = ')'.code, intermediateCount = 1)
+            dispatchEsc('B', state, intermediates = '*'.code, intermediateCount = 1)
+            dispatchEsc('B', state, intermediates = '+'.code, intermediateCount = 1)
+
+            assertArrayEquals(intArrayOf(0, 0, 0, 0), state.charsets)
+        }
+
+        @Test
+        fun `unsupported charset designation final is consumed without dispatching a plain ESC command`() {
+            val state = ParserState()
+
+            val sink = dispatchEsc('D', state, intermediates = '('.code, intermediateCount = 1)
+
+            assertAll(
+                { assertArrayEquals(intArrayOf(0, 0, 0, 0), state.charsets) },
+                { assertTrue(sink.events.isEmpty()) }
+            )
+        }
+
+        @Test
+        fun `unknown ESC intermediate shape is ignored instead of dispatching plain ESC final semantics`() {
+            val state = ParserState()
+
+            val sink = dispatchEsc('D', state, intermediates = '#'.code, intermediateCount = 1)
+
+            assertAll(
+                { assertArrayEquals(intArrayOf(0, 0, 0, 0), state.charsets) },
+                { assertTrue(sink.events.isEmpty()) }
+            )
+        }
+
+        @Test
+        fun `ESC charset designation drives printable DEC Special Graphics output`() {
+            val state = ParserState()
+            val sink = RecordingTerminalCommandSink()
+            val processor = PrintableProcessor(sink)
+
+            AnsiCommandDispatcher.dispatchEsc(
+                sink = sink,
+                state = state.also {
+                    it.intermediates = '('.code
+                    it.intermediateCount = 1
+                },
+                finalByte = '0'.code,
+            )
+            state.clearSequenceState()
+
+            processor.acceptAsciiByte(state, 'q'.code)
+            processor.flush(state)
+
+            assertEquals(listOf("writeCodepoint:9472"), sink.events)
+        }
     }
 
     // ----- CSI cursor movement ---------------------------------------------

@@ -1,6 +1,7 @@
 package com.gagik.parser.ansi
 
 import com.gagik.parser.TerminalCommandSink
+import com.gagik.parser.charset.CharsetMapper
 import com.gagik.parser.runtime.ParserState
 
 /**
@@ -41,6 +42,8 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
             0x09 -> sink.tab()
             0x0A, 0x0B, 0x0C -> sink.lineFeed()
             0x0D -> sink.carriageReturn()
+            0x0e -> CharsetMapper.lockingShiftG1(state) // SO
+            0x0f -> CharsetMapper.lockingShiftG0(state) // SI
         }
     }
 
@@ -49,6 +52,14 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
         state: ParserState,
         finalByte: Int,
     ) {
+        if (dispatchCharsetDesignation(state, finalByte)) {
+            return
+        }
+
+        if (state.intermediateCount != 0) {
+            return
+        }
+
         when (finalByte) {
             '7'.code -> sink.saveCursor()
             '8'.code -> sink.restoreCursor()
@@ -156,5 +167,30 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
             }
             i++
         }
+    }
+
+    private fun dispatchCharsetDesignation(
+        state: ParserState,
+        finalByte: Int,
+    ): Boolean {
+        if (state.intermediateCount != 1) {
+            return false
+        }
+
+        val slot = when (state.intermediates and 0xff) {
+            '('.code -> 0
+            ')'.code -> 1
+            '*'.code -> 2
+            '+'.code -> 3
+            else -> return false
+        }
+
+        when (finalByte) {
+            'B'.code -> CharsetMapper.designateAscii(state, slot)
+            '0'.code -> CharsetMapper.designateDecSpecialGraphics(state, slot)
+            else -> return true // Recognized designation shape, unsupported charset final ignored.
+        }
+
+        return true
     }
 }
