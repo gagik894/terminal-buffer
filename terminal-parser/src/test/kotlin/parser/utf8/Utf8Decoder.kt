@@ -20,12 +20,17 @@ import com.gagik.parser.utf8.Utf8DecodeResult.hasOutput
  *
  * Malformed-byte policy:
  * - If a pending multibyte sequence receives a non-continuation byte, the decoder emits U+FFFD
- *   and asks the caller to reprocess the current byte. This preserves valid following ASCII/lead bytes.
+ *   and asks the caller to reprocess the current byte. This preserves valid following ASCII,
+ *   control, or lead bytes.
  * - If a pending multibyte sequence receives a continuation-range byte that violates the current
  *   lower/upper bound, the byte is consumed as part of the malformed subsequence and U+FFFD is emitted.
  * - Invalid leading bytes are consumed and emit U+FFFD.
  *
- * The caller is responsible for honoring [Utf8DecodeResult.shouldReprocessCurrentByte].
+ * Replay contract:
+ * - [Utf8DecodeResult.shouldReprocessCurrentByte] is emitted only after the decoder resets itself
+ *   to the accept state.
+ * - Feeding the same byte once more must not produce another reprocess request for the same byte.
+ * - Callers should still enforce bounded replay defensively.
  */
 internal class Utf8Decoder(
     private val replacementCodepoint: Int = REPLACEMENT_CODEPOINT,
@@ -67,8 +72,8 @@ internal class Utf8Decoder(
         val scalar = codepoint
         reset()
 
-        // The leading-byte range constraints already reject overlongs, surrogates, and > U+10FFFF.
-        // Keep this final guard as cheap defensive protection against future edits.
+        // Leading-byte range constraints already reject overlongs, surrogates, and > U+10FFFF.
+        // Keep this final guard as defensive protection against future edits.
         return if (isUnicodeScalar(scalar)) {
             Utf8DecodeResult.emit(scalar)
         } else {
@@ -83,6 +88,8 @@ internal class Utf8Decoder(
         reset()
         return Utf8DecodeResult.emit(replacementCodepoint)
     }
+
+    fun hasPendingSequence(): Boolean = continuationNeeded != 0
 
     fun reset() {
         codepoint = 0
