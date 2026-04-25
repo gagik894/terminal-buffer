@@ -7,6 +7,46 @@ import com.gagik.parser.utf8.Utf8DecodeResult.hasOutput
 
 
 /**
+ * Packed, allocation-free UTF-8 decode result.
+ *
+ * Encoding:
+ * - [EMIT] bit set: low bits contain a Unicode scalar value.
+ * - [REPROCESS_CURRENT_BYTE] bit set: caller must feed the same byte into the decoder again.
+ * - result == [NONE]: no scalar is ready yet.
+ *
+ * A codepoint can legitimately be 0, so output must be checked with [hasOutput], not by comparing
+ * the packed value with zero.
+ */
+internal object Utf8DecodeResult {
+    const val NONE: Int = 0
+
+    private const val CODEPOINT_MASK: Int = 0x001f_ffff
+    private const val EMIT: Int = 1 shl 31
+    private const val REPROCESS_CURRENT_BYTE: Int = 1 shl 30
+
+    @JvmStatic
+    fun emit(codepoint: Int): Int {
+        require(codepoint in 0..0x10ffff) { "invalid codepoint: $codepoint" }
+        return EMIT or codepoint
+    }
+
+    @JvmStatic
+    fun emitAndReprocess(codepoint: Int): Int {
+        require(codepoint in 0..0x10ffff) { "invalid codepoint: $codepoint" }
+        return EMIT or REPROCESS_CURRENT_BYTE or codepoint
+    }
+
+    @JvmStatic
+    fun hasOutput(result: Int): Boolean = (result and EMIT) != 0
+
+    @JvmStatic
+    fun shouldReprocessCurrentByte(result: Int): Boolean = (result and REPROCESS_CURRENT_BYTE) != 0
+
+    @JvmStatic
+    fun codepoint(result: Int): Int = result and CODEPOINT_MASK
+}
+
+/**
  * Streaming UTF-8 decoder for terminal host output.
  *
  * Properties:
@@ -169,45 +209,4 @@ internal class Utf8Decoder(
     companion object {
         const val REPLACEMENT_CODEPOINT: Int = 0xfffd
     }
-}
-
-
-/**
- * Packed, allocation-free UTF-8 decode result.
- *
- * Encoding:
- * - [EMIT] bit set: low bits contain a Unicode scalar value.
- * - [REPROCESS_CURRENT_BYTE] bit set: caller must feed the same byte into the decoder again.
- * - result == [NONE]: no scalar is ready yet.
- *
- * A codepoint can legitimately be 0, so output must be checked with [hasOutput], not by comparing
- * the packed value with zero.
- */
-internal object Utf8DecodeResult {
-    const val NONE: Int = 0
-
-    private const val CODEPOINT_MASK: Int = 0x001f_ffff
-    private const val EMIT: Int = 1 shl 31
-    private const val REPROCESS_CURRENT_BYTE: Int = 1 shl 30
-
-    @JvmStatic
-    fun emit(codepoint: Int): Int {
-        require(codepoint in 0..0x10ffff) { "invalid codepoint: $codepoint" }
-        return EMIT or codepoint
-    }
-
-    @JvmStatic
-    fun emitAndReprocess(codepoint: Int): Int {
-        require(codepoint in 0..0x10ffff) { "invalid codepoint: $codepoint" }
-        return EMIT or REPROCESS_CURRENT_BYTE or codepoint
-    }
-
-    @JvmStatic
-    fun hasOutput(result: Int): Boolean = (result and EMIT) != 0
-
-    @JvmStatic
-    fun shouldReprocessCurrentByte(result: Int): Boolean = (result and REPROCESS_CURRENT_BYTE) != 0
-
-    @JvmStatic
-    fun codepoint(result: Int): Int = result and CODEPOINT_MASK
 }
