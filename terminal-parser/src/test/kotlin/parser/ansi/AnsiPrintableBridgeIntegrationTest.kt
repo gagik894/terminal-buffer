@@ -216,6 +216,48 @@ class AnsiPrintableBridgeIntegrationTest {
         }
 
         @Test
+        fun `ESC N q q single shifts G2 for one printable character through full parser path`() {
+            val h = Harness()
+
+            h.acceptAscii("\u001B*0\u001BNqq")
+            h.endOfInput()
+
+            assertAll(
+                { assertEquals(-1, h.state.singleShiftSlot) },
+                {
+                    assertEquals(
+                        listOf(
+                            writeCodepoint(0x2500),
+                            writeCodepoint('q'.code),
+                        ),
+                        h.sink.events
+                    )
+                }
+            )
+        }
+
+        @Test
+        fun `ESC O x x single shifts G3 for one printable character through full parser path`() {
+            val h = Harness()
+
+            h.acceptAscii("\u001B+0\u001BOxx")
+            h.endOfInput()
+
+            assertAll(
+                { assertEquals(-1, h.state.singleShiftSlot) },
+                {
+                    assertEquals(
+                        listOf(
+                            writeCodepoint(0x2502),
+                            writeCodepoint('x'.code),
+                        ),
+                        h.sink.events
+                    )
+                }
+            )
+        }
+
+        @Test
         fun `unsupported charset designation final is swallowed without plain ESC dispatch`() {
             val h = Harness()
 
@@ -290,6 +332,26 @@ class AnsiPrintableBridgeIntegrationTest {
                     writeCodepoint('A'.code),
                 ),
                 h.sink.events
+            )
+        }
+
+        @Test
+        fun `malformed UTF-8 lead before ESC emits replacement then routes ESC as control sequence`() {
+            val h = Harness()
+
+            h.acceptBytes(0xC3, 0x1B, '['.code, 'A'.code)
+
+            assertAll(
+                { assertEquals(AnsiState.GROUND, h.state.fsmState) },
+                {
+                    assertEquals(
+                        listOf(
+                            writeCodepoint(Utf8Decoder.REPLACEMENT_CODEPOINT),
+                            "cursorUp:1",
+                        ),
+                        h.sink.events
+                    )
+                }
             )
         }
 

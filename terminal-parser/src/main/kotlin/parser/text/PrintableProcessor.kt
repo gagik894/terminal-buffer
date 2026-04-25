@@ -93,9 +93,13 @@ internal class PrintableProcessor(
     }
 
     /**
-     * Flushes active grapheme state before structural parser actions.
+     * Flushes pending UTF-8 repair output and active grapheme state before structural parser actions.
      */
     fun flush(state: ParserState) {
+        val result = utf8Decoder.flushEndOfInput()
+        if (Utf8DecodeResult.hasOutput(result)) {
+            acceptCodepoint(state, Utf8DecodeResult.codepoint(result))
+        }
         graphemeAssembler.flush(state)
     }
 

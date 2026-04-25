@@ -66,6 +66,8 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
             'D'.code -> sink.lineFeed()
             'E'.code -> sink.nextLine()
             'M'.code -> sink.reverseIndex()
+            'N'.code -> CharsetMapper.singleShiftG2(state)
+            'O'.code -> CharsetMapper.singleShiftG3(state)
         }
     }
 

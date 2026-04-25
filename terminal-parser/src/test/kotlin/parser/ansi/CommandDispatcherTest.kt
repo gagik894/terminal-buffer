@@ -194,6 +194,58 @@ class CommandDispatcherTest {
         }
 
         @Test
+        fun `ESC N single shifts G2 for one printable character`() {
+            val state = ParserState()
+            val sink = RecordingTerminalCommandSink()
+            val processor = PrintableProcessor(sink)
+            state.charsets[2] = ParserState.CHARSET_DEC_SPECIAL_GRAPHICS
+
+            AnsiCommandDispatcher.dispatchEsc(sink, state, 'N'.code)
+            processor.acceptAsciiByte(state, 'q'.code)
+            processor.acceptAsciiByte(state, 'q'.code)
+            processor.flush(state)
+
+            assertAll(
+                { assertEquals(-1, state.singleShiftSlot) },
+                {
+                    assertEquals(
+                        listOf(
+                            "writeCodepoint:9472",
+                            "writeCodepoint:113",
+                        ),
+                        sink.events,
+                    )
+                }
+            )
+        }
+
+        @Test
+        fun `ESC O single shifts G3 for one printable character`() {
+            val state = ParserState()
+            val sink = RecordingTerminalCommandSink()
+            val processor = PrintableProcessor(sink)
+            state.charsets[3] = ParserState.CHARSET_DEC_SPECIAL_GRAPHICS
+
+            AnsiCommandDispatcher.dispatchEsc(sink, state, 'O'.code)
+            processor.acceptAsciiByte(state, 'x'.code)
+            processor.acceptAsciiByte(state, 'x'.code)
+            processor.flush(state)
+
+            assertAll(
+                { assertEquals(-1, state.singleShiftSlot) },
+                {
+                    assertEquals(
+                        listOf(
+                            "writeCodepoint:9474",
+                            "writeCodepoint:120",
+                        ),
+                        sink.events,
+                    )
+                }
+            )
+        }
+
+        @Test
         fun `plain ESC commands require no intermediate bytes`() {
             assertAll(
                 { assertTrue(dispatchEsc('7', intermediates = '#'.code, intermediateCount = 1).events.isEmpty()) },
