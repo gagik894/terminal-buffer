@@ -2,6 +2,7 @@ package com.gagik.parser.text
 
 import com.gagik.parser.TerminalCommandSink
 import com.gagik.parser.ansi.PrintableActionSink
+import com.gagik.parser.charset.CharsetMapper
 import com.gagik.parser.runtime.ParserState
 import com.gagik.parser.utf8.Utf8DecodeResult
 import com.gagik.parser.utf8.Utf8Decoder
@@ -104,14 +105,12 @@ internal class PrintableProcessor(
     }
 
     private fun acceptCodepoint(state: ParserState, codepoint: Int) {
-        val mapped = mapCharsetPlaceholder(state, codepoint)
+        val mapped = mapCharset(state, codepoint)
         graphemeAssembler.accept(state, mapped)
     }
 
-    private fun mapCharsetPlaceholder(state: ParserState, codepoint: Int): Int {
-        // CharsetState/DEC Special Graphics is a later phase.
-        // Keep this boundary explicit so ActionEngine and UTF-8 decoding do not need to change later.
-        return codepoint
+    private fun mapCharset(state: ParserState, codepoint: Int): Int {
+        return CharsetMapper.map(state, codepoint)
     }
 }
 
