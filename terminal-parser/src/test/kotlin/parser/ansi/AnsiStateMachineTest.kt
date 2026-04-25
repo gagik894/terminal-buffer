@@ -84,6 +84,9 @@ class AnsiStateMachineTest {
         ByteClass.FINAL_BYTE
     )
 
+    private val stringAsciiPayloadClassesExceptSt: List<Int> =
+        stringAsciiPayloadClasses.filterNot { it == ByteClass.ST_INTRO }
+
     private val nonStringStates: List<Int> = states.filterNot(AnsiState::isStringState)
 
     private fun decoded(state: Int, byteClass: Int): DecodedTransition {
@@ -143,24 +146,46 @@ class AnsiStateMachineTest {
     private fun assertStTerminationNeedsStringContext(startState: Int) {
         val esc = decoded(startState, ByteClass.ESC)
         val st = decoded(esc.nextState, ByteClass.ST_INTRO)
+        val expectedEscapeState = when (startState) {
+            AnsiState.OSC_STRING -> AnsiState.OSC_ESCAPE
+            AnsiState.DCS_PASSTHROUGH -> AnsiState.DCS_ESCAPE
+            AnsiState.SOS_PM_APC_STRING -> AnsiState.SOS_PM_APC_ESCAPE
+            AnsiState.IGNORE_UNTIL_ST -> AnsiState.IGNORE_UNTIL_ST_ESCAPE
+            else -> error("unsupported start state: $startState")
+        }
+        val expectedEndAction = when (startState) {
+            AnsiState.OSC_STRING -> FsmAction.OSC_END
+            AnsiState.DCS_PASSTHROUGH -> FsmAction.DCS_END
+            AnsiState.SOS_PM_APC_STRING,
+            AnsiState.IGNORE_UNTIL_ST -> FsmAction.STRING_END
+            else -> error("unsupported start state: $startState")
+        }
 
         assertAll(
-            { assertEquals(AnsiState.ESCAPE, esc.nextState, "ESC must enter an ST-pending escape state") },
-            {
-                assertNotEquals(
-                    FsmAction.CLEAR_SEQUENCE,
-                    esc.action,
-                    "ESC inside a string must not clear the payload before ST is known"
-                )
-            },
+            { assertEquals(expectedEscapeState, esc.nextState, "ESC must enter a string-local escape state") },
+            { assertEquals(FsmAction.IGNORE, esc.action, "ESC inside strings must preserve payload context") },
             { assertEquals(AnsiState.GROUND, st.nextState, "ESC followed by ST_INTRO must terminate the string") },
-            {
-                assertNotEquals(
-                    FsmAction.ESC_DISPATCH,
-                    st.action,
-                    "ESC \\ from a string must be a string terminator, not a plain ESC dispatch"
-                )
-            }
+            { assertEquals(expectedEndAction, st.action, "ESC \\ from a string must terminate via string-end action") }
+        )
+    }
+
+    private fun assertStringEscapeState(
+        escapeState: Int,
+        bodyState: Int,
+        asciiAction: Int,
+        executeAction: Int,
+        utf8Action: Int,
+        endAction: Int,
+    ) {
+        assertClasses(escapeState, stringAsciiPayloadClassesExceptSt, bodyState, asciiAction)
+
+        assertAll(
+            { assertTransition(escapeState, ByteClass.EXECUTE, bodyState, executeAction) },
+            { assertTransition(escapeState, ByteClass.UTF8_PAYLOAD, bodyState, utf8Action) },
+            { assertTransition(escapeState, ByteClass.ST_INTRO, AnsiState.GROUND, endAction) },
+            { assertTransition(escapeState, ByteClass.CAN_SUB, AnsiState.GROUND, endAction) },
+            { assertTransition(escapeState, ByteClass.ESC, escapeState, FsmAction.IGNORE) },
+            { assertTransition(escapeState, ByteClass.DEL, escapeState, FsmAction.IGNORE) }
         )
     }
 
@@ -319,12 +344,8 @@ class AnsiStateMachineTest {
         @Test
         fun `CAN and SUB abort every state back to ground`() {
             for (state in states) {
-                assertTransition(
-                    state,
-                    ByteClass.CAN_SUB,
-                    AnsiState.GROUND,
-                    FsmAction.EXECUTE_AND_CLEAR
-                )
+                val transition = decoded(state, ByteClass.CAN_SUB)
+                assertEquals(AnsiState.GROUND, transition.nextState, "state $state")
             }
         }
 
@@ -722,11 +743,11 @@ class AnsiStateMachineTest {
         }
     }
 
-    // ----- Known missing semantics -----------------------------------------
+    // ----- String termination semantics ------------------------------------
 
     @Nested
-    @DisplayName("known missing Paul Williams semantics")
-    inner class KnownMissingPaulWilliamsSemantics {
+    @DisplayName("string termination semantics")
+    inner class StringTerminationSemantics {
 
         @Test
         fun `OSC BEL terminates the OSC string and returns to ground`() {
@@ -736,8 +757,8 @@ class AnsiStateMachineTest {
             assertAll(
                 { assertEquals(AnsiState.OSC_STRING, bel.fromState) },
                 { assertEquals(ByteClass.EXECUTE, bel.byteClass) },
-                { assertEquals(AnsiState.GROUND, bel.nextState, "BEL must terminate OSC") },
-                { assertNotEquals(FsmAction.EXECUTE, bel.action, "BEL must not be an ordinary C0 execute inside OSC") }
+                { assertEquals(AnsiState.OSC_STRING, bel.nextState, "matrix stays in OSC; action interprets BEL") },
+                { assertEquals(FsmAction.OSC_EXECUTE_CONTROL, bel.action) }
             )
         }
 
@@ -750,12 +771,12 @@ class AnsiStateMachineTest {
                 { assertEquals(AnsiState.OSC_STRING, nul.fromState) },
                 { assertEquals(ByteClass.EXECUTE, nul.byteClass) },
                 { assertEquals(AnsiState.OSC_STRING, nul.nextState) },
-                { assertEquals(FsmAction.IGNORE, nul.action, "ordinary C0 controls inside OSC are ignored") }
+                { assertEquals(FsmAction.OSC_EXECUTE_CONTROL, nul.action, "OSC has dedicated C0 handling action") }
             )
         }
 
         @Test
-        fun `DCS entry ignores ordinary C0 controls while waiting for the selector`() {
+        fun `DCS entry ignores ordinary C0 while waiting for passthrough data`() {
             val steps = feedBytes(0x1B, 'P'.code, 0x00)
             val nul = steps.last()
 
@@ -763,7 +784,7 @@ class AnsiStateMachineTest {
                 { assertEquals(AnsiState.DCS_ENTRY, nul.fromState) },
                 { assertEquals(ByteClass.EXECUTE, nul.byteClass) },
                 { assertEquals(AnsiState.DCS_ENTRY, nul.nextState) },
-                { assertEquals(FsmAction.IGNORE, nul.action, "ordinary C0 controls inside DCS entry are ignored") }
+                { assertEquals(FsmAction.IGNORE, nul.action) }
             )
         }
 
@@ -859,6 +880,70 @@ class AnsiStateMachineTest {
             assertAll(
                 { assertStTerminationNeedsStringContext(AnsiState.SOS_PM_APC_STRING) },
                 { assertStTerminationNeedsStringContext(AnsiState.IGNORE_UNTIL_ST) }
+            )
+        }
+
+        @Test
+        fun `OSC escape state terminates only on ST CAN or SUB and otherwise resumes OSC payload`() {
+            assertStringEscapeState(
+                escapeState = AnsiState.OSC_ESCAPE,
+                bodyState = AnsiState.OSC_STRING,
+                asciiAction = FsmAction.OSC_PUT_ASCII,
+                executeAction = FsmAction.OSC_EXECUTE_CONTROL,
+                utf8Action = FsmAction.OSC_PUT_UTF8,
+                endAction = FsmAction.OSC_END
+            )
+        }
+
+        @Test
+        fun `DCS escape state terminates only on ST CAN or SUB and otherwise resumes passthrough payload`() {
+            assertStringEscapeState(
+                escapeState = AnsiState.DCS_ESCAPE,
+                bodyState = AnsiState.DCS_PASSTHROUGH,
+                asciiAction = FsmAction.DCS_PUT_ASCII,
+                executeAction = FsmAction.DCS_PUT_ASCII,
+                utf8Action = FsmAction.DCS_PUT_UTF8,
+                endAction = FsmAction.DCS_END
+            )
+        }
+
+        @Test
+        fun `ignored string escape states terminate only on ST CAN or SUB and otherwise resume ignoring`() {
+            assertAll(
+                {
+                    assertStringEscapeState(
+                        escapeState = AnsiState.SOS_PM_APC_ESCAPE,
+                        bodyState = AnsiState.SOS_PM_APC_STRING,
+                        asciiAction = FsmAction.IGNORE,
+                        executeAction = FsmAction.IGNORE,
+                        utf8Action = FsmAction.IGNORE,
+                        endAction = FsmAction.STRING_END
+                    )
+                },
+                {
+                    assertStringEscapeState(
+                        escapeState = AnsiState.IGNORE_UNTIL_ST_ESCAPE,
+                        bodyState = AnsiState.IGNORE_UNTIL_ST,
+                        asciiAction = FsmAction.IGNORE,
+                        executeAction = FsmAction.IGNORE,
+                        utf8Action = FsmAction.IGNORE,
+                        endAction = FsmAction.STRING_END
+                    )
+                }
+            )
+        }
+
+        @Test
+        fun `CAN and SUB use string-specific termination actions inside string states`() {
+            assertAll(
+                { assertTransition(AnsiState.OSC_STRING, ByteClass.CAN_SUB, AnsiState.GROUND, FsmAction.OSC_END) },
+                { assertTransition(AnsiState.OSC_ESCAPE, ByteClass.CAN_SUB, AnsiState.GROUND, FsmAction.OSC_END) },
+                { assertTransition(AnsiState.DCS_PASSTHROUGH, ByteClass.CAN_SUB, AnsiState.GROUND, FsmAction.DCS_END) },
+                { assertTransition(AnsiState.DCS_ESCAPE, ByteClass.CAN_SUB, AnsiState.GROUND, FsmAction.DCS_END) },
+                { assertTransition(AnsiState.SOS_PM_APC_STRING, ByteClass.CAN_SUB, AnsiState.GROUND, FsmAction.STRING_END) },
+                { assertTransition(AnsiState.SOS_PM_APC_ESCAPE, ByteClass.CAN_SUB, AnsiState.GROUND, FsmAction.STRING_END) },
+                { assertTransition(AnsiState.IGNORE_UNTIL_ST, ByteClass.CAN_SUB, AnsiState.GROUND, FsmAction.STRING_END) },
+                { assertTransition(AnsiState.IGNORE_UNTIL_ST_ESCAPE, ByteClass.CAN_SUB, AnsiState.GROUND, FsmAction.STRING_END) }
             )
         }
     }

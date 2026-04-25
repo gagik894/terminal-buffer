@@ -90,16 +90,32 @@ internal object AnsiState {
      */
     const val IGNORE_UNTIL_ST: Int = 11
 
+    /** ESC seen while inside OSC string; awaiting ST terminator decision. */
+    const val OSC_ESCAPE: Int = 12
+
+    /** ESC seen while inside DCS passthrough; awaiting ST terminator decision. */
+    const val DCS_ESCAPE: Int = 13
+
+    /** ESC seen while inside SOS/PM/APC ignored string; awaiting ST terminator decision. */
+    const val SOS_PM_APC_ESCAPE: Int = 14
+
+    /** ESC seen while inside generic ignore-until-ST; awaiting ST terminator decision. */
+    const val IGNORE_UNTIL_ST_ESCAPE: Int = 15
+
     /** Total number of FSM states. */
-    const val COUNT: Int = 12
+    const val COUNT: Int = 16
 
     @JvmStatic
     fun isStringState(state: Int): Boolean {
         require(state in 0 until COUNT) { "state out of range: $state" }
         return state == OSC_STRING ||
+                state == OSC_ESCAPE ||
                 state == DCS_PASSTHROUGH ||
+                state == DCS_ESCAPE ||
                 state == SOS_PM_APC_STRING ||
-                state == IGNORE_UNTIL_ST
+                state == SOS_PM_APC_ESCAPE ||
+                state == IGNORE_UNTIL_ST ||
+                state == IGNORE_UNTIL_ST_ESCAPE
     }
 
     @JvmStatic

@@ -22,14 +22,22 @@ class AnsiStateTest {
         AnsiState.DCS_ENTRY,
         AnsiState.DCS_PASSTHROUGH,
         AnsiState.SOS_PM_APC_STRING,
-        AnsiState.IGNORE_UNTIL_ST
+        AnsiState.IGNORE_UNTIL_ST,
+        AnsiState.OSC_ESCAPE,
+        AnsiState.DCS_ESCAPE,
+        AnsiState.SOS_PM_APC_ESCAPE,
+        AnsiState.IGNORE_UNTIL_ST_ESCAPE
     )
 
     private val stringStates: Set<Int> = setOf(
         AnsiState.OSC_STRING,
+        AnsiState.OSC_ESCAPE,
         AnsiState.DCS_PASSTHROUGH,
+        AnsiState.DCS_ESCAPE,
         AnsiState.SOS_PM_APC_STRING,
-        AnsiState.IGNORE_UNTIL_ST
+        AnsiState.SOS_PM_APC_ESCAPE,
+        AnsiState.IGNORE_UNTIL_ST,
+        AnsiState.IGNORE_UNTIL_ST_ESCAPE
     )
 
     private val csiStates: Set<Int> = setOf(
@@ -96,9 +104,13 @@ class AnsiStateTest {
             assertEquals(
                 setOf(
                     AnsiState.OSC_STRING,
+                    AnsiState.OSC_ESCAPE,
                     AnsiState.DCS_PASSTHROUGH,
+                    AnsiState.DCS_ESCAPE,
                     AnsiState.SOS_PM_APC_STRING,
-                    AnsiState.IGNORE_UNTIL_ST
+                    AnsiState.SOS_PM_APC_ESCAPE,
+                    AnsiState.IGNORE_UNTIL_ST,
+                    AnsiState.IGNORE_UNTIL_ST_ESCAPE
                 ),
                 stringStates
             )

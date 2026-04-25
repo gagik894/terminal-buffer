@@ -520,7 +520,7 @@ class ActionEngineTest {
         }
 
         @Test
-        fun `OSC BEL terminates OSC without executing a normal control`() {
+        fun `OSC BEL terminates OSC through OSC_EXECUTE_CONTROL`() {
             val fixture = Fixture()
             val state = ParserState()
             dirtySequenceState(state)
@@ -531,7 +531,7 @@ class ActionEngineTest {
                 state,
                 previousState = AnsiState.OSC_STRING,
                 nextState = AnsiState.OSC_STRING,
-                action = FsmAction.EXECUTE,
+                action = FsmAction.OSC_EXECUTE_CONTROL,
                 byteValue = 0x07
             )
 
@@ -664,7 +664,7 @@ class ActionEngineTest {
         }
 
         @Test
-        fun `PARAM_DIGIT is ignored when parameter storage is already full and no active field exists`() {
+        fun `PARAM_DIGIT fills the current materialized field when storage is full and field is omitted`() {
             val fixture = Fixture()
             val state = ParserState(maxParams = 1)
             state.params[0] = 5
@@ -681,8 +681,8 @@ class ActionEngineTest {
 
             assertAll(
                 { assertEquals(1, state.paramCount) },
-                { assertEquals(5, state.params[0]) },
-                { assertFalse(state.currentParamStarted) },
+                { assertEquals(9, state.params[0]) },
+                { assertTrue(state.currentParamStarted) },
                 { assertEquals(AnsiState.CSI_PARAM, state.fsmState) }
             )
         }
@@ -895,7 +895,7 @@ class ActionEngineTest {
         }
 
         @Test
-        fun `ESC backslash with string previous state terminates OSC instead of dispatching ESC`() {
+        fun `ESC_DISPATCH stays a plain ESC dispatch even if previous state was a string`() {
             val fixture = Fixture()
             val state = ParserState()
             dirtySequenceState(state)
@@ -911,10 +911,10 @@ class ActionEngineTest {
             )
 
             assertAll(
-                { assertEquals(listOf("flush", "osc:0:3:true"), fixture.events) },
-                { assertTrue(fixture.dispatcher.escFinals.isEmpty()) },
-                { assertEquals(1, fixture.sink.oscCalls.size) },
-                { assertEquals(0, state.payloadLength) },
+                { assertEquals(listOf("flush", "esc:${'\\'.code}"), fixture.events) },
+                { assertEquals(listOf('\\'.code), fixture.dispatcher.escFinals) },
+                { assertTrue(fixture.sink.oscCalls.isEmpty()) },
+                { assertEquals(3, state.payloadLength, "string termination is matrix-driven, not ESC_DISPATCH-driven") },
                 { assertEquals(0, state.paramCount) },
                 { assertEquals(AnsiState.GROUND, state.fsmState) }
             )
@@ -1081,6 +1081,94 @@ class ActionEngineTest {
                 { assertEquals(AnsiState.DCS_PASSTHROUGH, state.fsmState) }
             )
         }
+
+        @Test
+        fun `OSC_END dispatches bounded payload and clears parser-owned string state`() {
+            val fixture = Fixture()
+            val state = ParserState()
+            dirtySequenceState(state)
+            dirtyPayloadState(state)
+
+            execute(
+                fixture,
+                state,
+                previousState = AnsiState.OSC_ESCAPE,
+                nextState = AnsiState.GROUND,
+                action = FsmAction.OSC_END,
+                byteValue = '\\'.code
+            )
+
+            assertAll(
+                { assertEquals(listOf("osc:0:3:true"), fixture.events) },
+                { assertEquals(1, fixture.sink.oscCalls.size) },
+                { assertEquals(listOf('0'.code, ';'.code, 't'.code), fixture.sink.oscCalls.single().payload) },
+                { assertTrue(fixture.dispatcher.escFinals.isEmpty()) },
+                { assertEquals(0, state.paramCount) },
+                { assertEquals(0, state.intermediateCount) },
+                { assertEquals(0, state.payloadLength) },
+                { assertEquals(-1, state.payloadCode) },
+                { assertFalse(state.payloadOverflowed) },
+                { assertEquals(AnsiState.GROUND, state.fsmState) }
+            )
+        }
+
+        @Test
+        fun `DCS_END clears bounded passthrough payload without dispatching`() {
+            val fixture = Fixture()
+            val state = ParserState()
+            dirtySequenceState(state)
+            dirtyPayloadState(state)
+
+            execute(
+                fixture,
+                state,
+                previousState = AnsiState.DCS_ESCAPE,
+                nextState = AnsiState.GROUND,
+                action = FsmAction.DCS_END,
+                byteValue = '\\'.code
+            )
+
+            assertAll(
+                { assertTrue(fixture.events.isEmpty()) },
+                { assertTrue(fixture.sink.oscCalls.isEmpty()) },
+                { assertTrue(fixture.dispatcher.escFinals.isEmpty()) },
+                { assertEquals(0, state.paramCount) },
+                { assertEquals(0, state.intermediateCount) },
+                { assertEquals(0, state.payloadLength) },
+                { assertEquals(-1, state.payloadCode) },
+                { assertFalse(state.payloadOverflowed) },
+                { assertEquals(AnsiState.GROUND, state.fsmState) }
+            )
+        }
+
+        @Test
+        fun `STRING_END clears ignored string state without dispatching`() {
+            val fixture = Fixture()
+            val state = ParserState()
+            dirtySequenceState(state)
+            dirtyPayloadState(state)
+
+            execute(
+                fixture,
+                state,
+                previousState = AnsiState.SOS_PM_APC_ESCAPE,
+                nextState = AnsiState.GROUND,
+                action = FsmAction.STRING_END,
+                byteValue = '\\'.code
+            )
+
+            assertAll(
+                { assertTrue(fixture.events.isEmpty()) },
+                { assertTrue(fixture.sink.oscCalls.isEmpty()) },
+                { assertTrue(fixture.dispatcher.escFinals.isEmpty()) },
+                { assertEquals(0, state.paramCount) },
+                { assertEquals(0, state.intermediateCount) },
+                { assertEquals(0, state.payloadLength) },
+                { assertEquals(-1, state.payloadCode) },
+                { assertFalse(state.payloadOverflowed) },
+                { assertEquals(AnsiState.GROUND, state.fsmState) }
+            )
+        }
     }
 
     // ----- Integrated matrix/action traces ---------------------------------
@@ -1140,6 +1228,37 @@ class ActionEngineTest {
         }
 
         @Test
+        fun `OSC ESC followed by non-ST resumes OSC payload through the real matrix and action engine`() {
+            val fixture = Fixture()
+            val state = ParserState()
+
+            runMatrixTrace(fixture, state, 0x1B, ']'.code, 'a'.code, 0x1B, 'b'.code, 0x07)
+
+            assertAll(
+                { assertEquals(1, fixture.sink.oscCalls.size) },
+                { assertEquals(listOf('a'.code, 'b'.code), fixture.sink.oscCalls.single().payload) },
+                { assertTrue(fixture.dispatcher.escFinals.isEmpty()) },
+                { assertTrue(fixture.dispatcher.controlBytes.isEmpty()) },
+                { assertEquals(AnsiState.GROUND, state.fsmState) }
+            )
+        }
+
+        @Test
+        fun `repeated ESC inside OSC keeps waiting for ST without adding ESC bytes to payload`() {
+            val fixture = Fixture()
+            val state = ParserState()
+
+            runMatrixTrace(fixture, state, 0x1B, ']'.code, 'a'.code, 0x1B, 0x1B, 'b'.code, 0x07)
+
+            assertAll(
+                { assertEquals(1, fixture.sink.oscCalls.size) },
+                { assertEquals(listOf('a'.code, 'b'.code), fixture.sink.oscCalls.single().payload) },
+                { assertTrue(fixture.dispatcher.escFinals.isEmpty()) },
+                { assertEquals(AnsiState.GROUND, state.fsmState) }
+            )
+        }
+
+        @Test
         fun `ordinary C0 inside OSC is ignored through the real matrix and action engine`() {
             val fixture = Fixture()
             val state = ParserState()
@@ -1151,6 +1270,21 @@ class ActionEngineTest {
                 { assertTrue(fixture.dispatcher.controlBytes.isEmpty()) },
                 { assertTrue(fixture.sink.oscCalls.isEmpty()) },
                 { assertEquals(0, state.payloadLength) }
+            )
+        }
+
+        @Test
+        fun `ordinary C0 in DCS entry is ignored through the real matrix and action engine`() {
+            val fixture = Fixture()
+            val state = ParserState(maxPayload = 4)
+
+            runMatrixTrace(fixture, state, 0x1B, 'P'.code, 0x00)
+
+            assertAll(
+                { assertEquals(AnsiState.DCS_ENTRY, state.fsmState) },
+                { assertTrue(fixture.dispatcher.controlBytes.isEmpty()) },
+                { assertEquals(0, state.payloadLength) },
+                { assertTrue(fixture.sink.oscCalls.isEmpty()) }
             )
         }
 
@@ -1167,6 +1301,39 @@ class ActionEngineTest {
                 { assertEquals(2, state.payloadLength) },
                 { assertEquals('q'.code.toByte(), state.payloadBuffer[0]) },
                 { assertEquals(0x00.toByte(), state.payloadBuffer[1]) }
+            )
+        }
+
+        @Test
+        fun `DCS ESC followed by non-ST resumes passthrough payload through the real matrix and action engine`() {
+            val fixture = Fixture()
+            val state = ParserState(maxPayload = 4)
+
+            runMatrixTrace(fixture, state, 0x1B, 'P'.code, 'q'.code, 0x1B, 'A'.code)
+
+            assertAll(
+                { assertEquals(AnsiState.DCS_PASSTHROUGH, state.fsmState) },
+                { assertTrue(fixture.dispatcher.escFinals.isEmpty()) },
+                { assertTrue(fixture.dispatcher.controlBytes.isEmpty()) },
+                { assertEquals(2, state.payloadLength) },
+                { assertEquals('q'.code.toByte(), state.payloadBuffer[0]) },
+                { assertEquals('A'.code.toByte(), state.payloadBuffer[1]) }
+            )
+        }
+
+        @Test
+        fun `repeated ESC inside DCS keeps waiting for ST without adding ESC bytes to payload`() {
+            val fixture = Fixture()
+            val state = ParserState(maxPayload = 4)
+
+            runMatrixTrace(fixture, state, 0x1B, 'P'.code, 'q'.code, 0x1B, 0x1B, 'A'.code)
+
+            assertAll(
+                { assertEquals(AnsiState.DCS_PASSTHROUGH, state.fsmState) },
+                { assertTrue(fixture.dispatcher.escFinals.isEmpty()) },
+                { assertEquals(2, state.payloadLength) },
+                { assertEquals('q'.code.toByte(), state.payloadBuffer[0]) },
+                { assertEquals('A'.code.toByte(), state.payloadBuffer[1]) }
             )
         }
 

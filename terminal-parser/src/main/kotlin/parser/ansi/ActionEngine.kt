@@ -14,8 +14,7 @@ import com.gagik.parser.runtime.ParserState
  *
  * Important:
  * - The caller must pass both [previousState] and [nextState].
- * - This is required to interpret ESC \\ as ST termination when transitioning out of
- *   string states such as OSC/DCS.
+ * - The transition matrix is the source of truth for string-termination routing.
  */
 internal class ActionEngine(
     private val sink: TerminalCommandSink,
@@ -47,11 +46,11 @@ internal class ActionEngine(
             }
 
             FsmAction.EXECUTE -> {
-                executeControl(state, previousState, nextState, byteValue, clearAfter = false)
+                executeControl(state,nextState, byteValue, clearAfter = false)
             }
 
             FsmAction.EXECUTE_AND_CLEAR -> {
-                executeControl(state, previousState, nextState, byteValue, clearAfter = true)
+                executeControl(state, nextState, byteValue, clearAfter = true)
             }
 
             FsmAction.CLEAR_SEQUENCE -> {
@@ -102,14 +101,6 @@ internal class ActionEngine(
 
             FsmAction.ESC_DISPATCH -> {
                 flushPrintable(state)
-
-                // Special case: ESC \ terminates OSC/DCS/SOS/PM/APC-like string states.
-                if (byteValue == '\\'.code && terminatesStringWithSt(previousState)) {
-                    terminateString(state, previousState, aborted = false)
-                    state.fsmState = AnsiState.GROUND
-                    return
-                }
-
                 dispatcher.dispatchEsc(
                     sink = sink,
                     state = state,
@@ -168,28 +159,59 @@ internal class ActionEngine(
                 state.fsmState = nextState
             }
 
+            FsmAction.OSC_EXECUTE_CONTROL -> {
+                if (byteValue == 0x07) {
+                    sink.onOsc(
+                        commandCode = state.payloadCode,
+                        payload = state.payloadBuffer,
+                        length = state.payloadLength,
+                        overflowed = state.payloadOverflowed,
+                    )
+                    state.clearPayloadState()
+                    state.clearSequenceState()
+                    state.fsmState = AnsiState.GROUND
+                } else {
+                    // Ordinary C0 inside OSC is ignored.
+                    state.fsmState = nextState
+                }
+            }
+
+            FsmAction.OSC_END -> {
+                sink.onOsc(
+                    commandCode = state.payloadCode,
+                    payload = state.payloadBuffer,
+                    length = state.payloadLength,
+                    overflowed = state.payloadOverflowed,
+                )
+                state.clearPayloadState()
+                state.clearSequenceState()
+                state.fsmState = nextState
+            }
+
+            FsmAction.DCS_END -> {
+                // Milestone A: DCS payload is bounded and discarded.
+                state.clearPayloadState()
+                state.clearSequenceState()
+                state.fsmState = nextState
+            }
+
+            FsmAction.STRING_END -> {
+                state.clearPayloadState()
+                state.clearSequenceState()
+                state.fsmState = nextState
+            }
+
             else -> error("Unknown FsmAction: $action")
         }
     }
 
     private fun executeControl(
         state: ParserState,
-        previousState: Int,
         nextState: Int,
         byteValue: Int,
         clearAfter: Boolean,
     ) {
-        // BEL terminates OSC by protocol.
-        if (byteValue == 0x07 && previousState == AnsiState.OSC_STRING) {
-            terminateString(state, previousState, aborted = false)
-            if (clearAfter) {
-                state.clearSequenceState()
-            }
-            state.fsmState = AnsiState.GROUND
-            return
-        }
-
-        // In all other cases, controls are structural.
+        // Controls are structural in this path.
         flushPrintable(state)
         dispatcher.executeControl(
             sink = sink,
@@ -201,43 +223,6 @@ internal class ActionEngine(
             state.clearSequenceState()
         }
         state.fsmState = nextState
-    }
-
-    private fun terminatesStringWithSt(previousState: Int): Boolean {
-        return previousState == AnsiState.OSC_STRING ||
-                previousState == AnsiState.DCS_PASSTHROUGH ||
-                previousState == AnsiState.SOS_PM_APC_STRING ||
-                previousState == AnsiState.IGNORE_UNTIL_ST
-    }
-
-    private fun terminateString(
-        state: ParserState,
-        previousState: Int,
-        aborted: Boolean,
-    ) {
-        when (previousState) {
-            AnsiState.OSC_STRING -> {
-                sink.onOsc(
-                    commandCode = state.payloadCode,
-                    payload = state.payloadBuffer,
-                    length = state.payloadLength,
-                    overflowed = state.payloadOverflowed,
-                )
-            }
-
-            AnsiState.DCS_PASSTHROUGH -> {
-                // Milestone A intentionally does not expose DCS metadata dispatch.
-                // Payload is dropped after bounded accumulation.
-            }
-
-            AnsiState.SOS_PM_APC_STRING,
-            AnsiState.IGNORE_UNTIL_ST -> {
-                // Ignored by design.
-            }
-        }
-
-        state.clearPayloadState()
-        state.clearSequenceState()
     }
 
     private fun flushPrintable(state: ParserState) {
@@ -256,56 +241,37 @@ internal class ActionEngine(
         val digit = byteValue - '0'.code
         require(digit in 0..9) { "Expected decimal digit byte, got: $byteValue" }
 
-        if (!ensureParamSlot(state)) {
-            return
+        if (state.paramCount == 0) {
+            if (!openParamField(state, openedByColon = false)) return
         }
 
         val index = state.paramCount - 1
         val current = state.params[index]
-        state.params[index] = if (current < 0) {
+
+        state.params[index] = if (!state.currentParamStarted || current < 0) {
             digit
         } else {
             saturatingAppendDecimal(current, digit)
         }
+
         state.currentParamStarted = true
     }
 
     private fun appendParamSeparator(state: ParserState) {
-        if (!state.currentParamStarted) {
-            if (!ensureParamSlot(state)) {
-                return
-            }
-            state.params[state.paramCount - 1] = -1
+        if (state.paramCount == 0) {
+            if (!openParamField(state, openedByColon = false)) return
         }
 
-        if (state.paramCount >= state.params.size) {
-            state.currentParamStarted = false
-            return
-        }
-
-        state.paramCount++
+        openParamField(state, openedByColon = false)
         state.currentParamStarted = false
     }
 
     private fun appendParamColon(state: ParserState) {
-        if (!state.currentParamStarted) {
-            if (!ensureParamSlot(state)) {
-                return
-            }
-            state.params[state.paramCount - 1] = -1
+        if (state.paramCount == 0) {
+            if (!openParamField(state, openedByColon = false)) return
         }
 
-        val nextIndex = state.paramCount
-        if (nextIndex < 32) {
-            state.subParameterMask = state.subParameterMask or (1 shl nextIndex)
-        }
-
-        if (state.paramCount >= state.params.size) {
-            state.currentParamStarted = false
-            return
-        }
-
-        state.paramCount++
+        openParamField(state, openedByColon = true)
         state.currentParamStarted = false
     }
 
@@ -315,18 +281,19 @@ internal class ActionEngine(
         }
     }
 
-    private fun ensureParamSlot(state: ParserState): Boolean {
-        if (state.currentParamStarted) {
-            return true
-        }
-
-        if (state.paramCount >= state.params.size) {
+    private fun openParamField(state: ParserState, openedByColon: Boolean): Boolean {
+        val index = state.paramCount
+        if (index >= state.params.size) {
             return false
         }
 
-        state.params[state.paramCount] = -1
+        state.params[index] = -1
         state.paramCount++
-        state.currentParamStarted = true
+
+        if (openedByColon && index < 32) {
+            state.subParameterMask = state.subParameterMask or (1 shl index)
+        }
+
         return true
     }
 

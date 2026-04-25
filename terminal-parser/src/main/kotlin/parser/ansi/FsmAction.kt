@@ -68,6 +68,18 @@ internal object FsmAction {
     /** Append one non-ASCII raw byte to the DCS payload buffer or ignore stream. */
     const val DCS_PUT_UTF8: Int = 18
 
+    /** Execute a C0 byte while inside OSC. BEL terminates; ordinary C0 is ignored. */
+    const val OSC_EXECUTE_CONTROL: Int = 19
+
+    /** Terminate OSC payload and dispatch bounded OSC payload. */
+    const val OSC_END: Int = 20
+
+    /** Terminate DCS passthrough. Milestone A drops bounded payload. */
+    const val DCS_END: Int = 21
+
+    /** Terminate ignored string payload. */
+    const val STRING_END: Int = 22
+
     /** Total number of defined actions. */
-    const val COUNT: Int = 19
+    const val COUNT: Int = 23
 }
