@@ -62,10 +62,10 @@ internal object FsmAction {
     /** Enter Milestone-A DCS bounded-ignore/passthrough mode. */
     const val DCS_IGNORE_START: Int = 16
 
-    /** Append one ASCII-domain byte to the DCS payload buffer or ignore stream. */
+    /** Append one ASCII-domain byte to bounded DCS scratch storage; Milestone A drops it on DCS_END. */
     const val DCS_PUT_ASCII: Int = 17
 
-    /** Append one non-ASCII raw byte to the DCS payload buffer or ignore stream. */
+    /** Append one non-ASCII raw byte to bounded DCS scratch storage; Milestone A drops it on DCS_END. */
     const val DCS_PUT_UTF8: Int = 18
 
     /** Execute a C0 byte while inside OSC. BEL terminates; ordinary C0 is ignored. */
