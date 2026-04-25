@@ -11,10 +11,6 @@ import com.gagik.parser.runtime.ParserState
  * - Flushes pending printable output before structural commands/dispatch.
  * - Delegates semantic control-sequence translation to [CommandDispatcher].
  * - Does not own UTF-8 decoding internals beyond forwarding raw non-ASCII bytes.
- *
- * Important:
- * - The caller must pass both [previousState] and [nextState].
- * - The transition matrix is the source of truth for string-termination routing.
  */
 internal class ActionEngine(
     private val sink: TerminalCommandSink,
@@ -26,14 +22,12 @@ internal class ActionEngine(
      * Executes one FSM action.
      *
      * @param state parser runtime state
-     * @param previousState state before applying the transition
      * @param nextState state after applying the transition
      * @param action parser-internal action id from [FsmAction]
      * @param byteValue raw input byte in range 0..255
      */
     fun execute(
         state: ParserState,
-        previousState: Int,
         nextState: Int,
         action: Int,
         byteValue: Int,
@@ -331,27 +325,3 @@ internal interface PrintableActionSink {
     fun flush(state: ParserState)
 }
 
-/**
- * Semantic dispatcher boundary used by ActionEngine.
- *
- * ESC/CSI/control meaning lives here, not in the matrix and not in ActionEngine.
- */
-internal interface CommandDispatcher {
-    fun executeControl(
-        sink: TerminalCommandSink,
-        state: ParserState,
-        controlByte: Int,
-    )
-
-    fun dispatchEsc(
-        sink: TerminalCommandSink,
-        state: ParserState,
-        finalByte: Int,
-    )
-
-    fun dispatchCsi(
-        sink: TerminalCommandSink,
-        state: ParserState,
-        finalByte: Int,
-    )
-}

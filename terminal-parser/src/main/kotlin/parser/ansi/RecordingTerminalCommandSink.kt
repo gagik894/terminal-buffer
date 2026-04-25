@@ -8,46 +8,156 @@ internal class RecordingTerminalCommandSink : TerminalCommandSink {
         val payload: ByteArray,
         val length: Int,
         val overflowed: Boolean,
-    )
+    ) {
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
 
+            other as Osc
+
+            if (commandCode != other.commandCode) return false
+            if (length != other.length) return false
+            if (overflowed != other.overflowed) return false
+            if (!payload.contentEquals(other.payload)) return false
+
+            return true
+        }
+
+        override fun hashCode(): Int {
+            var result = commandCode
+            result = 31 * result + length
+            result = 31 * result + overflowed.hashCode()
+            result = 31 * result + payload.contentHashCode()
+            return result
+        }
+    }
+
+    val events = ArrayList<String>()
     val osc = ArrayList<Osc>()
 
-    override fun writeCodepoint(codepoint: Int) = Unit
-    override fun writeCluster(codepoints: IntArray, length: Int, charWidth: Int) = Unit
+    override fun writeCodepoint(codepoint: Int) {
+        events += "writeCodepoint:$codepoint"
+    }
 
-    override fun bell() = Unit
-    override fun backspace() = Unit
-    override fun tab() = Unit
-    override fun lineFeed() = Unit
-    override fun carriageReturn() = Unit
-    override fun reverseIndex() = Unit
-    override fun nextLine() = Unit
+    override fun writeCluster(codepoints: IntArray, length: Int, charWidth: Int) {
+        events += "writeCluster:$length:$charWidth:${codepoints.take(length).joinToString(":")}"
+    }
 
-    override fun saveCursor() = Unit
-    override fun restoreCursor() = Unit
+    override fun bell() {
+        events += "bell"
+    }
 
-    override fun cursorUp(n: Int) = Unit
-    override fun cursorDown(n: Int) = Unit
-    override fun cursorForward(n: Int) = Unit
-    override fun cursorBackward(n: Int) = Unit
-    override fun cursorNextLine(n: Int) = Unit
-    override fun cursorPreviousLine(n: Int) = Unit
-    override fun setCursorColumn(col: Int) = Unit
-    override fun setCursorRow(row: Int) = Unit
-    override fun setCursorAbsolute(row: Int, col: Int) = Unit
+    override fun backspace() {
+        events += "backspace"
+    }
 
-    override fun eraseInDisplay(mode: Int, selective: Boolean) = Unit
-    override fun eraseInLine(mode: Int, selective: Boolean) = Unit
-    override fun insertLines(n: Int) = Unit
-    override fun deleteLines(n: Int) = Unit
-    override fun insertCharacters(n: Int) = Unit
-    override fun deleteCharacters(n: Int) = Unit
-    override fun eraseCharacters(n: Int) = Unit
-    override fun scrollUp(n: Int) = Unit
-    override fun scrollDown(n: Int) = Unit
+    override fun tab() {
+        events += "tab"
+    }
 
-    override fun setAnsiMode(mode: Int, enable: Boolean) = Unit
-    override fun setDecMode(mode: Int, enable: Boolean) = Unit
+    override fun lineFeed() {
+        events += "lineFeed"
+    }
+
+    override fun carriageReturn() {
+        events += "carriageReturn"
+    }
+
+    override fun reverseIndex() {
+        events += "reverseIndex"
+    }
+
+    override fun nextLine() {
+        events += "nextLine"
+    }
+
+    override fun saveCursor() {
+        events += "saveCursor"
+    }
+
+    override fun restoreCursor() {
+        events += "restoreCursor"
+    }
+
+    override fun cursorUp(n: Int) {
+        events += "cursorUp:$n"
+    }
+
+    override fun cursorDown(n: Int) {
+        events += "cursorDown:$n"
+    }
+
+    override fun cursorForward(n: Int) {
+        events += "cursorForward:$n"
+    }
+
+    override fun cursorBackward(n: Int) {
+        events += "cursorBackward:$n"
+    }
+
+    override fun cursorNextLine(n: Int) {
+        events += "cursorNextLine:$n"
+    }
+
+    override fun cursorPreviousLine(n: Int) {
+        events += "cursorPreviousLine:$n"
+    }
+
+    override fun setCursorColumn(col: Int) {
+        events += "setCursorColumn:$col"
+    }
+
+    override fun setCursorRow(row: Int) {
+        events += "setCursorRow:$row"
+    }
+
+    override fun setCursorAbsolute(row: Int, col: Int) {
+        events += "setCursorAbsolute:$row:$col"
+    }
+
+    override fun eraseInDisplay(mode: Int, selective: Boolean) {
+        events += "eraseInDisplay:$mode:$selective"
+    }
+
+    override fun eraseInLine(mode: Int, selective: Boolean) {
+        events += "eraseInLine:$mode:$selective"
+    }
+
+    override fun insertLines(n: Int) {
+        events += "insertLines:$n"
+    }
+
+    override fun deleteLines(n: Int) {
+        events += "deleteLines:$n"
+    }
+
+    override fun insertCharacters(n: Int) {
+        events += "insertCharacters:$n"
+    }
+
+    override fun deleteCharacters(n: Int) {
+        events += "deleteCharacters:$n"
+    }
+
+    override fun eraseCharacters(n: Int) {
+        events += "eraseCharacters:$n"
+    }
+
+    override fun scrollUp(n: Int) {
+        events += "scrollUp:$n"
+    }
+
+    override fun scrollDown(n: Int) {
+        events += "scrollDown:$n"
+    }
+
+    override fun setAnsiMode(mode: Int, enable: Boolean) {
+        events += "setAnsiMode:$mode:$enable"
+    }
+
+    override fun setDecMode(mode: Int, enable: Boolean) {
+        events += "setDecMode:$mode:$enable"
+    }
 
     override fun onOsc(
         commandCode: Int,
@@ -55,6 +165,7 @@ internal class RecordingTerminalCommandSink : TerminalCommandSink {
         length: Int,
         overflowed: Boolean,
     ) {
+        events += "osc:$commandCode:$length:$overflowed"
         osc += Osc(
             commandCode = commandCode,
             payload = payload.copyOf(length),

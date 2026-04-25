@@ -298,14 +298,12 @@ class ActionEngineTest {
     private fun execute(
         fixture: Fixture,
         state: ParserState,
-        previousState: Int = state.fsmState,
         nextState: Int,
         action: Int,
         byteValue: Int,
     ) {
         fixture.engine.execute(
             state = state,
-            previousState = previousState,
             nextState = nextState,
             action = action,
             byteValue = byteValue
@@ -324,7 +322,6 @@ class ActionEngineTest {
 
             fixture.engine.execute(
                 state = state,
-                previousState = previousState,
                 nextState = AnsiStateMachine.nextState(transition),
                 action = AnsiStateMachine.action(transition),
                 byteValue = byteValue
@@ -529,7 +526,6 @@ class ActionEngineTest {
             execute(
                 fixture,
                 state,
-                previousState = AnsiState.OSC_STRING,
                 nextState = AnsiState.OSC_STRING,
                 action = FsmAction.OSC_EXECUTE_CONTROL,
                 byteValue = 0x07
@@ -845,7 +841,6 @@ class ActionEngineTest {
             execute(
                 fixture,
                 state,
-                previousState = AnsiState.ESCAPE_INTERMEDIATE,
                 nextState = AnsiState.GROUND,
                 action = FsmAction.ESC_DISPATCH,
                 byteValue = 'c'.code
@@ -873,7 +868,6 @@ class ActionEngineTest {
             execute(
                 fixture,
                 state,
-                previousState = AnsiState.CSI_PARAM,
                 nextState = AnsiState.GROUND,
                 action = FsmAction.CSI_DISPATCH,
                 byteValue = 'm'.code
@@ -904,7 +898,6 @@ class ActionEngineTest {
             execute(
                 fixture,
                 state,
-                previousState = AnsiState.OSC_STRING,
                 nextState = AnsiState.GROUND,
                 action = FsmAction.ESC_DISPATCH,
                 byteValue = '\\'.code
@@ -928,7 +921,6 @@ class ActionEngineTest {
             execute(
                 fixture,
                 state,
-                previousState = AnsiState.ESCAPE,
                 nextState = AnsiState.GROUND,
                 action = FsmAction.ESC_DISPATCH,
                 byteValue = '\\'.code
@@ -959,7 +951,6 @@ class ActionEngineTest {
             execute(
                 fixture,
                 state,
-                previousState = AnsiState.ESCAPE,
                 nextState = AnsiState.OSC_STRING,
                 action = FsmAction.OSC_START,
                 byteValue = ']'.code
@@ -1037,7 +1028,6 @@ class ActionEngineTest {
             execute(
                 fixture,
                 state,
-                previousState = AnsiState.DCS_ENTRY,
                 nextState = AnsiState.DCS_PASSTHROUGH,
                 action = FsmAction.DCS_IGNORE_START,
                 byteValue = 'q'.code
@@ -1092,7 +1082,6 @@ class ActionEngineTest {
             execute(
                 fixture,
                 state,
-                previousState = AnsiState.OSC_ESCAPE,
                 nextState = AnsiState.GROUND,
                 action = FsmAction.OSC_END,
                 byteValue = '\\'.code
@@ -1122,7 +1111,6 @@ class ActionEngineTest {
             execute(
                 fixture,
                 state,
-                previousState = AnsiState.DCS_ESCAPE,
                 nextState = AnsiState.GROUND,
                 action = FsmAction.DCS_END,
                 byteValue = '\\'.code
@@ -1151,7 +1139,6 @@ class ActionEngineTest {
             execute(
                 fixture,
                 state,
-                previousState = AnsiState.SOS_PM_APC_ESCAPE,
                 nextState = AnsiState.GROUND,
                 action = FsmAction.STRING_END,
                 byteValue = '\\'.code

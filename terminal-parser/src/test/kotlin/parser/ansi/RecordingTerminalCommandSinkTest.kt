@@ -57,48 +57,91 @@ class RecordingTerminalCommandSinkTest {
     }
 
     @Nested
-    @DisplayName("ignored terminal commands")
-    inner class IgnoredTerminalCommands {
+    @DisplayName("terminal command recording")
+    inner class TerminalCommandRecording {
 
         @Test
-        fun `non-OSC terminal commands are harmless no-ops`() {
+        fun `records terminal commands in call order`() {
             val sink = RecordingTerminalCommandSink()
 
-            assertDoesNotThrow {
-                sink.writeCodepoint('A'.code)
-                sink.writeCluster(intArrayOf('A'.code), length = 1, charWidth = 1)
-                sink.bell()
-                sink.backspace()
-                sink.tab()
-                sink.lineFeed()
-                sink.carriageReturn()
-                sink.reverseIndex()
-                sink.nextLine()
-                sink.saveCursor()
-                sink.restoreCursor()
-                sink.cursorUp(1)
-                sink.cursorDown(1)
-                sink.cursorForward(1)
-                sink.cursorBackward(1)
-                sink.cursorNextLine(1)
-                sink.cursorPreviousLine(1)
-                sink.setCursorColumn(1)
-                sink.setCursorRow(1)
-                sink.setCursorAbsolute(1, 1)
-                sink.eraseInDisplay(0, selective = false)
-                sink.eraseInLine(0, selective = false)
-                sink.insertLines(1)
-                sink.deleteLines(1)
-                sink.insertCharacters(1)
-                sink.deleteCharacters(1)
-                sink.eraseCharacters(1)
-                sink.scrollUp(1)
-                sink.scrollDown(1)
-                sink.setAnsiMode(4, enable = true)
-                sink.setDecMode(25, enable = false)
-            }
+            sink.writeCodepoint('A'.code)
+            sink.writeCluster(intArrayOf('A'.code), length = 1, charWidth = 1)
+            sink.bell()
+            sink.backspace()
+            sink.tab()
+            sink.lineFeed()
+            sink.carriageReturn()
+            sink.reverseIndex()
+            sink.nextLine()
+            sink.saveCursor()
+            sink.restoreCursor()
+            sink.cursorUp(1)
+            sink.cursorDown(2)
+            sink.cursorForward(3)
+            sink.cursorBackward(4)
+            sink.cursorNextLine(5)
+            sink.cursorPreviousLine(6)
+            sink.setCursorColumn(7)
+            sink.setCursorRow(8)
+            sink.setCursorAbsolute(9, 10)
+            sink.eraseInDisplay(0, selective = false)
+            sink.eraseInLine(1, selective = true)
+            sink.insertLines(2)
+            sink.deleteLines(3)
+            sink.insertCharacters(4)
+            sink.deleteCharacters(5)
+            sink.eraseCharacters(6)
+            sink.scrollUp(7)
+            sink.scrollDown(8)
+            sink.setAnsiMode(4, enable = true)
+            sink.setDecMode(25, enable = false)
 
-            assertTrue(sink.osc.isEmpty())
+            assertEquals(
+                listOf(
+                    "writeCodepoint:${'A'.code}",
+                    "writeCluster:1:1:65",
+                    "bell",
+                    "backspace",
+                    "tab",
+                    "lineFeed",
+                    "carriageReturn",
+                    "reverseIndex",
+                    "nextLine",
+                    "saveCursor",
+                    "restoreCursor",
+                    "cursorUp:1",
+                    "cursorDown:2",
+                    "cursorForward:3",
+                    "cursorBackward:4",
+                    "cursorNextLine:5",
+                    "cursorPreviousLine:6",
+                    "setCursorColumn:7",
+                    "setCursorRow:8",
+                    "setCursorAbsolute:9:10",
+                    "eraseInDisplay:0:false",
+                    "eraseInLine:1:true",
+                    "insertLines:2",
+                    "deleteLines:3",
+                    "insertCharacters:4",
+                    "deleteCharacters:5",
+                    "eraseCharacters:6",
+                    "scrollUp:7",
+                    "scrollDown:8",
+                    "setAnsiMode:4:true",
+                    "setDecMode:25:false"
+                ),
+                sink.events
+            )
+        }
+
+        @Test
+        fun `starts with no recorded terminal commands`() {
+            val sink = RecordingTerminalCommandSink()
+
+            assertAll(
+                { assertTrue(sink.events.isEmpty()) },
+                { assertTrue(sink.osc.isEmpty()) }
+            )
         }
     }
 }

@@ -37,7 +37,6 @@ internal class AnsiHarness(
 
         engine.execute(
             state = state,
-            previousState = previousState,
             nextState = nextState,
             action = action,
             byteValue = byteValue,
