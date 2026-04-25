@@ -71,6 +71,10 @@ internal class RecordingTerminalCommandSink : TerminalCommandSink {
         events += "nextLine"
     }
 
+    override fun softReset() {
+        events += "softReset"
+    }
+
     override fun saveCursor() {
         events += "saveCursor"
     }

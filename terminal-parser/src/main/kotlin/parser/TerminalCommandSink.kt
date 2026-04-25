@@ -35,6 +35,13 @@ internal interface TerminalCommandSink {
     fun reverseIndex()
     fun nextLine()
 
+    /**
+     * DECSTR soft terminal reset: CSI ! p.
+     *
+     * The parser identifies the sequence; the core owns the actual reset semantics.
+     */
+    fun softReset()
+
     fun saveCursor()
     fun restoreCursor()
 

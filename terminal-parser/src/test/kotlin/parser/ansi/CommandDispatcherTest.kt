@@ -31,9 +31,11 @@ class CommandDispatcherTest {
     }
 
     private fun dispatchCsi(
-        finalByte: Char,
+        finalByte: Int,
         params: List<Int> = emptyList(),
         privateMarker: Int = 0,
+        intermediates: Int = 0,
+        intermediateCount: Int = 0,
     ): RecordingTerminalCommandSink {
         val sink = RecordingTerminalCommandSink()
         val state = ParserState(maxParams = 32)
@@ -42,15 +44,31 @@ class CommandDispatcherTest {
         }
         state.paramCount = params.size
         state.privateMarker = privateMarker
+        state.intermediates = intermediates
+        state.intermediateCount = intermediateCount
 
         AnsiCommandDispatcher.dispatchCsi(
             sink = sink,
             state = state,
-            finalByte = finalByte.code
+            finalByte = finalByte
         )
 
         return sink
     }
+
+    private fun dispatchCsi(
+        finalByte: Char,
+        params: List<Int> = emptyList(),
+        privateMarker: Int = 0,
+        intermediates: Int = 0,
+        intermediateCount: Int = 0,
+    ): RecordingTerminalCommandSink = dispatchCsi(
+        finalByte = finalByte.code,
+        params = params,
+        privateMarker = privateMarker,
+        intermediates = intermediates,
+        intermediateCount = intermediateCount,
+    )
 
     // ----- executeControl ---------------------------------------------------
 
@@ -136,6 +154,20 @@ class CommandDispatcherTest {
             assertEquals(listOf("cursorDown:1"), dispatchCsi('B').events)
             assertEquals(listOf("cursorForward:1"), dispatchCsi('C', params = listOf(0)).events)
             assertEquals(listOf("cursorBackward:1"), dispatchCsi('D', params = listOf(-1)).events)
+        }
+
+        @Test
+        fun `CSI E and F dispatch cursor next and previous line`() {
+            assertEquals(listOf("cursorNextLine:1"), dispatchCsi('E').events)
+            assertEquals(listOf("cursorPreviousLine:3"), dispatchCsi('F', params = listOf(3)).events)
+        }
+
+        @Test
+        fun `CSI G and d dispatch absolute column and row as zero-origin`() {
+            assertEquals(listOf("setCursorColumn:0"), dispatchCsi('G').events)
+            assertEquals(listOf("setCursorColumn:9"), dispatchCsi('G', params = listOf(10)).events)
+            assertEquals(listOf("setCursorRow:0"), dispatchCsi('d', params = listOf(0)).events)
+            assertEquals(listOf("setCursorRow:6"), dispatchCsi('d', params = listOf(7)).events)
         }
 
         @Test
@@ -228,6 +260,29 @@ class CommandDispatcherTest {
         @Test
         fun `unsupported private mode marker is ignored`() {
             assertTrue(dispatchCsi('h', params = listOf(4), privateMarker = '>'.code).events.isEmpty())
+        }
+    }
+
+    // ----- CSI reset --------------------------------------------------------
+
+    @Nested
+    @DisplayName("CSI reset dispatch")
+    inner class CsiResetDispatch {
+
+        @Test
+        fun `CSI bang p dispatches soft reset`() {
+            val sink = dispatchCsi(
+                finalByte = 'p'.code,
+                intermediates = '!'.code,
+                intermediateCount = 1,
+            )
+
+            assertEquals(listOf("softReset"), sink.events)
+        }
+
+        @Test
+        fun `plain CSI p does not dispatch soft reset`() {
+            assertTrue(dispatchCsi(finalByte = 'p'.code).events.isEmpty())
         }
     }
 

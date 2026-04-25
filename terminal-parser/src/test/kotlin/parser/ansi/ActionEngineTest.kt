@@ -171,6 +171,10 @@ class ActionEngineTest {
             sinkCalls += "nextLine"
         }
 
+        override fun softReset() {
+            sinkCalls += "softReset"
+        }
+
         override fun saveCursor() {
             sinkCalls += "saveCursor"
         }

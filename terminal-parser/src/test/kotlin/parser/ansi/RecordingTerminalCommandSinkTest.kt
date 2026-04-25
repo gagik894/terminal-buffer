@@ -73,6 +73,7 @@ class RecordingTerminalCommandSinkTest {
             sink.carriageReturn()
             sink.reverseIndex()
             sink.nextLine()
+            sink.softReset()
             sink.saveCursor()
             sink.restoreCursor()
             sink.cursorUp(1)
@@ -107,6 +108,7 @@ class RecordingTerminalCommandSinkTest {
                     "carriageReturn",
                     "reverseIndex",
                     "nextLine",
+                    "softReset",
                     "saveCursor",
                     "restoreCursor",
                     "cursorUp:1",

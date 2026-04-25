@@ -63,26 +63,45 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
         state: ParserState,
         finalByte: Int,
     ) {
-        when (finalByte) {
-            'A'.code -> sink.cursorUp(countParam(state, 0))
-            'B'.code -> sink.cursorDown(countParam(state, 0))
-            'C'.code -> sink.cursorForward(countParam(state, 0))
-            'D'.code -> sink.cursorBackward(countParam(state, 0))
-            'H'.code, 'f'.code -> sink.setCursorAbsolute(
+        val signature = CsiSignature.encode(
+            finalByte = finalByte,
+            privateMarker = state.privateMarker,
+            intermediates = state.intermediates,
+            intermediateCount = state.intermediateCount,
+        )
+
+        when (GeneratedCsiDispatchTable.lookup(signature)) {
+            CsiCommand.UNKNOWN -> Unit
+
+            CsiCommand.CUU -> sink.cursorUp(countParam(state, 0))
+            CsiCommand.CUD -> sink.cursorDown(countParam(state, 0))
+            CsiCommand.CUF -> sink.cursorForward(countParam(state, 0))
+            CsiCommand.CUB -> sink.cursorBackward(countParam(state, 0))
+            CsiCommand.CNL -> sink.cursorNextLine(countParam(state, 0))
+            CsiCommand.CPL -> sink.cursorPreviousLine(countParam(state, 0))
+            CsiCommand.CHA -> sink.setCursorColumn(oneBasedPositionParam(state, 0))
+            CsiCommand.CUP -> sink.setCursorAbsolute(
                 row = oneBasedPositionParam(state, 0),
                 col = oneBasedPositionParam(state, 1),
             )
-            'J'.code -> sink.eraseInDisplay(modeParam(state, 0), selective = false)
-            'K'.code -> sink.eraseInLine(modeParam(state, 0), selective = false)
-            'L'.code -> sink.insertLines(countParam(state, 0))
-            'M'.code -> sink.deleteLines(countParam(state, 0))
-            '@'.code -> sink.insertCharacters(countParam(state, 0))
-            'P'.code -> sink.deleteCharacters(countParam(state, 0))
-            'X'.code -> sink.eraseCharacters(countParam(state, 0))
-            'S'.code -> sink.scrollUp(countParam(state, 0))
-            'T'.code -> sink.scrollDown(countParam(state, 0))
-            'h'.code -> dispatchMode(sink, state, enable = true)
-            'l'.code -> dispatchMode(sink, state, enable = false)
+            CsiCommand.VPA -> sink.setCursorRow(oneBasedPositionParam(state, 0))
+
+            CsiCommand.ED -> sink.eraseInDisplay(modeParam(state, 0), selective = false)
+            CsiCommand.EL -> sink.eraseInLine(modeParam(state, 0), selective = false)
+            CsiCommand.IL -> sink.insertLines(countParam(state, 0))
+            CsiCommand.DL -> sink.deleteLines(countParam(state, 0))
+            CsiCommand.ICH -> sink.insertCharacters(countParam(state, 0))
+            CsiCommand.DCH -> sink.deleteCharacters(countParam(state, 0))
+            CsiCommand.ECH -> sink.eraseCharacters(countParam(state, 0))
+            CsiCommand.SU -> sink.scrollUp(countParam(state, 0))
+            CsiCommand.SD -> sink.scrollDown(countParam(state, 0))
+
+            CsiCommand.SM_ANSI -> dispatchAnsiMode(sink, state, enable = true)
+            CsiCommand.RM_ANSI -> dispatchAnsiMode(sink, state, enable = false)
+            CsiCommand.SM_DEC -> dispatchDecMode(sink, state, enable = true)
+            CsiCommand.RM_DEC -> dispatchDecMode(sink, state, enable = false)
+
+            CsiCommand.DECSTR -> sink.softReset()
         }
     }
 
@@ -103,17 +122,6 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
 
     private fun paramOrMissing(state: ParserState, index: Int): Int {
         return if (index < state.paramCount) state.params[index] else -1
-    }
-
-    private fun dispatchMode(
-        sink: TerminalCommandSink,
-        state: ParserState,
-        enable: Boolean,
-    ) {
-        when (state.privateMarker) {
-            0 -> dispatchAnsiMode(sink, state, enable)
-            '?'.code -> dispatchDecMode(sink, state, enable)
-        }
     }
 
     private fun dispatchAnsiMode(
