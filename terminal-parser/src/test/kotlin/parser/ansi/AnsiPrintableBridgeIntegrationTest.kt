@@ -1,9 +1,10 @@
 package com.gagik.parser.ansi
 
 import com.gagik.parser.charset.CharsetMapper
+import com.gagik.parser.fixture.AnsiPrintableBridgeFixture
+import com.gagik.parser.fixture.ParserEvents.writeCluster
+import com.gagik.parser.fixture.ParserEvents.writeCodepoint
 import com.gagik.parser.runtime.ParserState
-import com.gagik.parser.text.PrintableProcessor
-import com.gagik.parser.text.PrintableProcessorActionSink
 import com.gagik.parser.utf8.Utf8Decoder
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
@@ -13,59 +14,6 @@ import org.junit.jupiter.api.Test
 @DisplayName("ANSI printable bridge integration")
 class AnsiPrintableBridgeIntegrationTest {
 
-    // ----- Helpers ----------------------------------------------------------
-
-    private class Harness(
-        val state: ParserState = ParserState(),
-        val sink: RecordingTerminalCommandSink = RecordingTerminalCommandSink(),
-    ) {
-        private val processor = PrintableProcessor(sink)
-        private val engine = ActionEngine(
-            sink = sink,
-            dispatcher = AnsiCommandDispatcher,
-            printableSink = PrintableProcessorActionSink(processor),
-        )
-
-        fun acceptAscii(text: String) {
-            for (byteValue in text.encodeToByteArray()) {
-                acceptByte(byteValue.toInt() and 0xff)
-            }
-        }
-
-        fun acceptUtf8(text: String) {
-            for (byteValue in text.encodeToByteArray()) {
-                acceptByte(byteValue.toInt() and 0xff)
-            }
-        }
-
-        fun acceptBytes(vararg byteValues: Int) {
-            for (byteValue in byteValues) {
-                acceptByte(byteValue)
-            }
-        }
-
-        fun acceptByte(byteValue: Int) {
-            val byteClass = ByteClass.classify(byteValue)
-            val transition = AnsiStateMachine.transition(state.fsmState, byteClass)
-            engine.execute(
-                state = state,
-                nextState = AnsiStateMachine.nextState(transition),
-                action = AnsiStateMachine.action(transition),
-                byteValue = byteValue,
-            )
-        }
-
-        fun endOfInput() {
-            processor.endOfInput(state)
-        }
-    }
-
-    private fun writeCodepoint(codepoint: Int): String = "writeCodepoint:$codepoint"
-
-    private fun writeCluster(charWidth: Int, vararg codepoints: Int): String {
-        return "writeCluster:${codepoints.size}:$charWidth:${codepoints.joinToString(":")}"
-    }
-
     // ----- Charset integration --------------------------------------------
 
     @Nested
@@ -74,7 +22,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `ESC left paren 0 designates G0 DEC Special Graphics`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptAscii("\u001B(0")
 
@@ -88,7 +36,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `ESC right paren 0 designates G1 DEC Special Graphics`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptAscii("\u001B)0")
 
@@ -102,7 +50,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `ESC left paren B resets G0 to ASCII`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptAscii("\u001B(0")
             assertEquals(ParserState.CHARSET_DEC_SPECIAL_GRAPHICS, h.state.charsets[0])
@@ -118,7 +66,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `SO switches GL to G1 and SI switches GL back to G0`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptByte(0x0E)
             assertEquals(1, h.state.glSlot)
@@ -134,7 +82,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `active DEC Special Graphics maps q to box drawing horizontal`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptAscii("\u001B(0q")
             h.endOfInput()
@@ -144,7 +92,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `inactive DEC Special Graphics designation does not map GL printable bytes`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptAscii("\u001B)0q")
             h.endOfInput()
@@ -158,7 +106,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `SO makes G1 DEC Special Graphics active for later printable bytes`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptAscii("\u001B)0")
             h.acceptByte(0x0E)
@@ -170,7 +118,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `SI returns GL to G0 so inactive G1 DEC Special Graphics no longer maps`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptAscii("\u001B)0")
             h.acceptByte(0x0E)
@@ -187,7 +135,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `single shift G2 and G3 map one printable character only`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptAscii("\u001B*0\u001B+0")
 
@@ -217,7 +165,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `ESC N q q single shifts G2 for one printable character through full parser path`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptAscii("\u001B*0\u001BNqq")
             h.endOfInput()
@@ -238,7 +186,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `ESC O x x single shifts G3 for one printable character through full parser path`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptAscii("\u001B+0\u001BOxx")
             h.endOfInput()
@@ -259,7 +207,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `unsupported charset designation final is swallowed without plain ESC dispatch`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptAscii("\u001B(D")
 
@@ -272,7 +220,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `unsupported ESC intermediate shape is swallowed without mis-dispatching final byte`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptAscii("\u001B#D")
 
@@ -291,7 +239,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `ASCII fast path writes codepoint after flush`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptAscii("A")
             h.endOfInput()
@@ -301,7 +249,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `UTF-8 e acute writes codepoint U+00E9`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptUtf8("\u00E9")
             h.endOfInput()
@@ -311,7 +259,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `UTF-8 emoji writes one wide scalar through current assembler policy`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptUtf8("\uD83D\uDE00")
             h.endOfInput()
@@ -321,7 +269,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `malformed UTF-8 lead followed by ASCII emits replacement then preserves ASCII`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptBytes(0xC3, 'A'.code)
             h.endOfInput()
@@ -337,7 +285,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `malformed UTF-8 lead before ESC emits replacement then routes ESC as control sequence`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptBytes(0xC3, 0x1B, '['.code, 'A'.code)
 
@@ -357,7 +305,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `base plus combining mark emits one cluster`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptAscii("e")
             h.acceptUtf8("\u0301")
@@ -368,7 +316,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `base plus variation selector emits one cluster`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptUtf8("\u2764\uFE0F")
             h.endOfInput()
@@ -378,7 +326,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `ZWJ emoji sequence stays one cluster`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptUtf8("\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67\u200D\uD83D\uDC66")
             h.endOfInput()
@@ -391,7 +339,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `regional indicator pair stays one cluster`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptUtf8("\uD83C\uDDFA\uD83C\uDDF8")
             h.endOfInput()
@@ -401,7 +349,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `control flushes pending cluster before dispatch`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptAscii("e")
             h.acceptUtf8("\u0301")
@@ -415,7 +363,7 @@ class AnsiPrintableBridgeIntegrationTest {
 
         @Test
         fun `ESC flushes pending cluster before entering escape state`() {
-            val h = Harness()
+            val h = AnsiPrintableBridgeFixture()
 
             h.acceptAscii("e")
             h.acceptUtf8("\u0301")

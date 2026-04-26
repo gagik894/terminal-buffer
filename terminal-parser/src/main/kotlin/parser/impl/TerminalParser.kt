@@ -93,13 +93,7 @@ internal class TerminalParser(
      */
     override fun endOfInput() {
         val utf8Result = utf8Decoder.flushEndOfInput()
-        if (Utf8DecodeResult.hasOutput(utf8Result)) {
-            printableProcessor.acceptDecodedCodepoint(
-                state = state,
-                codepoint = Utf8DecodeResult.codepoint(utf8Result),
-            )
-        }
-
+        emitUtf8Output(utf8Result)
         printableProcessor.flush(state)
     }
 
@@ -129,8 +123,7 @@ internal class TerminalParser(
             return
         }
 
-        val previousState = state.fsmState
-        val transition = AnsiStateMachine.transition(previousState, byteClass)
+        val transition = AnsiStateMachine.transition(state.fsmState, byteClass)
         val nextState = AnsiStateMachine.nextState(transition)
         val action = AnsiStateMachine.action(transition)
 
@@ -161,13 +154,7 @@ internal class TerminalParser(
         allowReplay: Boolean,
     ) {
         val result = utf8Decoder.accept(byteValue)
-
-        if (Utf8DecodeResult.hasOutput(result)) {
-            printableProcessor.acceptDecodedCodepoint(
-                state = state,
-                codepoint = Utf8DecodeResult.codepoint(result),
-            )
-        }
+        emitUtf8Output(result)
 
         if (!Utf8DecodeResult.shouldReprocessCurrentByte(result)) {
             return
@@ -181,5 +168,14 @@ internal class TerminalParser(
             byteValue = byteValue,
             allowUtf8Replay = false,
         )
+    }
+
+    private fun emitUtf8Output(result: Int) {
+        if (Utf8DecodeResult.hasOutput(result)) {
+            printableProcessor.acceptDecodedCodepoint(
+                state = state,
+                codepoint = Utf8DecodeResult.codepoint(result),
+            )
+        }
     }
 }

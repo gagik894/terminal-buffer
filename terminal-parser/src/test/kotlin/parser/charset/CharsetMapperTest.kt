@@ -1,6 +1,7 @@
 package com.gagik.parser.charset
 
 import com.gagik.parser.ansi.RecordingTerminalCommandSink
+import com.gagik.parser.fixture.ParserEvents.writeCodepoint
 import com.gagik.parser.runtime.ParserState
 import com.gagik.parser.text.PrintableProcessor
 import org.junit.jupiter.api.Assertions.*
@@ -14,8 +15,6 @@ class CharsetMapperTest {
     // ----- Helpers ----------------------------------------------------------
 
     private fun map(state: ParserState, char: Char): Int = CharsetMapper.map(state, char.code)
-
-    private fun writeCodepoint(codepoint: Int): String = "writeCodepoint:$codepoint"
 
     private fun assertMaps(state: ParserState, input: Int, expected: Int) {
         assertEquals(expected, CharsetMapper.map(state, input), "input=${input.toString(16)}")

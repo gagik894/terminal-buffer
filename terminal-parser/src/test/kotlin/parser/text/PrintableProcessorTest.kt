@@ -1,6 +1,8 @@
 package com.gagik.parser.text
 
 import com.gagik.parser.ansi.RecordingTerminalCommandSink
+import com.gagik.parser.fixture.ParserEvents.writeCluster
+import com.gagik.parser.fixture.ParserEvents.writeCodepoint
 import com.gagik.parser.runtime.ParserState
 import com.gagik.parser.utf8.Utf8Decoder
 import org.junit.jupiter.api.Assertions.*
@@ -59,12 +61,6 @@ class PrintableProcessorTest {
         fun reset() {
             processor.reset(state)
         }
-    }
-
-    private fun writeCodepoint(codepoint: Int): String = "writeCodepoint:$codepoint"
-
-    private fun writeCluster(charWidth: Int, vararg codepoints: Int): String {
-        return "writeCluster:${codepoints.size}:$charWidth:${codepoints.joinToString(":")}"
     }
 
     // ----- Input validation -------------------------------------------------

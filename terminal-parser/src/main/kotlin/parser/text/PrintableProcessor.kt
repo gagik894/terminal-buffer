@@ -100,10 +100,7 @@ internal class PrintableProcessor(
      * Flushes any pending UTF-8 partial sequence at end of input, then flushes printable cluster state.
      */
     fun endOfInput(state: ParserState) {
-        val result = utf8Decoder.flushEndOfInput()
-        if (Utf8DecodeResult.hasOutput(result)) {
-            acceptCodepoint(state, Utf8DecodeResult.codepoint(result))
-        }
+        flushPendingUtf8Repair(state)
         flush(state)
     }
 
@@ -111,10 +108,7 @@ internal class PrintableProcessor(
      * Flushes pending UTF-8 repair output and active grapheme state before structural parser actions.
      */
     fun flush(state: ParserState) {
-        val result = utf8Decoder.flushEndOfInput()
-        if (Utf8DecodeResult.hasOutput(result)) {
-            acceptCodepoint(state, Utf8DecodeResult.codepoint(result))
-        }
+        flushPendingUtf8Repair(state)
         graphemeAssembler.flush(state)
     }
 
@@ -126,5 +120,12 @@ internal class PrintableProcessor(
     private fun acceptCodepoint(state: ParserState, codepoint: Int) {
         val mapped = CharsetMapper.map(state, codepoint)
         graphemeAssembler.accept(state, mapped)
+    }
+
+    private fun flushPendingUtf8Repair(state: ParserState) {
+        val result = utf8Decoder.flushEndOfInput()
+        if (Utf8DecodeResult.hasOutput(result)) {
+            acceptCodepoint(state, Utf8DecodeResult.codepoint(result))
+        }
     }
 }

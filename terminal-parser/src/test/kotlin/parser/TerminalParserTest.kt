@@ -4,8 +4,9 @@ import com.gagik.parser.ansi.AnsiState
 import com.gagik.parser.ansi.RecordingTerminalCommandSink
 import com.gagik.parser.api.TerminalOutputParser
 import com.gagik.parser.api.TerminalParsers
-import com.gagik.parser.impl.TerminalParser
-import com.gagik.parser.runtime.ParserState
+import com.gagik.parser.fixture.ParserEvents.writeCluster
+import com.gagik.parser.fixture.ParserEvents.writeCodepoint
+import com.gagik.parser.fixture.TerminalParserFixture
 import com.gagik.parser.utf8.Utf8Decoder
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
@@ -15,45 +16,6 @@ import org.junit.jupiter.api.Test
 @DisplayName("TerminalParser")
 class TerminalParserTest {
 
-    // ----- Helpers ----------------------------------------------------------
-
-    private data class Fixture(
-        val sink: RecordingTerminalCommandSink = RecordingTerminalCommandSink(),
-        val state: ParserState = ParserState(),
-    ) {
-        val parser = TerminalParser(sink, state)
-
-        fun acceptAscii(text: String) {
-            parser.accept(text.encodeToByteArray())
-        }
-
-        fun acceptUtf8(text: String) {
-            parser.accept(text.encodeToByteArray())
-        }
-
-        fun acceptBytes(vararg byteValues: Int) {
-            parser.accept(byteValues.map { it.toByte() }.toByteArray())
-        }
-
-        fun acceptByte(byteValue: Int) {
-            parser.acceptByte(byteValue)
-        }
-
-        fun endOfInput() {
-            parser.endOfInput()
-        }
-
-        fun reset() {
-            parser.reset()
-        }
-    }
-
-    private fun writeCodepoint(codepoint: Int): String = "writeCodepoint:$codepoint"
-
-    private fun writeCluster(charWidth: Int, vararg codepoints: Int): String {
-        return "writeCluster:${codepoints.size}:$charWidth:${codepoints.joinToString(":")}"
-    }
-
     // ----- API validation ---------------------------------------------------
 
     @Nested
@@ -62,7 +24,7 @@ class TerminalParserTest {
 
         @Test
         fun `accept rejects invalid offset and length ranges`() {
-            val f = Fixture()
+            val f = TerminalParserFixture()
             val bytes = byteArrayOf('a'.code.toByte())
 
             val negativeOffset = assertThrows(IllegalArgumentException::class.java) {
@@ -88,7 +50,7 @@ class TerminalParserTest {
 
         @Test
         fun `acceptByte rejects values outside unsigned byte range`() {
-            val f = Fixture()
+            val f = TerminalParserFixture()
 
             val below = assertThrows(IllegalArgumentException::class.java) {
                 f.parser.acceptByte(-1)
@@ -105,7 +67,7 @@ class TerminalParserTest {
 
         @Test
         fun `empty chunks are accepted without side effects`() {
-            val f = Fixture()
+            val f = TerminalParserFixture()
 
             f.parser.accept(ByteArray(0))
             f.parser.accept(byteArrayOf('a'.code.toByte()), offset = 0, length = 0)
@@ -129,7 +91,7 @@ class TerminalParserTest {
 
         @Test
         fun `offset and length process only the selected slice`() {
-            val f = Fixture()
+            val f = TerminalParserFixture()
             val bytes = "zabcx".encodeToByteArray()
 
             f.parser.accept(bytes, offset = 1, length = 3)
@@ -150,7 +112,7 @@ class TerminalParserTest {
 
         @Test
         fun `plain ASCII flushes previous scalars during streaming and final scalar at endOfInput`() {
-            val f = Fixture()
+            val f = TerminalParserFixture()
 
             f.acceptAscii("abc")
             assertEquals(listOf(writeCodepoint('a'.code), writeCodepoint('b'.code)), f.sink.events)
@@ -165,7 +127,7 @@ class TerminalParserTest {
 
         @Test
         fun `UTF-8 scalar may be split across chunks`() {
-            val f = Fixture()
+            val f = TerminalParserFixture()
 
             f.parser.accept(byteArrayOf(0xC3.toByte()))
             assertTrue(f.sink.events.isEmpty())
@@ -178,7 +140,7 @@ class TerminalParserTest {
 
         @Test
         fun `emoji scalar is decoded through top level UTF-8 path`() {
-            val f = Fixture()
+            val f = TerminalParserFixture()
 
             f.acceptUtf8("\uD83D\uDE00")
             f.endOfInput()
@@ -188,7 +150,7 @@ class TerminalParserTest {
 
         @Test
         fun `endOfInput emits replacement for truncated UTF-8 sequence`() {
-            val f = Fixture()
+            val f = TerminalParserFixture()
 
             f.parser.accept(byteArrayOf(0xE2.toByte(), 0x82.toByte()))
             f.endOfInput()
@@ -198,7 +160,7 @@ class TerminalParserTest {
 
         @Test
         fun `malformed UTF-8 lead followed by ASCII emits replacement then replays ASCII`() {
-            val f = Fixture()
+            val f = TerminalParserFixture()
 
             f.acceptBytes(0xC3, 'A'.code)
             f.endOfInput()
@@ -211,7 +173,7 @@ class TerminalParserTest {
 
         @Test
         fun `malformed UTF-8 lead before ESC emits replacement then routes ESC sequence`() {
-            val f = Fixture()
+            val f = TerminalParserFixture()
 
             f.acceptBytes(0xC3, 0x1B, '['.code, 'A'.code)
 
@@ -229,7 +191,7 @@ class TerminalParserTest {
 
         @Test
         fun `combining mark variation selector ZWJ and regional indicators form clusters`() {
-            val f = Fixture()
+            val f = TerminalParserFixture()
 
             f.acceptAscii("e")
             f.acceptUtf8("\u0301")
@@ -258,7 +220,7 @@ class TerminalParserTest {
 
         @Test
         fun `C0 control flushes pending printable output before dispatch`() {
-            val f = Fixture()
+            val f = TerminalParserFixture()
 
             f.acceptAscii("A")
             f.acceptByte(0x07)
@@ -268,7 +230,7 @@ class TerminalParserTest {
 
         @Test
         fun `ESC command flushes pending printable output before dispatch`() {
-            val f = Fixture()
+            val f = TerminalParserFixture()
 
             f.acceptAscii("A\u001B7")
 
@@ -277,7 +239,7 @@ class TerminalParserTest {
 
         @Test
         fun `CSI sequence dispatches through command dispatcher across chunks`() {
-            val f = Fixture()
+            val f = TerminalParserFixture()
 
             f.acceptAscii("\u001B[12")
             assertEquals(AnsiState.CSI_PARAM, f.state.fsmState)
@@ -292,7 +254,7 @@ class TerminalParserTest {
 
         @Test
         fun `DEC private CSI mode dispatch survives chunk boundaries`() {
-            val f = Fixture()
+            val f = TerminalParserFixture()
 
             f.acceptAscii("\u001B[?25")
             f.acceptAscii("h")
@@ -302,8 +264,8 @@ class TerminalParserTest {
 
         @Test
         fun `OSC payload is bounded and dispatched on BEL or ST`() {
-            val bel = Fixture()
-            val st = Fixture()
+            val bel = TerminalParserFixture()
+            val st = TerminalParserFixture()
 
             bel.acceptAscii("\u001B]0;title\u0007")
             st.acceptAscii("\u001B]1;name\u001B\\")
@@ -318,7 +280,7 @@ class TerminalParserTest {
 
         @Test
         fun `DCS ST drops payload without dispatching plain ESC backslash`() {
-            val f = Fixture()
+            val f = TerminalParserFixture()
 
             f.acceptAscii("\u001BPabc\u001B\\")
 
@@ -338,7 +300,7 @@ class TerminalParserTest {
 
         @Test
         fun `ESC charset designation maps active DEC Special Graphics through printable path`() {
-            val f = Fixture()
+            val f = TerminalParserFixture()
 
             f.acceptAscii("\u001B(0q")
             f.endOfInput()
@@ -348,7 +310,7 @@ class TerminalParserTest {
 
         @Test
         fun `inactive G1 DEC Special does not map until SO selects G1 and SI restores G0`() {
-            val f = Fixture()
+            val f = TerminalParserFixture()
 
             f.acceptAscii("\u001B)0q")
             f.acceptByte(0x0E)
@@ -369,7 +331,7 @@ class TerminalParserTest {
 
         @Test
         fun `ESC N and ESC O single shift G2 and G3 for one printable character each`() {
-            val f = Fixture()
+            val f = TerminalParserFixture()
 
             f.acceptAscii("\u001B*0\u001B+0\u001BNqq\u001BOxx")
             f.endOfInput()
@@ -387,7 +349,7 @@ class TerminalParserTest {
 
         @Test
         fun `unsupported charset designation shape is swallowed without plain ESC dispatch`() {
-            val f = Fixture()
+            val f = TerminalParserFixture()
 
             f.acceptAscii("\u001B(D\u001B#D")
 
@@ -407,7 +369,7 @@ class TerminalParserTest {
 
         @Test
         fun `reset drops pending printable cluster CSI state and charset shifts`() {
-            val f = Fixture()
+            val f = TerminalParserFixture()
 
             f.acceptAscii("\u001B(0")
             f.acceptByte(0x0E)
@@ -428,7 +390,7 @@ class TerminalParserTest {
 
         @Test
         fun `reset does not emit replacement for pending UTF-8 or flush pending printable cluster`() {
-            val f = Fixture()
+            val f = TerminalParserFixture()
 
             f.acceptAscii("A")
             f.acceptByte(0xC3)
