@@ -50,6 +50,7 @@ class CommandDispatcherTest {
         privateMarker: Int = 0,
         intermediates: Int = 0,
         intermediateCount: Int = 0,
+        subParameterMask: Int = 0,
     ): RecordingTerminalCommandSink {
         val sink = RecordingTerminalCommandSink()
         val state = ParserState(maxParams = 32)
@@ -60,6 +61,7 @@ class CommandDispatcherTest {
         state.privateMarker = privateMarker
         state.intermediates = intermediates
         state.intermediateCount = intermediateCount
+        state.subParameterMask = subParameterMask
 
         AnsiCommandDispatcher.dispatchCsi(
             sink = sink,
@@ -76,12 +78,14 @@ class CommandDispatcherTest {
         privateMarker: Int = 0,
         intermediates: Int = 0,
         intermediateCount: Int = 0,
+        subParameterMask: Int = 0,
     ): RecordingTerminalCommandSink = dispatchCsi(
         finalByte = finalByte.code,
         params = params,
         privateMarker = privateMarker,
         intermediates = intermediates,
         intermediateCount = intermediateCount,
+        subParameterMask = subParameterMask,
     )
 
     // ----- executeControl ---------------------------------------------------
@@ -482,6 +486,187 @@ class CommandDispatcherTest {
         @Test
         fun `unsupported private mode marker is ignored`() {
             assertTrue(dispatchCsi('h', params = listOf(4), privateMarker = '>'.code).events.isEmpty())
+        }
+    }
+
+    // ----- CSI SGR ----------------------------------------------------------
+
+    @Nested
+    @DisplayName("CSI SGR dispatch")
+    inner class CsiSgrDispatch {
+
+        @Test
+        fun `CSI m and CSI 0 m reset attributes`() {
+            assertEquals(listOf("resetAttributes"), dispatchCsi('m').events)
+            assertEquals(listOf("resetAttributes"), dispatchCsi('m', params = listOf(0)).events)
+            assertEquals(listOf("resetAttributes"), dispatchCsi('m', params = listOf(-1)).events)
+        }
+
+        @Test
+        fun `CSI 1 m enables bold and CSI 22 m disables bold and faint`() {
+            assertEquals(listOf("setBold:true"), dispatchCsi('m', params = listOf(1)).events)
+            assertEquals(
+                listOf("setBold:false", "setFaint:false"),
+                dispatchCsi('m', params = listOf(22)).events
+            )
+        }
+
+        @Test
+        fun `CSI 2 m enables faint and CSI 22 m resets bold intensity state`() {
+            assertEquals(listOf("setFaint:true"), dispatchCsi('m', params = listOf(2)).events)
+            assertEquals(
+                listOf("setBold:false", "setFaint:false"),
+                dispatchCsi('m', params = listOf(22)).events
+            )
+        }
+
+        @Test
+        fun `CSI 1 31 m applies bold then foreground red in order`() {
+            assertEquals(
+                listOf("setBold:true", "setForegroundIndexed:1"),
+                dispatchCsi('m', params = listOf(1, 31)).events
+            )
+        }
+
+        @Test
+        fun `CSI 3 m and 23 m toggle italic`() {
+            assertEquals(listOf("setItalic:true"), dispatchCsi('m', params = listOf(3)).events)
+            assertEquals(listOf("setItalic:false"), dispatchCsi('m', params = listOf(23)).events)
+        }
+
+        @Test
+        fun `CSI 4 m 21 m and 24 m set underline styles`() {
+            assertEquals(listOf("setUnderlineStyle:1"), dispatchCsi('m', params = listOf(4)).events)
+            assertEquals(listOf("setUnderlineStyle:2"), dispatchCsi('m', params = listOf(21)).events)
+            assertEquals(listOf("setUnderlineStyle:0"), dispatchCsi('m', params = listOf(24)).events)
+        }
+
+        @Test
+        fun `CSI 7 m and 27 m toggle inverse`() {
+            assertEquals(listOf("setInverse:true"), dispatchCsi('m', params = listOf(7)).events)
+            assertEquals(listOf("setInverse:false"), dispatchCsi('m', params = listOf(27)).events)
+        }
+
+        @Test
+        fun `CSI 5 m 6 m and 25 m toggle blink`() {
+            assertEquals(listOf("setBlink:true"), dispatchCsi('m', params = listOf(5)).events)
+            assertEquals(listOf("setBlink:true"), dispatchCsi('m', params = listOf(6)).events)
+            assertEquals(listOf("setBlink:false"), dispatchCsi('m', params = listOf(25)).events)
+        }
+
+        @Test
+        fun `CSI 8 m and 28 m toggle conceal`() {
+            assertEquals(listOf("setConceal:true"), dispatchCsi('m', params = listOf(8)).events)
+            assertEquals(listOf("setConceal:false"), dispatchCsi('m', params = listOf(28)).events)
+        }
+
+        @Test
+        fun `CSI 9 m and 29 m toggle strikethrough`() {
+            assertEquals(listOf("setStrikethrough:true"), dispatchCsi('m', params = listOf(9)).events)
+            assertEquals(listOf("setStrikethrough:false"), dispatchCsi('m', params = listOf(29)).events)
+        }
+
+        @Test
+        fun `standard foreground indexed colors map 30 through 37 to indexes 0 through 7`() {
+            assertEquals(
+                (0..7).map { "setForegroundIndexed:$it" },
+                dispatchCsi('m', params = (30..37).toList()).events
+            )
+        }
+
+        @Test
+        fun `bright foreground indexed colors map 90 through 97 to indexes 8 through 15`() {
+            assertEquals(
+                (8..15).map { "setForegroundIndexed:$it" },
+                dispatchCsi('m', params = (90..97).toList()).events
+            )
+        }
+
+        @Test
+        fun `standard background indexed colors map 40 through 47 to indexes 0 through 7`() {
+            assertEquals(
+                (0..7).map { "setBackgroundIndexed:$it" },
+                dispatchCsi('m', params = (40..47).toList()).events
+            )
+        }
+
+        @Test
+        fun `bright background indexed colors map 100 through 107 to indexes 8 through 15`() {
+            assertEquals(
+                (8..15).map { "setBackgroundIndexed:$it" },
+                dispatchCsi('m', params = (100..107).toList()).events
+            )
+        }
+
+        @Test
+        fun `CSI 39 m and 49 m restore default foreground and background`() {
+            assertEquals(listOf("setForegroundDefault"), dispatchCsi('m', params = listOf(39)).events)
+            assertEquals(listOf("setBackgroundDefault"), dispatchCsi('m', params = listOf(49)).events)
+        }
+
+        @Test
+        fun `CSI 38 5 indexed foreground dispatches 256-color foreground`() {
+            assertEquals(
+                listOf("setForegroundIndexed:196"),
+                dispatchCsi('m', params = listOf(38, 5, 196)).events
+            )
+        }
+
+        @Test
+        fun `CSI 48 5 indexed background dispatches 256-color background`() {
+            assertEquals(
+                listOf("setBackgroundIndexed:17"),
+                dispatchCsi('m', params = listOf(48, 5, 17)).events
+            )
+        }
+
+        @Test
+        fun `CSI 38 2 RGB foreground dispatches truecolor foreground`() {
+            assertEquals(
+                listOf("setForegroundRgb:10:20:30"),
+                dispatchCsi('m', params = listOf(38, 2, 10, 20, 30)).events
+            )
+        }
+
+        @Test
+        fun `CSI 48 2 RGB background dispatches truecolor background`() {
+            assertEquals(
+                listOf("setBackgroundRgb:10:20:30"),
+                dispatchCsi('m', params = listOf(48, 2, 10, 20, 30)).events
+            )
+        }
+
+        @Test
+        fun `CSI colon RGB foreground supports omitted color-space id`() {
+            assertEquals(
+                listOf("setForegroundRgb:10:20:30"),
+                dispatchCsi(
+                    finalByte = 'm',
+                    params = listOf(38, 2, -1, 10, 20, 30),
+                    subParameterMask = 0b11_1110,
+                ).events
+            )
+        }
+
+        @Test
+        fun `invalid indexed color is ignored and later normal SGR still applies`() {
+            assertEquals(
+                listOf("setBold:true"),
+                dispatchCsi('m', params = listOf(38, 5, 256, 1)).events
+            )
+        }
+
+        @Test
+        fun `unsupported SGR parameters are ignored`() {
+            assertTrue(dispatchCsi('m', params = listOf(999, 9999)).events.isEmpty())
+        }
+
+        @Test
+        fun `malformed extended color is ignored and later normal SGR still applies`() {
+            assertEquals(
+                listOf("setBold:true"),
+                dispatchCsi('m', params = listOf(38, 2, 999, 20, 30, 1)).events
+            )
         }
     }
 

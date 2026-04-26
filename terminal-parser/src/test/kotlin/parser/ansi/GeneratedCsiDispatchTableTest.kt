@@ -35,6 +35,7 @@ class GeneratedCsiDispatchTableTest {
             assertEquals(CsiCommand.CUP, lookup('f'))
             assertEquals(CsiCommand.SM_ANSI, lookup('h'))
             assertEquals(CsiCommand.RM_ANSI, lookup('l'))
+            assertEquals(CsiCommand.SGR, lookup('m'))
         }
 
         @Test
@@ -52,7 +53,7 @@ class GeneratedCsiDispatchTableTest {
 
         @Test
         fun `unknown signatures return UNKNOWN`() {
-            assertEquals(CsiCommand.UNKNOWN, lookup('m'))
+            assertEquals(CsiCommand.UNKNOWN, lookup('m', privateMarker = '?'.code))
             assertEquals(CsiCommand.UNKNOWN, lookup('A', privateMarker = '?'.code))
             assertEquals(CsiCommand.UNKNOWN, lookup('A', intermediates = '!'.code, intermediateCount = 1))
         }

@@ -163,6 +163,66 @@ internal class RecordingTerminalCommandSink : TerminalCommandSink {
         events += "setDecMode:$mode:$enable"
     }
 
+    override fun resetAttributes() {
+        events += "resetAttributes"
+    }
+
+    override fun setBold(enabled: Boolean) {
+        events += "setBold:$enabled"
+    }
+
+    override fun setFaint(enabled: Boolean) {
+        events += "setFaint:$enabled"
+    }
+
+    override fun setItalic(enabled: Boolean) {
+        events += "setItalic:$enabled"
+    }
+
+    override fun setUnderlineStyle(style: Int) {
+        events += "setUnderlineStyle:$style"
+    }
+
+    override fun setBlink(enabled: Boolean) {
+        events += "setBlink:$enabled"
+    }
+
+    override fun setInverse(enabled: Boolean) {
+        events += "setInverse:$enabled"
+    }
+
+    override fun setConceal(enabled: Boolean) {
+        events += "setConceal:$enabled"
+    }
+
+    override fun setStrikethrough(enabled: Boolean) {
+        events += "setStrikethrough:$enabled"
+    }
+
+    override fun setForegroundDefault() {
+        events += "setForegroundDefault"
+    }
+
+    override fun setBackgroundDefault() {
+        events += "setBackgroundDefault"
+    }
+
+    override fun setForegroundIndexed(index: Int) {
+        events += "setForegroundIndexed:$index"
+    }
+
+    override fun setBackgroundIndexed(index: Int) {
+        events += "setBackgroundIndexed:$index"
+    }
+
+    override fun setForegroundRgb(red: Int, green: Int, blue: Int) {
+        events += "setForegroundRgb:$red:$green:$blue"
+    }
+
+    override fun setBackgroundRgb(red: Int, green: Int, blue: Int) {
+        events += "setBackgroundRgb:$red:$green:$blue"
+    }
+
     override fun onOsc(
         commandCode: Int,
         payload: ByteArray,

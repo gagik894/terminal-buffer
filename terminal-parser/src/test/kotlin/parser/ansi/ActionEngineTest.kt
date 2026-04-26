@@ -263,6 +263,66 @@ class ActionEngineTest {
             sinkCalls += "setDecMode:$mode:$enable"
         }
 
+        override fun resetAttributes() {
+            sinkCalls += "resetAttributes"
+        }
+
+        override fun setBold(enabled: Boolean) {
+            sinkCalls += "setBold:$enabled"
+        }
+
+        override fun setFaint(enabled: Boolean) {
+            sinkCalls += "setFaint:$enabled"
+        }
+
+        override fun setItalic(enabled: Boolean) {
+            sinkCalls += "setItalic:$enabled"
+        }
+
+        override fun setUnderlineStyle(style: Int) {
+            sinkCalls += "setUnderlineStyle:$style"
+        }
+
+        override fun setBlink(enabled: Boolean) {
+            sinkCalls += "setBlink:$enabled"
+        }
+
+        override fun setInverse(enabled: Boolean) {
+            sinkCalls += "setInverse:$enabled"
+        }
+
+        override fun setConceal(enabled: Boolean) {
+            sinkCalls += "setConceal:$enabled"
+        }
+
+        override fun setStrikethrough(enabled: Boolean) {
+            sinkCalls += "setStrikethrough:$enabled"
+        }
+
+        override fun setForegroundDefault() {
+            sinkCalls += "setForegroundDefault"
+        }
+
+        override fun setBackgroundDefault() {
+            sinkCalls += "setBackgroundDefault"
+        }
+
+        override fun setForegroundIndexed(index: Int) {
+            sinkCalls += "setForegroundIndexed:$index"
+        }
+
+        override fun setBackgroundIndexed(index: Int) {
+            sinkCalls += "setBackgroundIndexed:$index"
+        }
+
+        override fun setForegroundRgb(red: Int, green: Int, blue: Int) {
+            sinkCalls += "setForegroundRgb:$red:$green:$blue"
+        }
+
+        override fun setBackgroundRgb(red: Int, green: Int, blue: Int) {
+            sinkCalls += "setBackgroundRgb:$red:$green:$blue"
+        }
+
         override fun onOsc(
             commandCode: Int,
             payload: ByteArray,

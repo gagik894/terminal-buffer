@@ -34,6 +34,7 @@ internal object GeneratedCsiDispatchTable {
         102L,                // CSI f  HVP -> CUP
         104L,                // CSI h  SM ANSI
         108L,                // CSI l  RM ANSI
+        109L,                // CSI m  SGR
         16232L,              // CSI ? h  DECSET
         16236L,              // CSI ? l  DECRST
         281474978873456L,    // CSI ! p  DECSTR
@@ -61,6 +62,7 @@ internal object GeneratedCsiDispatchTable {
         CsiCommand.CUP,
         CsiCommand.SM_ANSI,
         CsiCommand.RM_ANSI,
+        CsiCommand.SGR,
         CsiCommand.SM_DEC,
         CsiCommand.RM_DEC,
         CsiCommand.DECSTR,

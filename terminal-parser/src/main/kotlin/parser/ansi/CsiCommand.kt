@@ -34,4 +34,5 @@ internal object CsiCommand {
     const val RM_DEC: Int = 22
 
     const val DECSTR: Int = 23
+    const val SGR: Int = 24
 }

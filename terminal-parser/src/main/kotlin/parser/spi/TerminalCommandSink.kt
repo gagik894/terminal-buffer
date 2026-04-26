@@ -111,6 +111,30 @@ internal interface TerminalCommandSink {
     fun setDecMode(mode: Int, enable: Boolean)
 
     // -------------------------------------------------------------------------
+    // SGR / pen attributes
+    // -------------------------------------------------------------------------
+
+    fun resetAttributes()
+
+    fun setBold(enabled: Boolean)
+    fun setFaint(enabled: Boolean)
+    fun setItalic(enabled: Boolean)
+    fun setUnderlineStyle(style: Int)
+    fun setBlink(enabled: Boolean)
+    fun setInverse(enabled: Boolean)
+    fun setConceal(enabled: Boolean)
+    fun setStrikethrough(enabled: Boolean)
+
+    fun setForegroundDefault()
+    fun setBackgroundDefault()
+
+    fun setForegroundIndexed(index: Int)
+    fun setBackgroundIndexed(index: Int)
+
+    fun setForegroundRgb(red: Int, green: Int, blue: Int)
+    fun setBackgroundRgb(red: Int, green: Int, blue: Int)
+
+    // -------------------------------------------------------------------------
     // Payload hooks
     // -------------------------------------------------------------------------
 

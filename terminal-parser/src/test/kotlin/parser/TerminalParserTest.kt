@@ -292,6 +292,63 @@ class TerminalParserTest {
         }
     }
 
+    // ----- SGR --------------------------------------------------------------
+
+    @Nested
+    @DisplayName("SGR")
+    inner class Sgr {
+
+        @Test
+        fun `CSI m and CSI 0 m reset attributes through the full parser`() {
+            val empty = TerminalParserFixture()
+            val zero = TerminalParserFixture()
+
+            empty.acceptAscii("\u001B[m")
+            zero.acceptAscii("\u001B[0m")
+
+            assertAll(
+                { assertEquals(listOf("resetAttributes"), empty.sink.events) },
+                { assertEquals(listOf("resetAttributes"), zero.sink.events) }
+            )
+        }
+
+        @Test
+        fun `CSI 1 31 m applies bold and indexed foreground through the full parser`() {
+            val f = TerminalParserFixture()
+
+            f.acceptAscii("\u001B[1;31m")
+
+            assertEquals(listOf("setBold:true", "setForegroundIndexed:1"), f.sink.events)
+        }
+
+        @Test
+        fun `CSI 38 5 indexed foreground applies through the full parser`() {
+            val f = TerminalParserFixture()
+
+            f.acceptAscii("\u001B[38;5;196m")
+
+            assertEquals(listOf("setForegroundIndexed:196"), f.sink.events)
+        }
+
+        @Test
+        fun `CSI 48 2 RGB background applies through the full parser`() {
+            val f = TerminalParserFixture()
+
+            f.acceptAscii("\u001B[48;2;10;20;30m")
+
+            assertEquals(listOf("setBackgroundRgb:10:20:30"), f.sink.events)
+        }
+
+        @Test
+        fun `CSI colon RGB foreground with omitted color-space id applies through the full parser`() {
+            val f = TerminalParserFixture()
+
+            f.acceptAscii("\u001B[38:2::10:20:30m")
+
+            assertEquals(listOf("setForegroundRgb:10:20:30"), f.sink.events)
+        }
+    }
+
     // ----- Charset and shifts ---------------------------------------------
 
     @Nested

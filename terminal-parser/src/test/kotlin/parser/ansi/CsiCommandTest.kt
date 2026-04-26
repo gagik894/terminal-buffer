@@ -33,7 +33,8 @@ class CsiCommandTest {
         CsiCommand.RM_ANSI,
         CsiCommand.SM_DEC,
         CsiCommand.RM_DEC,
-        CsiCommand.DECSTR
+        CsiCommand.DECSTR,
+        CsiCommand.SGR
     )
 
     @Nested
@@ -42,7 +43,7 @@ class CsiCommandTest {
 
         @Test
         fun `command ids are contiguous and stable`() {
-            assertEquals((0..23).toList(), allCommands)
+            assertEquals((0..24).toList(), allCommands)
         }
 
         @Test

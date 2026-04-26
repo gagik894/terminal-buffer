@@ -1,5 +1,6 @@
 package com.gagik.parser.ansi
 
+import com.gagik.parser.ansi.sgr.SgrDispatcher
 import com.gagik.parser.charset.CharsetMapper
 import com.gagik.parser.runtime.ParserState
 import com.gagik.parser.spi.TerminalCommandSink
@@ -115,6 +116,7 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
             CsiCommand.RM_DEC -> dispatchDecMode(sink, state, enable = false)
 
             CsiCommand.DECSTR -> sink.softReset()
+            CsiCommand.SGR -> SgrDispatcher.dispatch(sink, state)
         }
     }
 

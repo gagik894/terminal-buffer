@@ -96,6 +96,21 @@ class RecordingTerminalCommandSinkTest {
             sink.scrollDown(8)
             sink.setAnsiMode(4, enable = true)
             sink.setDecMode(25, enable = false)
+            sink.resetAttributes()
+            sink.setBold(true)
+            sink.setFaint(false)
+            sink.setItalic(true)
+            sink.setUnderlineStyle(2)
+            sink.setBlink(true)
+            sink.setInverse(false)
+            sink.setConceal(true)
+            sink.setStrikethrough(false)
+            sink.setForegroundDefault()
+            sink.setBackgroundDefault()
+            sink.setForegroundIndexed(196)
+            sink.setBackgroundIndexed(17)
+            sink.setForegroundRgb(10, 20, 30)
+            sink.setBackgroundRgb(40, 50, 60)
 
             assertEquals(
                 listOf(
@@ -130,7 +145,22 @@ class RecordingTerminalCommandSinkTest {
                     "scrollUp:7",
                     "scrollDown:8",
                     "setAnsiMode:4:true",
-                    "setDecMode:25:false"
+                    "setDecMode:25:false",
+                    "resetAttributes",
+                    "setBold:true",
+                    "setFaint:false",
+                    "setItalic:true",
+                    "setUnderlineStyle:2",
+                    "setBlink:true",
+                    "setInverse:false",
+                    "setConceal:true",
+                    "setStrikethrough:false",
+                    "setForegroundDefault",
+                    "setBackgroundDefault",
+                    "setForegroundIndexed:196",
+                    "setBackgroundIndexed:17",
+                    "setForegroundRgb:10:20:30",
+                    "setBackgroundRgb:40:50:60"
                 ),
                 sink.events
             )
