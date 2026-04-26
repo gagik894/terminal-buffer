@@ -1,0 +1,286 @@
+package com.gagik.parser.ansi.mode
+
+import com.gagik.parser.ansi.AnsiCommandDispatcher
+import com.gagik.parser.ansi.RecordingTerminalCommandSink
+import com.gagik.parser.fixture.TerminalParserFixture
+import com.gagik.parser.runtime.ParserState
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Test
+
+@DisplayName("Mode dispatcher")
+class ModeDispatchTest {
+
+    private fun dispatchMode(
+        finalByte: Int,
+        vararg params: Int,
+        privateMarker: Int = 0,
+    ): RecordingTerminalCommandSink {
+        val sink = RecordingTerminalCommandSink()
+        val state = ParserState(maxParams = 32)
+
+        for (i in params.indices) {
+            state.params[i] = params[i]
+        }
+        state.paramCount = params.size
+        state.privateMarker = privateMarker
+
+        AnsiCommandDispatcher.dispatchCsi(sink, state, finalByte)
+        return sink
+    }
+
+    private fun setAnsi(vararg params: Int): RecordingTerminalCommandSink {
+        return dispatchMode('h'.code, params = params)
+    }
+
+    private fun resetAnsi(vararg params: Int): RecordingTerminalCommandSink {
+        return dispatchMode('l'.code, params = params)
+    }
+
+    private fun setDec(vararg params: Int): RecordingTerminalCommandSink {
+        return dispatchMode('h'.code, params = params, privateMarker = '?'.code)
+    }
+
+    private fun resetDec(vararg params: Int): RecordingTerminalCommandSink {
+        return dispatchMode('l'.code, params = params, privateMarker = '?'.code)
+    }
+
+    private fun ansiEvent(mode: Int, enable: Boolean): String = "setAnsiMode:$mode:$enable"
+
+    private fun decEvent(mode: Int, enable: Boolean): String = "setDecMode:$mode:$enable"
+
+    @Nested
+    @DisplayName("ANSI modes CSI Pn h/l")
+    inner class AnsiModes {
+
+        @Test
+        fun `CSI 4 h and l dispatch insert mode`() {
+            assertEquals(listOf(ansiEvent(AnsiMode.INSERT, true)), setAnsi(AnsiMode.INSERT).events)
+            assertEquals(listOf(ansiEvent(AnsiMode.INSERT, false)), resetAnsi(AnsiMode.INSERT).events)
+        }
+
+        @Test
+        fun `CSI 20 h and l dispatch new line mode`() {
+            assertEquals(listOf(ansiEvent(AnsiMode.NEW_LINE, true)), setAnsi(AnsiMode.NEW_LINE).events)
+            assertEquals(listOf(ansiEvent(AnsiMode.NEW_LINE, false)), resetAnsi(AnsiMode.NEW_LINE).events)
+        }
+
+        @Test
+        fun `all known ANSI modes can be set in one sequence preserving order`() {
+            val modes = intArrayOf(AnsiMode.INSERT, AnsiMode.NEW_LINE)
+
+            assertEquals(
+                modes.map { ansiEvent(it, true) },
+                setAnsi(*modes).events,
+            )
+        }
+
+        @Test
+        fun `all known ANSI modes can be reset in one sequence preserving order`() {
+            val modes = intArrayOf(AnsiMode.INSERT, AnsiMode.NEW_LINE)
+
+            assertEquals(
+                modes.map { ansiEvent(it, false) },
+                resetAnsi(*modes).events,
+            )
+        }
+    }
+
+    @Nested
+    @DisplayName("DEC private modes CSI question Pn h/l")
+    inner class DecPrivateModes {
+
+        @Test
+        fun `cursor and rendering physics modes dispatch`() {
+            val modes = intArrayOf(
+                DecPrivateMode.APPLICATION_CURSOR_KEYS,
+                DecPrivateMode.DECCOLM,
+                DecPrivateMode.REVERSE_VIDEO,
+                DecPrivateMode.ORIGIN,
+                DecPrivateMode.AUTO_WRAP,
+                DecPrivateMode.CURSOR_VISIBLE,
+                DecPrivateMode.APPLICATION_KEYPAD,
+                DecPrivateMode.LEFT_RIGHT_MARGIN,
+            )
+
+            assertEquals(
+                modes.map { decEvent(it, true) },
+                setDec(*modes).events,
+            )
+            assertEquals(
+                modes.map { decEvent(it, false) },
+                resetDec(*modes).events,
+            )
+        }
+
+        @Test
+        fun `mouse protocol modes dispatch`() {
+            val modes = intArrayOf(
+                DecPrivateMode.MOUSE_X10,
+                DecPrivateMode.MOUSE_NORMAL,
+                DecPrivateMode.MOUSE_BUTTON_EVENT,
+                DecPrivateMode.MOUSE_ANY_EVENT,
+                DecPrivateMode.MOUSE_SGR,
+            )
+
+            assertEquals(
+                modes.map { decEvent(it, true) },
+                setDec(*modes).events,
+            )
+            assertEquals(
+                modes.map { decEvent(it, false) },
+                resetDec(*modes).events,
+            )
+        }
+
+        @Test
+        fun `focus and bracketed paste modes dispatch`() {
+            val modes = intArrayOf(
+                DecPrivateMode.FOCUS_REPORTING,
+                DecPrivateMode.BRACKETED_PASTE,
+            )
+
+            assertEquals(
+                modes.map { decEvent(it, true) },
+                setDec(*modes).events,
+            )
+            assertEquals(
+                modes.map { decEvent(it, false) },
+                resetDec(*modes).events,
+            )
+        }
+    }
+
+    @Nested
+    @DisplayName("sequence behavior")
+    inner class SequenceBehavior {
+
+        @Test
+        fun `multiple modes in one DEC private sequence preserve source order`() {
+            val sink = setDec(
+                DecPrivateMode.APPLICATION_CURSOR_KEYS,
+                DecPrivateMode.CURSOR_VISIBLE,
+                DecPrivateMode.BRACKETED_PASTE,
+            )
+
+            assertEquals(
+                listOf(
+                    decEvent(DecPrivateMode.APPLICATION_CURSOR_KEYS, true),
+                    decEvent(DecPrivateMode.CURSOR_VISIBLE, true),
+                    decEvent(DecPrivateMode.BRACKETED_PASTE, true),
+                ),
+                sink.events,
+            )
+        }
+
+        @Test
+        fun `omitted params are skipped without losing later modes`() {
+            assertEquals(
+                listOf(decEvent(DecPrivateMode.CURSOR_VISIBLE, true)),
+                setDec(-1, DecPrivateMode.CURSOR_VISIBLE).events,
+            )
+            assertEquals(
+                listOf(
+                    decEvent(DecPrivateMode.APPLICATION_CURSOR_KEYS, false),
+                    decEvent(DecPrivateMode.BRACKETED_PASTE, false),
+                ),
+                resetDec(DecPrivateMode.APPLICATION_CURSOR_KEYS, -1, DecPrivateMode.BRACKETED_PASTE).events,
+            )
+        }
+
+        @Test
+        fun `empty SM and RM sequences do not dispatch phantom mode zero`() {
+            assertTrue(setAnsi().events.isEmpty())
+            assertTrue(resetAnsi().events.isEmpty())
+            assertTrue(setDec().events.isEmpty())
+            assertTrue(resetDec().events.isEmpty())
+        }
+
+        @Test
+        fun `zero and unknown positive modes pass through because policy belongs to the sink`() {
+            assertEquals(
+                listOf(ansiEvent(0, true), ansiEvent(9999, true)),
+                setAnsi(0, 9999).events,
+            )
+            assertEquals(
+                listOf(decEvent(0, false), decEvent(9999, false)),
+                resetDec(0, 9999).events,
+            )
+        }
+
+        @Test
+        fun `unsupported private marker shape is ignored by CSI signature router`() {
+            assertTrue(
+                dispatchMode(
+                    'h'.code,
+                    DecPrivateMode.CURSOR_VISIBLE,
+                    privateMarker = '>'.code,
+                ).events.isEmpty()
+            )
+        }
+    }
+
+    @Nested
+    @DisplayName("full parser path")
+    inner class FullParserPath {
+
+        @Test
+        fun `ANSI modes route through ByteClass FSM action engine and dispatcher`() {
+            val fixture = TerminalParserFixture()
+
+            fixture.acceptAscii("\u001B[4;20h\u001B[4;20l")
+
+            assertEquals(
+                listOf(
+                    ansiEvent(AnsiMode.INSERT, true),
+                    ansiEvent(AnsiMode.NEW_LINE, true),
+                    ansiEvent(AnsiMode.INSERT, false),
+                    ansiEvent(AnsiMode.NEW_LINE, false),
+                ),
+                fixture.sink.events,
+            )
+        }
+
+        @Test
+        fun `DEC private modes route through ByteClass FSM action engine and dispatcher`() {
+            val fixture = TerminalParserFixture()
+
+            fixture.acceptAscii("\u001B[?1;6;7;25;66;69;1000;1002;1003;1004;1006;2004h")
+
+            assertEquals(
+                listOf(
+                    decEvent(DecPrivateMode.APPLICATION_CURSOR_KEYS, true),
+                    decEvent(DecPrivateMode.ORIGIN, true),
+                    decEvent(DecPrivateMode.AUTO_WRAP, true),
+                    decEvent(DecPrivateMode.CURSOR_VISIBLE, true),
+                    decEvent(DecPrivateMode.APPLICATION_KEYPAD, true),
+                    decEvent(DecPrivateMode.LEFT_RIGHT_MARGIN, true),
+                    decEvent(DecPrivateMode.MOUSE_NORMAL, true),
+                    decEvent(DecPrivateMode.MOUSE_BUTTON_EVENT, true),
+                    decEvent(DecPrivateMode.MOUSE_ANY_EVENT, true),
+                    decEvent(DecPrivateMode.FOCUS_REPORTING, true),
+                    decEvent(DecPrivateMode.MOUSE_SGR, true),
+                    decEvent(DecPrivateMode.BRACKETED_PASTE, true),
+                ),
+                fixture.sink.events,
+            )
+        }
+
+        @Test
+        fun `full parser skips omitted DEC private fields and keeps following modes`() {
+            val fixture = TerminalParserFixture()
+
+            fixture.acceptAscii("\u001B[?;25;;2004l")
+
+            assertEquals(
+                listOf(
+                    decEvent(DecPrivateMode.CURSOR_VISIBLE, false),
+                    decEvent(DecPrivateMode.BRACKETED_PASTE, false),
+                ),
+                fixture.sink.events,
+            )
+        }
+    }
+}
