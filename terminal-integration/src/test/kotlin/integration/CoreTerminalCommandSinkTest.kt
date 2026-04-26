@@ -1,0 +1,306 @@
+package com.gagik.integration
+
+import com.gagik.core.TerminalBuffers
+import com.gagik.core.api.TerminalBufferApi
+import com.gagik.core.model.MouseEncodingMode
+import com.gagik.core.model.MouseTrackingMode
+import com.gagik.parser.api.TerminalOutputParser
+import com.gagik.parser.api.TerminalParsers
+import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Test
+
+@DisplayName("CoreTerminalCommandSink")
+class CoreTerminalCommandSinkTest {
+
+    private data class Fixture(
+        val terminal: TerminalBufferApi = TerminalBuffers.create(width = 10, height = 5),
+        val sink: CoreTerminalCommandSink = CoreTerminalCommandSink(terminal),
+        val parser: TerminalOutputParser = TerminalParsers.create(sink),
+    ) {
+        fun acceptAscii(text: String) {
+            parser.accept(text.encodeToByteArray())
+        }
+
+        fun end() {
+            parser.endOfInput()
+        }
+    }
+
+    @Nested
+    @DisplayName("printable and cursor pipeline")
+    inner class PrintableAndCursorPipeline {
+
+        @Test
+        fun `plain text parsed through adapter writes the core grid`() {
+            val f = Fixture()
+
+            f.acceptAscii("abc")
+            f.end()
+
+            assertEquals("abc", f.terminal.getLineAsString(0))
+        }
+
+        @Test
+        fun `CSI absolute cursor position writes at core coordinates`() {
+            val f = Fixture()
+
+            f.acceptAscii("\u001B[2;3HX")
+            f.end()
+
+            assertAll(
+                { assertEquals('X'.code, f.terminal.getCodepointAt(2, 1)) },
+                { assertEquals(3, f.terminal.cursorCol) },
+                { assertEquals(1, f.terminal.cursorRow) },
+            )
+        }
+
+        @Test
+        fun `origin mode makes CUP relative to the scroll region`() {
+            val f = Fixture()
+
+            f.acceptAscii("\u001B[2;4r")
+            f.acceptAscii("\u001B[?6h")
+            f.acceptAscii("\u001B[1;1HX")
+            f.end()
+
+            assertAll(
+                { assertEquals('X'.code, f.terminal.getCodepointAt(0, 1)) },
+                { assertEquals(1, f.terminal.cursorCol) },
+                { assertEquals(1, f.terminal.cursorRow) },
+            )
+        }
+
+        @Test
+        fun `insert mode shifts existing cells through real core mutation`() {
+            val f = Fixture(terminal = TerminalBuffers.create(width = 6, height = 2))
+
+            f.acceptAscii("ABCD")
+            f.acceptAscii("\u001B[1;2H")
+            f.acceptAscii("\u001B[4h")
+            f.acceptAscii("X")
+            f.end()
+
+            assertEquals("AXBCD", f.terminal.getLineAsString(0))
+        }
+
+        @Test
+        fun `new line mode makes LF also return carriage through adapter policy`() {
+            val f = Fixture()
+
+            f.acceptAscii("A")
+            f.acceptAscii("\u001B[20h")
+            f.acceptAscii("\nB")
+            f.end()
+
+            assertAll(
+                { assertEquals("A", f.terminal.getLineAsString(0)) },
+                { assertEquals("B", f.terminal.getLineAsString(1)) },
+                { assertEquals(1, f.terminal.cursorCol) },
+                { assertEquals(1, f.terminal.cursorRow) },
+            )
+        }
+
+        @Test
+        fun `auto wrap reset keeps printable output on the right edge`() {
+            val f = Fixture(terminal = TerminalBuffers.create(width = 3, height = 2))
+
+            f.acceptAscii("\u001B[?7l")
+            f.acceptAscii("ABCD")
+            f.end()
+
+            assertAll(
+                { assertEquals("ABD", f.terminal.getLineAsString(0)) },
+                { assertEquals("", f.terminal.getLineAsString(1)) },
+                { assertEquals(2, f.terminal.cursorCol) },
+            )
+        }
+    }
+
+    @Nested
+    @DisplayName("mode policy")
+    inner class ModePolicy {
+
+        @Test
+        fun `ANSI and DEC modes parsed from bytes update core mode snapshot`() {
+            val f = Fixture()
+
+            f.acceptAscii("\u001B[4;20h")
+            f.acceptAscii("\u001B[?1;5;6;7;25;66;69;1004;2004h")
+
+            val snapshot = f.terminal.getModeSnapshot()
+
+            assertAll(
+                { assertTrue(snapshot.isInsertMode) },
+                { assertTrue(snapshot.isNewLineMode) },
+                { assertTrue(snapshot.isApplicationCursorKeys) },
+                { assertTrue(snapshot.isReverseVideo) },
+                { assertTrue(snapshot.isOriginMode) },
+                { assertTrue(snapshot.isAutoWrap) },
+                { assertTrue(snapshot.isCursorVisible) },
+                { assertTrue(snapshot.isApplicationKeypad) },
+                { assertTrue(snapshot.isLeftRightMarginMode) },
+                { assertTrue(snapshot.isFocusReportingEnabled) },
+                { assertTrue(snapshot.isBracketedPasteEnabled) },
+            )
+        }
+
+        @Test
+        fun `DEC mode reset parsed from bytes updates core mode snapshot`() {
+            val f = Fixture()
+
+            f.acceptAscii("\u001B[4;20h\u001B[?1;5;6;7;25;66;69;1004;2004h")
+            f.acceptAscii("\u001B[4;20l\u001B[?1;5;6;7;25;66;69;1004;2004l")
+
+            val snapshot = f.terminal.getModeSnapshot()
+
+            assertAll(
+                { assertFalse(snapshot.isInsertMode) },
+                { assertFalse(snapshot.isNewLineMode) },
+                { assertFalse(snapshot.isApplicationCursorKeys) },
+                { assertFalse(snapshot.isReverseVideo) },
+                { assertFalse(snapshot.isOriginMode) },
+                { assertFalse(snapshot.isAutoWrap) },
+                { assertFalse(snapshot.isCursorVisible) },
+                { assertFalse(snapshot.isApplicationKeypad) },
+                { assertFalse(snapshot.isLeftRightMarginMode) },
+                { assertFalse(snapshot.isFocusReportingEnabled) },
+                { assertFalse(snapshot.isBracketedPasteEnabled) },
+            )
+        }
+
+        @Test
+        fun `mouse tracking and SGR mouse encoding modes update core snapshot`() {
+            val f = Fixture()
+
+            f.acceptAscii("\u001B[?1002;1006h")
+
+            var snapshot = f.terminal.getModeSnapshot()
+            assertAll(
+                { assertEquals(MouseTrackingMode.BUTTON_EVENT, snapshot.mouseTrackingMode) },
+                { assertEquals(MouseEncodingMode.SGR, snapshot.mouseEncodingMode) },
+            )
+
+            f.acceptAscii("\u001B[?1002;1006l")
+
+            snapshot = f.terminal.getModeSnapshot()
+            assertAll(
+                { assertEquals(MouseTrackingMode.OFF, snapshot.mouseTrackingMode) },
+                { assertEquals(MouseEncodingMode.DEFAULT, snapshot.mouseEncodingMode) },
+            )
+        }
+
+        @Test
+        fun `DECCOLM set and reset resize the core width`() {
+            val f = Fixture(terminal = TerminalBuffers.create(width = 80, height = 3))
+
+            f.acceptAscii("\u001B[?3h")
+            assertEquals(132, f.terminal.width)
+
+            f.acceptAscii("\u001B[?3l")
+            assertEquals(80, f.terminal.width)
+        }
+
+        @Test
+        fun `alternate screen mode 1049 switches buffers while 47 and 1047 remain explicit TODO gaps`() {
+            val f = Fixture()
+
+            f.acceptAscii("P")
+            f.acceptAscii("\u001B[?1049h")
+            f.acceptAscii("A")
+            f.end()
+
+            assertEquals("A", f.terminal.getLineAsString(0))
+
+            f.acceptAscii("\u001B[?1049l")
+
+            assertEquals("P", f.terminal.getLineAsString(0))
+
+            f.acceptAscii("\u001B[?47hX")
+            f.acceptAscii("\u001B[?47l")
+            f.acceptAscii("\u001B[?1047hY")
+            f.acceptAscii("\u001B[?1047l")
+            f.end()
+
+            assertEquals("PXY", f.terminal.getLineAsString(0))
+        }
+    }
+
+    @Nested
+    @DisplayName("SGR and OSC policy")
+    inner class SgrAndOscPolicy {
+
+        @Test
+        fun `SGR indexed color and styles update core pen attributes`() {
+            val f = Fixture()
+
+            f.acceptAscii("\u001B[1;3;4;31;44mX")
+            f.end()
+
+            val attr = f.terminal.getAttrAt(0, 0)
+
+            assertAll(
+                { assertEquals(2, attr?.fg) },
+                { assertEquals(5, attr?.bg) },
+                { assertEquals(true, attr?.bold) },
+                { assertEquals(true, attr?.italic) },
+                { assertEquals(true, attr?.underline) },
+            )
+        }
+
+        @Test
+        fun `SGR reset restores default core pen attributes`() {
+            val f = Fixture()
+
+            f.acceptAscii("\u001B[1;31mX")
+            f.acceptAscii("\u001B[0mY")
+            f.end()
+
+            val first = f.terminal.getAttrAt(0, 0)
+            val second = f.terminal.getAttrAt(1, 0)
+
+            assertAll(
+                { assertEquals(true, first?.bold) },
+                { assertEquals(2, first?.fg) },
+                { assertEquals(false, second?.bold) },
+                { assertEquals(0, second?.fg) },
+                { assertEquals(0, second?.bg) },
+            )
+        }
+
+        @Test
+        fun `256-color indexed SGR is ignored until core supports 256-color pen state`() {
+            val f = Fixture()
+
+            f.acceptAscii("\u001B[38;5;196mX")
+            f.end()
+
+            val attr = f.terminal.getAttrAt(0, 0)
+
+            assertEquals(0, attr?.fg)
+        }
+
+        @Test
+        fun `OSC titles and hyperlinks are retained as adapter metadata`() {
+            val f = Fixture()
+
+            f.acceptAscii("\u001B]0;both\u0007")
+            f.acceptAscii("\u001B]8;id=abc;https://example.com\u001B\\")
+
+            assertAll(
+                { assertEquals("both", f.sink.iconTitle) },
+                { assertEquals("both", f.sink.windowTitle) },
+                { assertEquals("https://example.com", f.sink.activeHyperlinkUri) },
+                { assertEquals("abc", f.sink.activeHyperlinkId) },
+            )
+
+            f.acceptAscii("\u001B]8;;\u001B\\")
+
+            assertAll(
+                { assertNull(f.sink.activeHyperlinkUri) },
+                { assertNull(f.sink.activeHyperlinkId) },
+            )
+        }
+    }
+}

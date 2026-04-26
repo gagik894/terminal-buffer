@@ -5,7 +5,7 @@ package com.gagik.parser.ansi.mode
  *
  * Toggled via CSI Pn h (SM) and CSI Pn l (RM).
  */
-internal object AnsiMode {
+object AnsiMode {
     const val INSERT: Int = 4
     const val NEW_LINE: Int = 20
 }

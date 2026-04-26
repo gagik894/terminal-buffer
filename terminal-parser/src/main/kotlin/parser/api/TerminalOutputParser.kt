@@ -8,7 +8,7 @@ import com.gagik.parser.spi.TerminalCommandSink
  * Implementations accept raw bytes from PTY/network/process output, preserve parser state across
  * arbitrary chunk boundaries, and emit semantic terminal operations to a [TerminalCommandSink].
  */
-internal interface TerminalOutputParser {
+interface TerminalOutputParser {
     fun accept(
         bytes: ByteArray,
         offset: Int = 0,

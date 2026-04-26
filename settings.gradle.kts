@@ -4,4 +4,5 @@ plugins {
 
 rootProject.name = "Lattice"
 include(":terminal-core")
-include("terminal-parser")
+include(":terminal-parser")
+include(":terminal-integration")

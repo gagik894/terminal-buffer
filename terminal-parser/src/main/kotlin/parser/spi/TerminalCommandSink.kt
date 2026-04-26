@@ -10,7 +10,7 @@ package com.gagik.parser.spi
  * - The sink/core owns grid physics, bounds clamping, wrapping, margins, storage, and mode persistence.
  * - The parser must not know terminal width, height, cursor bounds, or rendering details.
  */
-internal interface TerminalCommandSink {
+interface TerminalCommandSink {
     // -------------------------------------------------------------------------
     // Printable ingress
     // -------------------------------------------------------------------------

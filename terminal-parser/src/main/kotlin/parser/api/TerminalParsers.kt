@@ -6,7 +6,7 @@ import com.gagik.parser.spi.TerminalCommandSink
 /**
  * Factory for terminal output parsers.
  */
-internal object TerminalParsers {
+object TerminalParsers {
     @JvmStatic
     fun create(sink: TerminalCommandSink): TerminalOutputParser {
         return TerminalParser(sink)

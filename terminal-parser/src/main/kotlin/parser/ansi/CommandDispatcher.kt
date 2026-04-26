@@ -117,6 +117,12 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
                 top = scrollRegionTopParam(state, 0),
                 bottom = scrollRegionBottomParam(state, 1),
             )
+            // TODO(parser-protocol): Core already exposes DECSLRM left/right margins, but the
+            // CSI signature table does not route CSI s yet. Add DECSLRM parsing before wiring it
+            // through TerminalCommandSink.
+            // TODO(parser-protocol): Core supports DECSEL/DECSED and DECSCA protection, but the
+            // parser currently only emits non-selective ED/EL and has no DECSCA command.
+            // TODO(parser-protocol): Core exposes full RIS reset, but ESC c is not routed yet.
 
             CsiCommand.SM_ANSI -> dispatchAnsiMode(sink, state, enable = true)
             CsiCommand.RM_ANSI -> dispatchAnsiMode(sink, state, enable = false)
