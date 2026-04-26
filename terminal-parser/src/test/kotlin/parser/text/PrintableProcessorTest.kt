@@ -356,6 +356,8 @@ class PrintableProcessorTest {
                 { assertEquals(0, f.state.clusterLength) },
                 { assertEquals(0, f.state.prevGraphemeBreakClass) },
                 { assertFalse(f.state.prevWasZwj) },
+                { assertFalse(f.state.zwjBeforeExtendedPictographic) },
+                { assertFalse(f.state.lastNonExtendWasExtendedPictographic) },
                 { assertEquals(0, f.state.regionalIndicatorParity) }
             )
         }

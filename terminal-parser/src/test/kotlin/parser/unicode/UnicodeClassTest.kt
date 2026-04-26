@@ -28,6 +28,15 @@ class UnicodeClassTest {
         }
 
         @Test
+        fun `classifies CR LF control and prepend classes`() {
+            assertEquals(UnicodeClass.GRAPHEME_CR, UnicodeClass.graphemeBreakClass(0x000D))
+            assertEquals(UnicodeClass.GRAPHEME_LF, UnicodeClass.graphemeBreakClass(0x000A))
+            assertEquals(UnicodeClass.GRAPHEME_CONTROL, UnicodeClass.graphemeBreakClass(0x0000))
+            assertEquals(UnicodeClass.GRAPHEME_CONTROL, UnicodeClass.graphemeBreakClass(0x009F))
+            assertEquals(UnicodeClass.GRAPHEME_PREPEND, UnicodeClass.graphemeBreakClass(0x0600))
+        }
+
+        @Test
         fun `classifies Hangul Jamo and syllable classes`() {
             assertEquals(UnicodeClass.GRAPHEME_L, UnicodeClass.graphemeBreakClass(0x1100))
             assertEquals(UnicodeClass.GRAPHEME_V, UnicodeClass.graphemeBreakClass(0x1161))

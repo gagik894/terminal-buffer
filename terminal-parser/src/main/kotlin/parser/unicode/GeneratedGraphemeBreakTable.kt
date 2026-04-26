@@ -1,5 +1,11 @@
 package com.gagik.parser.unicode
 
+/**
+ * Seed grapheme break table.
+ *
+ * Contains a curated subset of UAX #29 ranges for structural terminal parsing.
+ * In a production build, this file should be fully generated from Unicode data files.
+ */
 internal object GeneratedGraphemeBreakTable {
     private val EXTEND_RANGES: IntArray = intArrayOf(
         0x0300, 0x036F,
@@ -34,6 +40,13 @@ internal object GeneratedGraphemeBreakTable {
         0x0BC1, 0x0BC2,
     )
 
+    private val PREPEND_RANGES: IntArray = intArrayOf(
+        0x0600, 0x0605,
+        0x06DD, 0x06DD,
+        0x070F, 0x070F,
+        0x08E2, 0x08E2,
+    )
+
     private val EXTENDED_PICTOGRAPHIC_RANGES: IntArray = intArrayOf(
         0x00A9, 0x00A9,
         0x00AE, 0x00AE,
@@ -66,6 +79,10 @@ internal object GeneratedGraphemeBreakTable {
     @JvmStatic
     fun graphemeBreakClass(codepoint: Int): Int {
         return when {
+            codepoint == 0x000D -> UnicodeClass.GRAPHEME_CR
+            codepoint == 0x000A -> UnicodeClass.GRAPHEME_LF
+            isControl(codepoint) -> UnicodeClass.GRAPHEME_CONTROL
+            contains(PREPEND_RANGES, codepoint) -> UnicodeClass.GRAPHEME_PREPEND
             codepoint == 0x200D -> UnicodeClass.GRAPHEME_ZWJ
             codepoint in 0x1F1E6..0x1F1FF -> UnicodeClass.GRAPHEME_REGIONAL_INDICATOR
             codepoint in 0x1100..0x115F || codepoint in 0xA960..0xA97C -> UnicodeClass.GRAPHEME_L
@@ -85,6 +102,10 @@ internal object GeneratedGraphemeBreakTable {
             return false
         }
         return contains(EXTENDED_PICTOGRAPHIC_RANGES, codepoint)
+    }
+
+    private fun isControl(codepoint: Int): Boolean {
+        return codepoint in 0x0000..0x001F || codepoint in 0x007F..0x009F
     }
 
     private fun isHangulLv(codepoint: Int): Boolean {

@@ -1,72 +1,86 @@
 package com.gagik.parser.unicode
 
 import com.gagik.parser.runtime.ParserState
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.DisplayName
-import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
-@DisplayName("GraphemeSegmenter")
 class GraphemeSegmenterTest {
+    private lateinit var state: ParserState
 
-    private fun accept(state: ParserState, codepoint: Int) {
-        GraphemeSegmenter.updateContext(state, codepoint)
+    @BeforeEach
+    fun setup() {
+        state = ParserState()
     }
 
-    @Nested
-    @DisplayName("cluster continuation")
-    inner class ClusterContinuation {
+    private fun acceptAndCheckContinues(codepoint: Int): Boolean {
+        val graphemeClass = UnicodeClass.graphemeBreakClass(codepoint)
+        val continues = GraphemeSegmenter.continuesCurrentCluster(state, graphemeClass, codepoint)
+        GraphemeSegmenter.updateContext(state, codepoint, graphemeClass)
+        return continues
+    }
 
-        @Test
-        fun `combining marks variation selectors and spacing marks continue the current cluster`() {
-            val state = ParserState()
-            accept(state, 'e'.code)
+    @Test
+    fun `prepend plus base stays one cluster`() {
+        acceptAndCheckContinues(0x0600)
 
-            assertTrue(GraphemeSegmenter.continuesCurrentCluster(state, 0x0301))
-            assertTrue(GraphemeSegmenter.continuesCurrentCluster(state, 0xFE0F))
-            assertTrue(GraphemeSegmenter.continuesCurrentCluster(state, 0x0903))
-        }
+        assertTrue(acceptAndCheckContinues('a'.code))
+    }
 
-        @Test
-        fun `extended pictographic ZWJ extended pictographic continues the current cluster`() {
-            val state = ParserState()
-            accept(state, 0x1F468)
-            accept(state, 0x200D)
+    @Test
+    fun `CR LF and control are classified distinctly`() {
+        assertEquals(UnicodeClass.GRAPHEME_CR, UnicodeClass.graphemeBreakClass(0x000D))
+        assertEquals(UnicodeClass.GRAPHEME_LF, UnicodeClass.graphemeBreakClass(0x000A))
+        assertEquals(UnicodeClass.GRAPHEME_CONTROL, UnicodeClass.graphemeBreakClass(0x0000))
+    }
 
-            assertTrue(GraphemeSegmenter.continuesCurrentCluster(state, 0x1F469))
-        }
+    @Test
+    fun `CR LF stays one cluster and other controls force boundaries`() {
+        acceptAndCheckContinues(0x000D)
 
-        @Test
-        fun `ZWJ before non extended pictographic does not force continuation`() {
-            val state = ParserState()
-            accept(state, 'A'.code)
-            accept(state, 0x200D)
+        assertTrue(acceptAndCheckContinues(0x000A))
+        assertFalse(acceptAndCheckContinues(0x0000))
+        assertFalse(acceptAndCheckContinues('a'.code))
+    }
 
-            assertFalse(GraphemeSegmenter.continuesCurrentCluster(state, 'B'.code))
-        }
+    @Test
+    fun `Hangul L V T stays one cluster`() {
+        acceptAndCheckContinues(0x1100)
 
-        @Test
-        fun `regional indicators continue only as pairs`() {
-            val state = ParserState()
-            accept(state, 0x1F1FA)
-            assertTrue(GraphemeSegmenter.continuesCurrentCluster(state, 0x1F1F8))
+        assertTrue(acceptAndCheckContinues(0x1161))
+        assertTrue(acceptAndCheckContinues(0x11A8))
+    }
 
-            accept(state, 0x1F1F8)
-            assertFalse(GraphemeSegmenter.continuesCurrentCluster(state, 0x1F1E8))
-        }
+    @Test
+    fun `RI RI RI becomes two clusters pair plus single`() {
+        acceptAndCheckContinues(0x1F1E6)
 
-        @Test
-        fun `Hangul Jamo sequences continue according to UAX 29 L V T rules`() {
-            val state = ParserState()
-            accept(state, 0x1100)
-            assertTrue(GraphemeSegmenter.continuesCurrentCluster(state, 0x1161))
+        assertTrue(acceptAndCheckContinues(0x1F1E7))
+        assertFalse(acceptAndCheckContinues(0x1F1E8))
+    }
 
-            accept(state, 0x1161)
-            assertTrue(GraphemeSegmenter.continuesCurrentCluster(state, 0x11A8))
+    @Test
+    fun `emoji plus ZWJ plus emoji stays one cluster`() {
+        acceptAndCheckContinues(0x1F468)
 
-            accept(state, 0x11A8)
-            assertFalse(GraphemeSegmenter.continuesCurrentCluster(state, 'A'.code))
-        }
+        assertTrue(acceptAndCheckContinues(0x200D))
+        assertTrue(acceptAndCheckContinues(0x1F469))
+    }
+
+    @Test
+    fun `emoji plus VS16 plus ZWJ plus emoji stays one cluster`() {
+        acceptAndCheckContinues(0x1F468)
+
+        assertTrue(acceptAndCheckContinues(0xFE0F))
+        assertTrue(acceptAndCheckContinues(0x200D))
+        assertTrue(acceptAndCheckContinues(0x1F469))
+    }
+
+    @Test
+    fun `base plus combining plus base becomes two clusters`() {
+        acceptAndCheckContinues('a'.code)
+
+        assertTrue(acceptAndCheckContinues(0x0300))
+        assertFalse(acceptAndCheckContinues('b'.code))
     }
 }

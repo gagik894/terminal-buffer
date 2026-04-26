@@ -3,6 +3,7 @@ package com.gagik.parser.text
 import com.gagik.parser.charset.CharsetMapper
 import com.gagik.parser.runtime.ParserState
 import com.gagik.parser.spi.TerminalCommandSink
+import com.gagik.parser.unicode.GraphemeAssembler
 
 /**
  * Printable ingress bridge.
@@ -12,10 +13,10 @@ import com.gagik.parser.spi.TerminalCommandSink
  * - Keeps ActionEngine free from UTF-8 and Unicode segmentation details.
  *
  * Current policy:
- * - ASCII bytes are emitted as codepoints directly through [acceptAsciiByte].
+ * - ASCII bytes are accepted through [acceptAsciiByte].
  * - U+FFFD replacement output is treated as normal printable input.
  * - GL charset mapping is applied through [CharsetMapper] before grapheme assembly.
- * - Grapheme segmentation is delegated to [GraphemeAssembler].
+ * - Grapheme segmentation is delegated to [com.gagik.parser.unicode.GraphemeAssembler].
  */
 internal class PrintableProcessor(
     private val sink: TerminalCommandSink,

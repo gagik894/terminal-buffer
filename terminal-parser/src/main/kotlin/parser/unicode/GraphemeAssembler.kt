@@ -1,35 +1,36 @@
-package com.gagik.parser.text
+package com.gagik.parser.unicode
 
 import com.gagik.parser.runtime.ParserState
 import com.gagik.parser.spi.TerminalCommandSink
-import com.gagik.parser.unicode.GraphemeSegmenter
 
 /**
- * Minimal allocation-free grapheme assembly boundary.
+ * Allocation-free grapheme assembly boundary.
  *
- * This is intentionally conservative. Full UAX #29 support belongs behind this same API after
- * generated Unicode property tables are added.
+ * The assembler owns cluster buffering only. Unicode classification and break decisions are
+ * delegated to [GraphemeSegmenter], while terminal grid width remains owned by :terminal-core.
  */
 internal class GraphemeAssembler(
     private val sink: TerminalCommandSink,
 ) {
     fun accept(state: ParserState, codepoint: Int) {
+        val currentClass = UnicodeClass.graphemeBreakClass(codepoint)
+
         if (state.clusterLength == 0) {
             appendToClusterOrFlush(state, codepoint)
-            GraphemeSegmenter.updateContext(state, codepoint)
+            GraphemeSegmenter.updateContext(state, codepoint, currentClass)
             return
         }
 
-        if (GraphemeSegmenter.continuesCurrentCluster(state, codepoint)) {
+        if (GraphemeSegmenter.continuesCurrentCluster(state, currentClass, codepoint)) {
             appendToClusterOrFlush(state, codepoint)
-            GraphemeSegmenter.updateContext(state, codepoint)
+            GraphemeSegmenter.updateContext(state, codepoint, currentClass)
             return
         }
 
         flush(state)
 
         appendToClusterOrFlush(state, codepoint)
-        GraphemeSegmenter.updateContext(state, codepoint)
+        GraphemeSegmenter.updateContext(state, codepoint, currentClass)
     }
 
     fun flush(state: ParserState) {

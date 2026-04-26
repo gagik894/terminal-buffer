@@ -80,9 +80,11 @@ internal class ParserState(
 
     var prevGraphemeBreakClass: Int = 0
     var prevWasZwj: Boolean = false
+    var regionalIndicatorParity: Int = 0
+
+    // Extended pictographic / Emoji ZWJ sequence tracking
     var zwjBeforeExtendedPictographic: Boolean = false
     var lastNonExtendWasExtendedPictographic: Boolean = false
-    var regionalIndicatorParity: Int = 0
 
     // -------------------------------------------------------------------------
     // PARTITION 5: Charset designation / shift state
