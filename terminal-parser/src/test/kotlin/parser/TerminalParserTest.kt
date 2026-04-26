@@ -203,10 +203,10 @@ class TerminalParserTest {
 
             assertEquals(
                 listOf(
-                    writeCluster(1, 'e'.code, 0x0301),
-                    writeCluster(1, 0x2764, 0xFE0F),
-                    writeCluster(2, 0x1F468, 0x200D, 0x1F469),
-                    writeCluster(2, 0x1F1FA, 0x1F1F8),
+                    writeCluster('e'.code, 0x0301),
+                    writeCluster(0x2764, 0xFE0F),
+                    writeCluster(0x1F468, 0x200D, 0x1F469),
+                    writeCluster(0x1F1FA, 0x1F1F8),
                 ),
                 f.sink.events
             )

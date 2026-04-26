@@ -198,7 +198,7 @@ class PrintableProcessorTest {
             f.acceptUtf8Codepoints(0x0301)
             f.flush()
 
-            assertEquals(listOf(writeCluster(1, 'e'.code, 0x0301)), f.sink.events)
+            assertEquals(listOf(writeCluster('e'.code, 0x0301)), f.sink.events)
         }
 
         @Test
@@ -208,7 +208,7 @@ class PrintableProcessorTest {
             f.acceptUtf8Codepoints(0x03B1, 0x0301)
             f.flush()
 
-            assertEquals(listOf(writeCluster(1, 0x03B1, 0x0301)), f.sink.events)
+            assertEquals(listOf(writeCluster(0x03B1, 0x0301)), f.sink.events)
         }
 
         @Test
@@ -228,7 +228,7 @@ class PrintableProcessorTest {
             f.acceptUtf8Codepoints(0x2764, 0xFE0F)
             f.flush()
 
-            assertEquals(listOf(writeCluster(1, 0x2764, 0xFE0F)), f.sink.events)
+            assertEquals(listOf(writeCluster(0x2764, 0xFE0F)), f.sink.events)
         }
 
         @Test
@@ -238,18 +238,18 @@ class PrintableProcessorTest {
             f.acceptUtf8Codepoints(0x4E00, 0xE0100)
             f.flush()
 
-            assertEquals(listOf(writeCluster(2, 0x4E00, 0xE0100)), f.sink.events)
+            assertEquals(listOf(writeCluster(0x4E00, 0xE0100)), f.sink.events)
         }
 
         @Test
-        fun `emoji ZWJ sequence is emitted as one wide cluster`() {
+        fun `emoji ZWJ sequence is emitted as one cluster`() {
             val f = Fixture()
 
             f.acceptUtf8Codepoints(0x1F468, 0x200D, 0x1F469, 0x200D, 0x1F467, 0x200D, 0x1F466)
             f.flush()
 
             assertEquals(
-                listOf(writeCluster(2, 0x1F468, 0x200D, 0x1F469, 0x200D, 0x1F467, 0x200D, 0x1F466)),
+                listOf(writeCluster(0x1F468, 0x200D, 0x1F469, 0x200D, 0x1F467, 0x200D, 0x1F466)),
                 f.sink.events
             )
         }
@@ -258,26 +258,53 @@ class PrintableProcessorTest {
         fun `regional indicators are paired into flag clusters`() {
             val f = Fixture()
 
-            f.acceptUtf8Codepoints(0x1F1FA, 0x1F1F8, 0x1F1E8)
+            f.acceptUtf8Codepoints(0x1F1FA, 0x1F1F8, 0x1F1E8, 0x1F1E6, 0x1F1EF)
             f.flush()
 
             assertEquals(
                 listOf(
-                    writeCluster(2, 0x1F1FA, 0x1F1F8),
-                    writeCodepoint(0x1F1E8),
+                    writeCluster(0x1F1FA, 0x1F1F8),
+                    writeCluster(0x1F1E8, 0x1F1E6),
+                    writeCodepoint(0x1F1EF),
                 ),
                 f.sink.events
             )
         }
 
         @Test
-        fun `wide base with combining mark keeps width two`() {
+        fun `Hangul Jamo L V T sequence is emitted as one cluster`() {
+            val f = Fixture()
+
+            f.acceptUtf8Codepoints(0x1100, 0x1161, 0x11A8)
+            f.flush()
+
+            assertEquals(listOf(writeCluster(0x1100, 0x1161, 0x11A8)), f.sink.events)
+        }
+
+        @Test
+        fun `ZWJ does not attach unrelated non emoji letters`() {
+            val f = Fixture()
+
+            f.acceptUtf8Codepoints('A'.code, 0x200D, 'B'.code)
+            f.flush()
+
+            assertEquals(
+                listOf(
+                    writeCluster('A'.code, 0x200D),
+                    writeCodepoint('B'.code),
+                ),
+                f.sink.events
+            )
+        }
+
+        @Test
+        fun `CJK base with combining mark is emitted as one cluster`() {
             val f = Fixture()
 
             f.acceptUtf8Codepoints(0x4E00, 0x0301)
             f.flush()
 
-            assertEquals(listOf(writeCluster(2, 0x4E00, 0x0301)), f.sink.events)
+            assertEquals(listOf(writeCluster(0x4E00, 0x0301)), f.sink.events)
         }
 
         @Test
@@ -290,7 +317,7 @@ class PrintableProcessorTest {
             f.flush()
 
             assertEquals(
-                listOf(writeCluster(1, 'e'.code, 0x0301), writeCodepoint('X'.code)),
+                listOf(writeCluster('e'.code, 0x0301), writeCodepoint('X'.code)),
                 f.sink.events
             )
         }
@@ -311,7 +338,7 @@ class PrintableProcessorTest {
 
             assertEquals(
                 listOf(
-                    writeCluster(2, 0x1F468, 0x200D),
+                    writeCluster(0x1F468, 0x200D),
                     writeCodepoint(0x1F469),
                 ),
                 f.sink.events

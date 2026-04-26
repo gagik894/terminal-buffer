@@ -9,8 +9,8 @@ internal class RecordingTerminalCommandSink : TerminalCommandSink {
         events += "writeCodepoint:$codepoint"
     }
 
-    override fun writeCluster(codepoints: IntArray, length: Int, charWidth: Int) {
-        events += "writeCluster:$length:$charWidth:${codepoints.take(length).joinToString(":")}"
+    override fun writeCluster(codepoints: IntArray, length: Int) {
+        events += "writeCluster:$length:${codepoints.take(length).joinToString(":")}"
     }
 
     override fun bell() {

@@ -80,6 +80,8 @@ internal class ParserState(
 
     var prevGraphemeBreakClass: Int = 0
     var prevWasZwj: Boolean = false
+    var zwjBeforeExtendedPictographic: Boolean = false
+    var lastNonExtendWasExtendedPictographic: Boolean = false
     var regionalIndicatorParity: Int = 0
 
     // -------------------------------------------------------------------------
@@ -131,6 +133,8 @@ internal class ParserState(
         clusterLength = 0
         prevGraphemeBreakClass = 0
         prevWasZwj = false
+        zwjBeforeExtendedPictographic = false
+        lastNonExtendWasExtendedPictographic = false
         regionalIndicatorParity = 0
     }
 

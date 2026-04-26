@@ -20,7 +20,6 @@ internal interface TerminalCommandSink {
     fun writeCluster(
         codepoints: IntArray,
         length: Int,
-        charWidth: Int,
     )
 
     // -------------------------------------------------------------------------

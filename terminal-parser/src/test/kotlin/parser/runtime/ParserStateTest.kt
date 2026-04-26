@@ -34,6 +34,8 @@ class ParserStateTest {
         state.clusterLength = 2
         state.prevGraphemeBreakClass = 13
         state.prevWasZwj = true
+        state.zwjBeforeExtendedPictographic = true
+        state.lastNonExtendWasExtendedPictographic = true
         state.regionalIndicatorParity = 1
     }
 
@@ -88,6 +90,8 @@ class ParserStateTest {
             { assertEquals(0, state.clusterLength) },
             { assertEquals(0, state.prevGraphemeBreakClass) },
             { assertFalse(state.prevWasZwj) },
+            { assertFalse(state.zwjBeforeExtendedPictographic) },
+            { assertFalse(state.lastNonExtendWasExtendedPictographic) },
             { assertEquals(0, state.regionalIndicatorParity) }
         )
     }

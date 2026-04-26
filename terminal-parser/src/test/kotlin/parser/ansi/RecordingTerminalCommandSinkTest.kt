@@ -17,7 +17,7 @@ class RecordingTerminalCommandSinkTest {
             val sink = RecordingTerminalCommandSink()
 
             sink.writeCodepoint('A'.code)
-            sink.writeCluster(intArrayOf('A'.code), length = 1, charWidth = 1)
+            sink.writeCluster(intArrayOf('A'.code), length = 1)
             sink.bell()
             sink.backspace()
             sink.tab()
@@ -79,7 +79,7 @@ class RecordingTerminalCommandSinkTest {
             assertEquals(
                 listOf(
                     "writeCodepoint:${'A'.code}",
-                    "writeCluster:1:1:65",
+                    "writeCluster:1:65",
                     "bell",
                     "backspace",
                     "tab",

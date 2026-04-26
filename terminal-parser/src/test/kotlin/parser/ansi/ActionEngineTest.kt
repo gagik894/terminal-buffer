@@ -131,8 +131,8 @@ class ActionEngineTest {
             sinkCalls += "writeCodepoint:$codepoint"
         }
 
-        override fun writeCluster(codepoints: IntArray, length: Int, charWidth: Int) {
-            sinkCalls += "writeCluster:$length:$charWidth"
+        override fun writeCluster(codepoints: IntArray, length: Int) {
+            sinkCalls += "writeCluster:$length"
         }
 
         override fun bell() {
