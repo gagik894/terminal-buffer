@@ -7,6 +7,10 @@ The intent is to make gaps explicit. If a feature is missing, unsupported, or
 only partially modeled, it should be listed here rather than hidden behind a
 silent no-op.
 
+The target is not literal full xterm parity. The target is a modern, secure,
+xterm-compatible-enough terminal pipeline for contemporary shells and TUIs,
+with obsolete or risky legacy protocols excluded unless they earn their place.
+
 Status labels:
 
 - `TODO(parser)`: byte/protocol recognition or semantic dispatch is missing.
@@ -14,6 +18,56 @@ Status labels:
 - `TODO(integration)`: parser and core both have enough shape, but the bridge is incomplete.
 - `TODO(input)`: host-bound keyboard/mouse/paste encoding is missing.
 - `TODO(policy)`: feature needs an explicit security or compatibility policy before implementation.
+
+## Product Target
+
+### Tier 1: Required
+
+These are required for a modern terminal pipeline that can run contemporary
+shells and TUIs well.
+
+- UTF-8 decoding, Unicode grapheme segmentation, and core-owned width policy.
+- CSI cursor movement, editing, erasing, scrolling, and mode toggles.
+- SGR 16-color, 256-color, RGB/truecolor, and common text attributes.
+- OSC title updates and OSC 8 hyperlinks.
+- Bracketed paste mode.
+- SGR mouse protocol.
+- Primary/alternate screen switching.
+- Terminal input encoding for keyboard, keypad, mouse, focus, and paste.
+
+### Tier 2: Useful
+
+These unlock richer app compatibility and better shell integration, but should
+remain policy-gated where they can produce terminal-to-host responses.
+
+- DSR, CPR, DA, DA2, and DA3 with a safe response policy.
+- OSC palette queries and updates.
+- DECRQSS and XTGETTCAP with an allowlist.
+- Generated Unicode grapheme and width tables.
+- Shell integration markers, including OSC 133 and common notification markers.
+- Xterm title stack push/pop.
+- Window/grid size queries.
+
+### Tier 3: Optional
+
+These are valuable for certain apps, but are not required for the first modern
+pipeline milestone.
+
+- Sixel or a modern graphics protocol.
+- Richer hyperlink, title, palette, and notification host callbacks.
+- Synchronized output mode.
+
+## Intentional Non-Goals
+
+These are not badges of compatibility for this project. They expand attack
+surface or maintenance cost without meaningful modern terminal value.
+
+- Tektronix 4014 emulation.
+- Media Copy / printer passthrough (`CSI i`).
+- X11-specific font loading protocols.
+- Blind OSC 52 clipboard writes.
+- Unbounded or unaudited DCS/OSC responses.
+- Literal "everything xterm ever accepted" parity.
 
 ## Parser Gaps
 
@@ -36,6 +90,20 @@ Status labels:
   - mouse UTF-8 and URXVT encodings
   - synchronized output mode `?2026`
   - focus, paste, mouse, and application-mode interactions
+- `TODO(parser/core)`: xterm title stack:
+  - `CSI 22 t` push window/icon title
+  - `CSI 23 t` pop window/icon title
+  Shells use this when temporarily changing titles for foreground commands.
+- `TODO(parser/core)`: window/grid size reports:
+  - `CSI 14 t`, report window size in pixels
+  - `CSI 18 t`, report terminal size in characters
+  Requires terminal-to-host response plumbing and renderer/host size knowledge.
+- `TODO(policy)`: xterm window manipulation:
+  - `CSI 3 t`, move window
+  - `CSI 8 t`, resize window
+  - minimize/maximize/raise/lower variants
+  Many modern terminals ignore or gate these to prevent hostile scripts from
+  controlling the user's window.
 - `TODO(parser)`: DEC alignment test `DECALN`, `ESC # 8`.
 - `TODO(parser)`: device status/report sequences:
   - `DSR`
@@ -59,6 +127,10 @@ Status labels:
   - `DECSTBM` is present
   - `SU` / `SD` are present
   - left/right-margin-aware variants need broader integration tests
+- `DONE(parser/core/integration)`: erase saved lines / scrollback clear,
+  `CSI 3 J`, is currently routed through ED mode 3 to core scrollback clearing.
+  Keep this covered with regression tests because shells and clear-screen
+  shortcuts rely on it.
 
 ### ESC Protocols
 
@@ -89,6 +161,8 @@ Missing:
 - `TODO(parser)`: OSC 4 / 10 / 11 / 12 color palette queries and updates.
 - `TODO(parser)`: OSC 7 current directory.
 - `TODO(parser)`: OSC 9 / 9;9 desktop notifications, if desired.
+- `TODO(parser)`: OSC 777 desktop notifications. Common in shell integrations
+  and long-running command completion hooks.
 - `TODO(parser)`: OSC 133 shell integration markers.
 - `TODO(parser)`: OSC 1337/iTerm2 extensions, if desired.
 - `TODO(parser)`: OSC query responses. Requires terminal-to-host output.
@@ -107,6 +181,8 @@ Missing:
 - `TODO(parser)`: XTGETTCAP / XTSETTCAP terminal capability query/response.
 - `TODO(parser)`: DECRQSS request status string.
 - `TODO(parser)`: Sixel graphics, if the emulator will support inline graphics.
+- `TODO(parser)`: Kitty graphics protocol, commonly sent as `ESC _ G ... ESC \`.
+  This is more relevant to modern TUIs than many legacy graphics protocols.
 - `TODO(parser)`: ReGIS / DEC vector graphics, likely out of scope unless a DEC
   compatibility mode is a goal.
 - `TODO(policy)`: any DCS that can exfiltrate host capabilities needs a response
@@ -244,6 +320,9 @@ Missing:
   - xterm modifyOtherKeys
   - CSI u
   - legacy modifier encodings
+- `TODO(input)`: Kitty Keyboard Protocol. This is becoming a modern standard for
+  disambiguating keys that legacy encodings collapse, such as Shift+Enter versus
+  Enter or Ctrl+I versus Tab.
 - `TODO(input)`: mouse report encoding:
   - X10
   - normal tracking
@@ -283,6 +362,9 @@ professional emulator needs explicit contracts for it.
 - `TODO(policy)`: paste sanitization and bracketed paste defaults.
 - `TODO(policy)`: terminal capability identity. Claiming xterm compatibility
   requires implementing enough behavior to make that claim true.
+- `TODO(policy)`: window manipulation allow/deny behavior for xterm window ops.
+- `TODO(policy)`: desktop notification allow/deny behavior for OSC 777 and
+  related notification protocols.
 
 ## Recommended Next Order
 
@@ -292,4 +374,8 @@ professional emulator needs explicit contracts for it.
 4. `TODO(integration)`: map those parser commands into existing core APIs.
 5. `TODO(parser/core)`: add terminal-to-host response channel for DSR/CPR/DA.
 6. `TODO(input)`: build the input encoder using core mode snapshots.
-7. `TODO(parser)`: add DCS router with a strict response/security policy.
+7. `TODO(input)`: add Kitty Keyboard Protocol support.
+8. `TODO(parser/core)`: add xterm title stack and safe window/grid size reports.
+9. `TODO(parser)`: add DCS router with a strict response/security policy.
+10. `TODO(parser)`: choose and implement one modern graphics path, if inline
+    graphics are a product goal.
