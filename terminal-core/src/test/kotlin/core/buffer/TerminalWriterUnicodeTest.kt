@@ -10,7 +10,7 @@ class TerminalWriterUnicodeTest {
     fun `writeCluster_combiningSequence_doesNotConsumeSecondCell`() {
         val buffer = TerminalBuffers.create(width = 6, height = 2)
 
-        buffer.writeCluster(intArrayOf('e'.code, 0x0301), charWidth = 1)
+        buffer.writeCluster(intArrayOf('e'.code, 0x0301))
         buffer.writeCodepoint('B'.code)
 
         val line = buffer.getLine(0)
@@ -32,8 +32,7 @@ class TerminalWriterUnicodeTest {
         val buffer = TerminalBuffers.create(width = 8, height = 2)
 
         buffer.writeCluster(
-            intArrayOf(0x1F468, 0x200D, 0x1F469, 0x200D, 0x1F467, 0x200D, 0x1F466),
-            charWidth = 2
+            intArrayOf(0x1F468, 0x200D, 0x1F469, 0x200D, 0x1F467, 0x200D, 0x1F466)
         )
         buffer.writeCodepoint('X'.code)
 
@@ -61,7 +60,7 @@ class TerminalWriterUnicodeTest {
     fun `writeCluster_variationSelector_appendsToPreviousCellNotNextCell`() {
         val buffer = TerminalBuffers.create(width = 6, height = 2)
 
-        buffer.writeCluster(intArrayOf(0x2764, 0xFE0F), charWidth = 1)
+        buffer.writeCluster(intArrayOf(0x2764, 0xFE0F))
         buffer.writeCodepoint('X'.code)
 
         val line = buffer.getLine(0)
@@ -73,8 +72,32 @@ class TerminalWriterUnicodeTest {
             { assertEquals(2, clusterLen) },
             { assertEquals(0x2764, clusterBuf[0]) },
             { assertEquals(0xFE0F, clusterBuf[1]) },
-            { assertEquals('X'.code, buffer.getCodepointAt(1, 0)) },
-            { assertEquals(2, buffer.cursorCol) }
+            { assertEquals(-1, buffer.getCodepointAt(1, 0), "Emoji-style heart cluster reserves its computed wide spacer") },
+            { assertEquals('X'.code, buffer.getCodepointAt(2, 0)) },
+            { assertEquals(3, buffer.cursorCol) }
+        )
+    }
+
+    @Test
+    fun `writeCluster_ambiguousWidthCluster_usesCoreModePolicy`() {
+        val narrow = TerminalBuffers.create(width = 6, height = 2)
+        val wide = TerminalBuffers.create(width = 6, height = 2)
+
+        narrow.setTreatAmbiguousAsWide(false)
+        wide.setTreatAmbiguousAsWide(true)
+
+        narrow.writeCluster(intArrayOf(0x20AC, 0x0301))
+        narrow.writeCodepoint('X'.code)
+
+        wide.writeCluster(intArrayOf(0x20AC, 0x0301))
+        wide.writeCodepoint('X'.code)
+
+        assertAll(
+            { assertEquals('X'.code, narrow.getCodepointAt(1, 0), "Narrow ambiguous mode keeps the next cell available") },
+            { assertEquals(2, narrow.cursorCol) },
+            { assertEquals(-1, wide.getCodepointAt(1, 0), "Wide ambiguous mode reserves a spacer cell") },
+            { assertEquals('X'.code, wide.getCodepointAt(2, 0)) },
+            { assertEquals(3, wide.cursorCol) }
         )
     }
 }

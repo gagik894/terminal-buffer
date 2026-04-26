@@ -49,7 +49,7 @@ class TerminalWriterImplTest {
         val state = TerminalState(6, 2, 2)
         val writer = TerminalWriterImpl(state, MutationEngine(state), CursorEngine(state))
 
-        writer.writeCluster(intArrayOf('e'.code, 0x0301), charWidth = 1)
+        writer.writeCluster(intArrayOf('e'.code, 0x0301))
 
         val dest = IntArray(4)
         val written = state.ring[state.resolveRingIndex(0)].readCluster(0, dest)

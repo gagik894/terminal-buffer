@@ -55,8 +55,8 @@ need instead of the full facade.
 
 - `writeCodepoint(codepoint)` writes one Unicode scalar value.
 - `writeText(text)` writes the string as a sequence of scalar codepoints.
-- `writeCluster(codepoints, length, charWidth)` writes one pre-segmented visual
-  cluster.
+- `writeCluster(codepoints, length)` writes one pre-segmented visual cluster.
+  The core computes its grid width from the active width policy.
 
 Guaranteed behavior:
 

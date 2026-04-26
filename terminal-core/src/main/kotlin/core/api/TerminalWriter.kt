@@ -46,13 +46,13 @@ interface TerminalWriter {
      *
      * This is the parser-facing ingress for complex printable sequences such as
      * combining-mark clusters, ZWJ emoji, and variation-selector sequences.
-     * Callers must provide the final display width of the grapheme (`1` or `2`).
+     * The core computes the final display width from its active width policy,
+     * including East Asian ambiguous-width mode.
      *
      * @param codepoints Codepoints that make up the grapheme cluster.
      * @param length Number of valid codepoints in [codepoints].
-     * @param charWidth Final display width of the grapheme (`1` or `2`).
      */
-    fun writeCluster(codepoints: IntArray, length: Int = codepoints.size, charWidth: Int)
+    fun writeCluster(codepoints: IntArray, length: Int = codepoints.size)
 
     /**
      * Executes a line feed (LF, `0x0A`).

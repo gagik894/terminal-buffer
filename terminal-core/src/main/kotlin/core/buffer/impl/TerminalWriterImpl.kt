@@ -26,15 +26,26 @@ internal class TerminalWriterImpl(
         }
     }
 
-    override fun writeCluster(codepoints: IntArray, length: Int, charWidth: Int) {
+    override fun writeCluster(codepoints: IntArray, length: Int) {
         require(length in 1..codepoints.size) { "length must be in 1..${codepoints.size}, was $length" }
-        require(charWidth == 1 || charWidth == 2) { "charWidth must be 1 or 2, was $charWidth" }
+
+        val charWidth = clusterWidth(codepoints, length)
 
         if (length == 1) {
             mutationEngine.printCodepoint(codepoints[0], charWidth)
         } else {
             mutationEngine.printCluster(codepoints, length, charWidth)
         }
+    }
+
+    private fun clusterWidth(codepoints: IntArray, length: Int): Int {
+        if (length == 0) return 0
+
+        val baseWidth = UnicodeWidth.calculate(codepoints[0], state.modes.treatAmbiguousAsWide)
+
+        // If a combining mark (width 0) is sent without a base character,
+        // force it to width 1 so it consumes a cell and doesn't break grid alignment.
+        return if (baseWidth > 0) baseWidth else 1
     }
 
     override fun newLine() = mutationEngine.newLine()
