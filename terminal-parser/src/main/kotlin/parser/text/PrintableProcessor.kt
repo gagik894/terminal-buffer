@@ -45,6 +45,22 @@ internal class PrintableProcessor(
     }
 
     /**
+     * Accepts one Unicode codepoint from the ANSI FSM GROUND state.
+     *
+     * This is the only way to emit a codepoint from the parser.
+     * The top-level parser must call this from the ActionEngine callback after UTF-8 decoding,
+     * GL charset mapping, and any other policy decisions are applied.
+     * The processor will handle grapheme assembly and forwarding to the sink.
+     */
+    fun acceptDecodedCodepoint(state: ParserState, codepoint: Int) {
+        require(codepoint in 0..0x10ffff) { "invalid codepoint: $codepoint" }
+        check(!utf8Decoder.hasPendingSequence()) {
+            "Decoded codepoint received while UTF-8 decoder has a pending sequence"
+        }
+        acceptCodepoint(state, codepoint)
+    }
+
+    /**
      * Accepts one non-ASCII raw byte routed from ByteClass.UTF8_PAYLOAD.
      */
     fun acceptUtf8Byte(state: ParserState, byteValue: Int) {
@@ -204,8 +220,6 @@ internal class GraphemeAssembler(
         }
         return 1
     }
-
-    private fun isAsciiFastPath(codepoint: Int): Boolean = codepoint in 0x20..0x7e
 
     private fun isCombiningMark(codepoint: Int): Boolean {
         return codepoint in 0x0300..0x036f ||

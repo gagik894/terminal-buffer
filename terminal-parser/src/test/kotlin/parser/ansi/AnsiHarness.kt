@@ -30,8 +30,7 @@ internal class AnsiHarness(
         require(byteValue in 0..255)
 
         val byteClass = ByteClass.classify(byteValue)
-        val previousState = state.fsmState
-        val transition = AnsiStateMachine.transition(previousState, byteClass)
+        val transition = AnsiStateMachine.transition(state.fsmState, byteClass)
         val nextState = AnsiStateMachine.nextState(transition)
         val action = AnsiStateMachine.action(transition)
 
