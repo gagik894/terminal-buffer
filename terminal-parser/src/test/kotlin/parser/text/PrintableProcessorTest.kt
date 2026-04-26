@@ -4,7 +4,6 @@ import com.gagik.parser.ansi.RecordingTerminalCommandSink
 import com.gagik.parser.fixture.ParserEvents.writeCluster
 import com.gagik.parser.fixture.ParserEvents.writeCodepoint
 import com.gagik.parser.runtime.ParserState
-import com.gagik.parser.utf8.Utf8Decoder
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -27,35 +26,14 @@ class PrintableProcessorTest {
             }
         }
 
-        fun acceptUtf8Bytes(vararg byteValues: Int) {
-            for (byteValue in byteValues) {
-                processor.acceptUtf8Byte(state, byteValue)
-            }
-        }
-
-        fun acceptDecoderBytes(vararg byteValues: Int) {
-            for (byteValue in byteValues) {
-                processor.acceptUtf8DecoderByte(state, byteValue)
-            }
-        }
-
         fun acceptUtf8Codepoints(vararg codepoints: Int) {
-            val text = buildString {
-                for (codepoint in codepoints) {
-                    appendCodePoint(codepoint)
-                }
-            }
-            for (byteValue in text.encodeToByteArray()) {
-                processor.acceptUtf8Byte(state, byteValue.toInt() and 0xff)
+            for (codepoint in codepoints) {
+                processor.acceptDecodedCodepoint(state, codepoint)
             }
         }
 
         fun flush() {
             processor.flush(state)
-        }
-
-        fun endOfInput() {
-            processor.endOfInput(state)
         }
 
         fun reset() {
@@ -94,56 +72,22 @@ class PrintableProcessorTest {
         }
 
         @Test
-        fun `acceptUtf8Byte accepts non-ASCII byte lane only`() {
+        fun `acceptDecodedCodepoint accepts Unicode scalar range only`() {
             val f = Fixture()
 
-            f.processor.acceptUtf8Byte(f.state, 0xC2)
-
-            val ascii = assertThrows(IllegalArgumentException::class.java) {
-                f.processor.acceptUtf8Byte(f.state, 'A'.code)
-            }
-            val above = assertThrows(IllegalArgumentException::class.java) {
-                f.processor.acceptUtf8Byte(f.state, 256)
-            }
-
-            assertAll(
-                { assertEquals("byteValue is not UTF-8 payload byte: 65", ascii.message) },
-                { assertEquals("byteValue is not UTF-8 payload byte: 256", above.message) }
-            )
-        }
-
-        @Test
-        fun `acceptUtf8DecoderByte accepts full unsigned byte range only`() {
-            val f = Fixture()
-
-            f.processor.acceptUtf8DecoderByte(f.state, 0)
-            f.processor.acceptUtf8DecoderByte(f.state, 255)
+            f.processor.acceptDecodedCodepoint(f.state, 0)
+            f.processor.acceptDecodedCodepoint(f.state, 0x10FFFF)
 
             val below = assertThrows(IllegalArgumentException::class.java) {
-                f.processor.acceptUtf8DecoderByte(f.state, -1)
+                f.processor.acceptDecodedCodepoint(f.state, -1)
             }
             val above = assertThrows(IllegalArgumentException::class.java) {
-                f.processor.acceptUtf8DecoderByte(f.state, 256)
+                f.processor.acceptDecodedCodepoint(f.state, 0x11_0000)
             }
 
             assertAll(
-                { assertEquals("byteValue out of range: -1", below.message) },
-                { assertEquals("byteValue out of range: 256", above.message) }
-            )
-        }
-
-        @Test
-        fun `acceptAsciiByte fails loudly while UTF-8 decoder has pending state`() {
-            val f = Fixture()
-            f.processor.acceptUtf8Byte(f.state, 0xC2)
-
-            val error = assertThrows(IllegalStateException::class.java) {
-                f.processor.acceptAsciiByte(f.state, 'A'.code)
-            }
-
-            assertEquals(
-                "ASCII printable byte received while UTF-8 decoder has a pending sequence",
-                error.message
+                { assertEquals("invalid codepoint: -1", below.message) },
+                { assertEquals("invalid codepoint: 1114112", above.message) }
             )
         }
     }
@@ -196,31 +140,27 @@ class PrintableProcessorTest {
         }
 
         @Test
-        fun `endOfInput flushes pending ASCII scalar`() {
+        fun `flush emits pending ASCII scalar`() {
             val f = Fixture()
 
             f.processor.acceptAsciiByte(f.state, 'z'.code)
-            f.endOfInput()
+            f.flush()
 
             assertEquals(listOf(writeCodepoint('z'.code)), f.sink.events)
         }
     }
 
-    // ----- UTF-8 printable flow --------------------------------------------
+    // ----- Decoded printable flow ------------------------------------------
 
     @Nested
-    @DisplayName("UTF-8 printable flow")
-    inner class Utf8PrintableFlow {
+    @DisplayName("decoded printable flow")
+    inner class DecodedPrintableFlow {
 
         @Test
-        fun `valid two three and four byte scalars decode and print in order`() {
+        fun `decoded non-ASCII scalars print in order`() {
             val f = Fixture()
 
-            f.acceptUtf8Bytes(
-                0xC2, 0xA2,
-                0xE2, 0x82, 0xAC,
-                0xF0, 0x9F, 0x98, 0x80
-            )
+            f.acceptUtf8Codepoints(0x00A2, 0x20AC, 0x1F600)
             f.flush()
 
             assertEquals(
@@ -234,71 +174,13 @@ class PrintableProcessorTest {
         }
 
         @Test
-        fun `hasPendingUtf8Sequence tracks partial multibyte state`() {
+        fun `decoded replacement is treated as ordinary printable input`() {
             val f = Fixture()
 
-            assertFalse(f.processor.hasPendingUtf8Sequence())
-            f.processor.acceptUtf8Byte(f.state, 0xE2)
-            assertTrue(f.processor.hasPendingUtf8Sequence())
-            f.processor.acceptUtf8Byte(f.state, 0x82)
-            assertTrue(f.processor.hasPendingUtf8Sequence())
-            f.processor.acceptUtf8Byte(f.state, 0xAC)
-
-            assertFalse(f.processor.hasPendingUtf8Sequence())
-        }
-
-        @Test
-        fun `acceptUtf8DecoderByte repairs malformed pending sequence and preserves following ASCII`() {
-            val f = Fixture()
-
-            f.processor.acceptUtf8Byte(f.state, 0xC2)
-            f.processor.acceptUtf8DecoderByte(f.state, 'A'.code)
+            f.acceptUtf8Codepoints(0xFFFD)
             f.flush()
 
-            assertEquals(
-                listOf(writeCodepoint(Utf8Decoder.REPLACEMENT_CODEPOINT), writeCodepoint('A'.code)),
-                f.sink.events
-            )
-        }
-
-        @Test
-        fun `malformed UTF-8 emits replacement and continues with later valid scalar`() {
-            val f = Fixture()
-
-            f.acceptUtf8Bytes(0xFF, 0xE2, 0x82, 0xAC)
-            f.flush()
-
-            assertEquals(
-                listOf(writeCodepoint(Utf8Decoder.REPLACEMENT_CODEPOINT), writeCodepoint(0x20AC)),
-                f.sink.events
-            )
-        }
-
-        @Test
-        fun `endOfInput emits replacement for truncated UTF-8 then flushes it`() {
-            val f = Fixture()
-
-            f.processor.acceptUtf8Byte(f.state, 0xF0)
-            f.processor.acceptUtf8Byte(f.state, 0x9F)
-            f.endOfInput()
-
-            assertAll(
-                { assertEquals(listOf(writeCodepoint(Utf8Decoder.REPLACEMENT_CODEPOINT)), f.sink.events) },
-                { assertFalse(f.processor.hasPendingUtf8Sequence()) },
-                { assertEquals(0, f.state.clusterLength) }
-            )
-        }
-
-        @Test
-        fun `reset drops pending UTF-8 without emitting replacement`() {
-            val f = Fixture()
-
-            f.processor.acceptUtf8Byte(f.state, 0xE2)
-            f.reset()
-            f.acceptAscii("A")
-            f.flush()
-
-            assertEquals(listOf(writeCodepoint('A'.code)), f.sink.events)
+            assertEquals(listOf(writeCodepoint(0xFFFD)), f.sink.events)
         }
     }
 
@@ -474,19 +356,28 @@ class PrintableProcessorTest {
     inner class PrintableProcessorActionSinkTest {
 
         @Test
-        fun `adapter forwards ASCII UTF-8 and flush callbacks to processor`() {
+        fun `adapter forwards ASCII and flush callbacks to processor`() {
             val f = Fixture()
             val actionSink = PrintableProcessorActionSink(f.processor)
 
             actionSink.onAsciiByte(f.state, 'A'.code)
-            actionSink.onUtf8Byte(f.state, 0xE2)
-            actionSink.onUtf8Byte(f.state, 0x82)
-            actionSink.onUtf8Byte(f.state, 0xAC)
             actionSink.flush(f.state)
 
+            assertEquals(listOf(writeCodepoint('A'.code)), f.sink.events)
+        }
+
+        @Test
+        fun `adapter rejects raw UTF-8 payload because TerminalParser owns decoding`() {
+            val f = Fixture()
+            val actionSink = PrintableProcessorActionSink(f.processor)
+
+            val error = assertThrows(IllegalStateException::class.java) {
+                actionSink.onUtf8Byte(f.state, 0xE2)
+            }
+
             assertEquals(
-                listOf(writeCodepoint('A'.code), writeCodepoint(0x20AC)),
-                f.sink.events
+                "UTF-8 payload must be decoded by TerminalParser before printable processing",
+                error.message
             )
         }
     }

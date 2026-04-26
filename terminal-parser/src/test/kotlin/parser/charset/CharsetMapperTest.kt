@@ -447,9 +447,7 @@ class CharsetMapperTest {
             val processor = PrintableProcessor(sink)
             CharsetMapper.designateDecSpecialGraphics(state, 0)
 
-            for (byteValue in "€".encodeToByteArray()) {
-                processor.acceptUtf8Byte(state, byteValue.toInt() and 0xff)
-            }
+            processor.acceptDecodedCodepoint(state, 0x20ac)
             processor.flush(state)
 
             assertEquals(listOf(writeCodepoint(0x20ac)), sink.events)

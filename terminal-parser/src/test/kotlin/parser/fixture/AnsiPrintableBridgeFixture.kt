@@ -22,12 +22,6 @@ internal class AnsiPrintableBridgeFixture(
         }
     }
 
-    fun acceptUtf8(text: String) {
-        for (byteValue in text.encodeToByteArray()) {
-            acceptByte(byteValue.toInt() and 0xff)
-        }
-    }
-
     fun acceptBytes(vararg byteValues: Int) {
         for (byteValue in byteValues) {
             acceptByte(byteValue)
@@ -46,6 +40,6 @@ internal class AnsiPrintableBridgeFixture(
     }
 
     fun endOfInput() {
-        processor.endOfInput(state)
+        processor.flush(state)
     }
 }

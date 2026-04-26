@@ -10,15 +10,11 @@ internal class PrintableProcessorActionSink(
     private val processor: PrintableProcessor,
 ) : PrintableActionSink {
     override fun onAsciiByte(state: ParserState, byteValue: Int) {
-        if (processor.hasPendingUtf8Sequence()) {
-            processor.acceptUtf8DecoderByte(state, byteValue)
-        } else {
-            processor.acceptAsciiByte(state, byteValue)
-        }
+        processor.acceptAsciiByte(state, byteValue)
     }
 
     override fun onUtf8Byte(state: ParserState, byteValue: Int) {
-        processor.acceptUtf8Byte(state, byteValue)
+        error("UTF-8 payload must be decoded by TerminalParser before printable processing")
     }
 
     override fun flush(state: ParserState) {

@@ -2,10 +2,8 @@ package com.gagik.parser.ansi
 
 import com.gagik.parser.charset.CharsetMapper
 import com.gagik.parser.fixture.AnsiPrintableBridgeFixture
-import com.gagik.parser.fixture.ParserEvents.writeCluster
 import com.gagik.parser.fixture.ParserEvents.writeCodepoint
 import com.gagik.parser.runtime.ParserState
-import com.gagik.parser.utf8.Utf8Decoder
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -248,132 +246,26 @@ class AnsiPrintableBridgeIntegrationTest {
         }
 
         @Test
-        fun `UTF-8 e acute writes codepoint U+00E9`() {
+        fun `control flushes pending ASCII before dispatch`() {
             val h = AnsiPrintableBridgeFixture()
 
-            h.acceptUtf8("\u00E9")
-            h.endOfInput()
-
-            assertEquals(listOf(writeCodepoint(0x00E9)), h.sink.events)
-        }
-
-        @Test
-        fun `UTF-8 emoji writes one wide scalar through current assembler policy`() {
-            val h = AnsiPrintableBridgeFixture()
-
-            h.acceptUtf8("\uD83D\uDE00")
-            h.endOfInput()
-
-            assertEquals(listOf(writeCodepoint(0x1F600)), h.sink.events)
-        }
-
-        @Test
-        fun `malformed UTF-8 lead followed by ASCII emits replacement then preserves ASCII`() {
-            val h = AnsiPrintableBridgeFixture()
-
-            h.acceptBytes(0xC3, 'A'.code)
-            h.endOfInput()
-
-            assertEquals(
-                listOf(
-                    writeCodepoint(Utf8Decoder.REPLACEMENT_CODEPOINT),
-                    writeCodepoint('A'.code),
-                ),
-                h.sink.events
-            )
-        }
-
-        @Test
-        fun `malformed UTF-8 lead before ESC emits replacement then routes ESC as control sequence`() {
-            val h = AnsiPrintableBridgeFixture()
-
-            h.acceptBytes(0xC3, 0x1B, '['.code, 'A'.code)
-
-            assertAll(
-                { assertEquals(AnsiState.GROUND, h.state.fsmState) },
-                {
-                    assertEquals(
-                        listOf(
-                            writeCodepoint(Utf8Decoder.REPLACEMENT_CODEPOINT),
-                            "cursorUp:1",
-                        ),
-                        h.sink.events
-                    )
-                }
-            )
-        }
-
-        @Test
-        fun `base plus combining mark emits one cluster`() {
-            val h = AnsiPrintableBridgeFixture()
-
-            h.acceptAscii("e")
-            h.acceptUtf8("\u0301")
-            h.endOfInput()
-
-            assertEquals(listOf(writeCluster(1, 'e'.code, 0x0301)), h.sink.events)
-        }
-
-        @Test
-        fun `base plus variation selector emits one cluster`() {
-            val h = AnsiPrintableBridgeFixture()
-
-            h.acceptUtf8("\u2764\uFE0F")
-            h.endOfInput()
-
-            assertEquals(listOf(writeCluster(1, 0x2764, 0xFE0F)), h.sink.events)
-        }
-
-        @Test
-        fun `ZWJ emoji sequence stays one cluster`() {
-            val h = AnsiPrintableBridgeFixture()
-
-            h.acceptUtf8("\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67\u200D\uD83D\uDC66")
-            h.endOfInput()
-
-            assertEquals(
-                listOf(writeCluster(2, 0x1F468, 0x200D, 0x1F469, 0x200D, 0x1F467, 0x200D, 0x1F466)),
-                h.sink.events
-            )
-        }
-
-        @Test
-        fun `regional indicator pair stays one cluster`() {
-            val h = AnsiPrintableBridgeFixture()
-
-            h.acceptUtf8("\uD83C\uDDFA\uD83C\uDDF8")
-            h.endOfInput()
-
-            assertEquals(listOf(writeCluster(2, 0x1F1FA, 0x1F1F8)), h.sink.events)
-        }
-
-        @Test
-        fun `control flushes pending cluster before dispatch`() {
-            val h = AnsiPrintableBridgeFixture()
-
-            h.acceptAscii("e")
-            h.acceptUtf8("\u0301")
+            h.acceptAscii("A")
             h.acceptByte(0x07)
 
-            assertEquals(
-                listOf(writeCluster(1, 'e'.code, 0x0301), "bell"),
-                h.sink.events
-            )
+            assertEquals(listOf(writeCodepoint('A'.code), "bell"), h.sink.events)
         }
 
         @Test
-        fun `ESC flushes pending cluster before entering escape state`() {
+        fun `ESC flushes pending ASCII before entering escape state`() {
             val h = AnsiPrintableBridgeFixture()
 
-            h.acceptAscii("e")
-            h.acceptUtf8("\u0301")
-            h.acceptAscii("\u001B7")
+            h.acceptAscii("A\u001B7")
 
             assertAll(
                 { assertEquals(AnsiState.GROUND, h.state.fsmState) },
                 {
                     assertEquals(
-                        listOf(writeCluster(1, 'e'.code, 0x0301), "saveCursor"),
+                        listOf(writeCodepoint('A'.code), "saveCursor"),
                         h.sink.events
                     )
                 }
