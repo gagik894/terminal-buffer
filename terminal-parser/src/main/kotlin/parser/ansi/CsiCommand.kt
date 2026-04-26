@@ -35,4 +35,8 @@ internal object CsiCommand {
 
     const val DECSTR: Int = 23
     const val SGR: Int = 24
+    const val CHT: Int = 25
+    const val CBT: Int = 26
+    const val TBC: Int = 27
+    const val DECSTBM: Int = 28
 }

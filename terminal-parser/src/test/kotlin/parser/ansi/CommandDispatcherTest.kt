@@ -193,6 +193,11 @@ class CommandDispatcherTest {
         }
 
         @Test
+        fun `ESC H sets a tab stop`() {
+            assertEquals(listOf("setTabStop"), dispatchEsc('H').events)
+        }
+
+        @Test
         fun `ESC M performs reverseIndex`() {
             assertEquals(listOf("reverseIndex"), dispatchEsc('M').events)
         }
@@ -385,7 +390,9 @@ class CommandDispatcherTest {
         @Test
         fun `CSI E and F dispatch cursor next and previous line`() {
             assertEquals(listOf("cursorNextLine:1"), dispatchCsi('E').events)
+            assertEquals(listOf("cursorNextLine:1"), dispatchCsi('E', params = listOf(0)).events)
             assertEquals(listOf("cursorPreviousLine:3"), dispatchCsi('F', params = listOf(3)).events)
+            assertEquals(listOf("cursorPreviousLine:1"), dispatchCsi('F', params = listOf(-1)).events)
         }
 
         @Test
@@ -394,6 +401,16 @@ class CommandDispatcherTest {
             assertEquals(listOf("setCursorColumn:9"), dispatchCsi('G', params = listOf(10)).events)
             assertEquals(listOf("setCursorRow:0"), dispatchCsi('d', params = listOf(0)).events)
             assertEquals(listOf("setCursorRow:6"), dispatchCsi('d', params = listOf(7)).events)
+        }
+
+        @Test
+        fun `CSI I and Z dispatch cursor tabulation counts`() {
+            assertEquals(listOf("cursorForwardTabs:1"), dispatchCsi('I').events)
+            assertEquals(listOf("cursorForwardTabs:1"), dispatchCsi('I', params = listOf(0)).events)
+            assertEquals(listOf("cursorForwardTabs:4"), dispatchCsi('I', params = listOf(4)).events)
+            assertEquals(listOf("cursorBackwardTabs:1"), dispatchCsi('Z').events)
+            assertEquals(listOf("cursorBackwardTabs:1"), dispatchCsi('Z', params = listOf(-1)).events)
+            assertEquals(listOf("cursorBackwardTabs:5"), dispatchCsi('Z', params = listOf(5)).events)
         }
 
         @Test
@@ -442,6 +459,41 @@ class CommandDispatcherTest {
             assertEquals(listOf("scrollUp:1"), dispatchCsi('S').events)
             assertEquals(listOf("scrollUp:1"), dispatchCsi('S', params = listOf(0)).events)
             assertEquals(listOf("scrollDown:4"), dispatchCsi('T', params = listOf(4)).events)
+        }
+
+        @Test
+        fun `CSI r dispatches DECSTBM scroll region as zero-origin margins`() {
+            assertEquals(listOf("setScrollRegion:0:-1"), dispatchCsi('r').events)
+            assertEquals(listOf("setScrollRegion:0:9"), dispatchCsi('r', params = listOf(-1, 10)).events)
+            assertEquals(listOf("setScrollRegion:4:-1"), dispatchCsi('r', params = listOf(5, -1)).events)
+            assertEquals(listOf("setScrollRegion:4:9"), dispatchCsi('r', params = listOf(5, 10)).events)
+            assertEquals(listOf("setScrollRegion:0:-1"), dispatchCsi('r', params = listOf(0, 0)).events)
+        }
+    }
+
+    // ----- CSI tab stops ----------------------------------------------------
+
+    @Nested
+    @DisplayName("CSI tab stop dispatch")
+    inner class CsiTabStopDispatch {
+
+        @Test
+        fun `CSI g clears current tab stop by default or mode zero`() {
+            assertEquals(listOf("clearTabStop"), dispatchCsi('g').events)
+            assertEquals(listOf("clearTabStop"), dispatchCsi('g', params = listOf(0)).events)
+            assertEquals(listOf("clearTabStop"), dispatchCsi('g', params = listOf(-1)).events)
+        }
+
+        @Test
+        fun `CSI 3 g clears all tab stops`() {
+            assertEquals(listOf("clearAllTabStops"), dispatchCsi('g', params = listOf(3)).events)
+        }
+
+        @Test
+        fun `unsupported CSI g modes are ignored`() {
+            assertTrue(dispatchCsi('g', params = listOf(1)).events.isEmpty())
+            assertTrue(dispatchCsi('g', params = listOf(2)).events.isEmpty())
+            assertTrue(dispatchCsi('g', params = listOf(4)).events.isEmpty())
         }
     }
 

@@ -66,6 +66,7 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
             '8'.code -> sink.restoreCursor()
             'D'.code -> sink.lineFeed()
             'E'.code -> sink.nextLine()
+            'H'.code -> sink.setTabStop()
             'M'.code -> sink.reverseIndex()
             'N'.code -> CharsetMapper.singleShiftG2(state)
             'O'.code -> CharsetMapper.singleShiftG3(state)
@@ -93,6 +94,8 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
             CsiCommand.CUB -> sink.cursorBackward(countParam(state, 0))
             CsiCommand.CNL -> sink.cursorNextLine(countParam(state, 0))
             CsiCommand.CPL -> sink.cursorPreviousLine(countParam(state, 0))
+            CsiCommand.CHT -> sink.cursorForwardTabs(countParam(state, 0))
+            CsiCommand.CBT -> sink.cursorBackwardTabs(countParam(state, 0))
             CsiCommand.CHA -> sink.setCursorColumn(oneBasedPositionParam(state, 0))
             CsiCommand.CUP -> sink.setCursorAbsolute(
                 row = oneBasedPositionParam(state, 0),
@@ -109,6 +112,11 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
             CsiCommand.ECH -> sink.eraseCharacters(countParam(state, 0))
             CsiCommand.SU -> sink.scrollUp(countParam(state, 0))
             CsiCommand.SD -> sink.scrollDown(countParam(state, 0))
+            CsiCommand.TBC -> dispatchTabClear(sink, state)
+            CsiCommand.DECSTBM -> sink.setScrollRegion(
+                top = scrollRegionTopParam(state, 0),
+                bottom = scrollRegionBottomParam(state, 1),
+            )
 
             CsiCommand.SM_ANSI -> dispatchAnsiMode(sink, state, enable = true)
             CsiCommand.RM_ANSI -> dispatchAnsiMode(sink, state, enable = false)
@@ -135,6 +143,16 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
         return if (value <= 0) 0 else value - 1
     }
 
+    private fun scrollRegionTopParam(state: ParserState, index: Int): Int {
+        val value = paramOrMissing(state, index)
+        return if (value <= 0) 0 else value - 1
+    }
+
+    private fun scrollRegionBottomParam(state: ParserState, index: Int): Int {
+        val value = paramOrMissing(state, index)
+        return if (value <= 0) -1 else value - 1
+    }
+
     private fun paramOrMissing(state: ParserState, index: Int): Int {
         return if (index < state.paramCount) state.params[index] else -1
     }
@@ -156,6 +174,16 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
     ) {
         forEachMaterializedMode(state) { mode ->
             sink.setDecMode(mode, enable)
+        }
+    }
+
+    private fun dispatchTabClear(
+        sink: TerminalCommandSink,
+        state: ParserState,
+    ) {
+        when (modeParam(state, 0)) {
+            0 -> sink.clearTabStop()
+            3 -> sink.clearAllTabStops()
         }
     }
 

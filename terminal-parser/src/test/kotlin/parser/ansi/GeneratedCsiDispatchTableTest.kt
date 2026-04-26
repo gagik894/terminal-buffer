@@ -23,6 +23,7 @@ class GeneratedCsiDispatchTableTest {
             assertEquals(CsiCommand.CPL, lookup('F'))
             assertEquals(CsiCommand.CHA, lookup('G'))
             assertEquals(CsiCommand.CUP, lookup('H'))
+            assertEquals(CsiCommand.CHT, lookup('I'))
             assertEquals(CsiCommand.ED, lookup('J'))
             assertEquals(CsiCommand.EL, lookup('K'))
             assertEquals(CsiCommand.IL, lookup('L'))
@@ -31,11 +32,14 @@ class GeneratedCsiDispatchTableTest {
             assertEquals(CsiCommand.SU, lookup('S'))
             assertEquals(CsiCommand.SD, lookup('T'))
             assertEquals(CsiCommand.ECH, lookup('X'))
+            assertEquals(CsiCommand.CBT, lookup('Z'))
             assertEquals(CsiCommand.VPA, lookup('d'))
             assertEquals(CsiCommand.CUP, lookup('f'))
+            assertEquals(CsiCommand.TBC, lookup('g'))
             assertEquals(CsiCommand.SM_ANSI, lookup('h'))
             assertEquals(CsiCommand.RM_ANSI, lookup('l'))
             assertEquals(CsiCommand.SGR, lookup('m'))
+            assertEquals(CsiCommand.DECSTBM, lookup('r'))
         }
 
         @Test

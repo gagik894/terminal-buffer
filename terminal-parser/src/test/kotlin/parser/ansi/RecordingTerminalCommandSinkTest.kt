@@ -82,9 +82,12 @@ class RecordingTerminalCommandSinkTest {
             sink.cursorBackward(4)
             sink.cursorNextLine(5)
             sink.cursorPreviousLine(6)
-            sink.setCursorColumn(7)
-            sink.setCursorRow(8)
-            sink.setCursorAbsolute(9, 10)
+            sink.cursorForwardTabs(7)
+            sink.cursorBackwardTabs(8)
+            sink.setCursorColumn(9)
+            sink.setCursorRow(10)
+            sink.setCursorAbsolute(11, 12)
+            sink.setScrollRegion(13, 14)
             sink.eraseInDisplay(0, selective = false)
             sink.eraseInLine(1, selective = true)
             sink.insertLines(2)
@@ -94,6 +97,9 @@ class RecordingTerminalCommandSinkTest {
             sink.eraseCharacters(6)
             sink.scrollUp(7)
             sink.scrollDown(8)
+            sink.setTabStop()
+            sink.clearTabStop()
+            sink.clearAllTabStops()
             sink.setAnsiMode(4, enable = true)
             sink.setDecMode(25, enable = false)
             sink.resetAttributes()
@@ -132,9 +138,12 @@ class RecordingTerminalCommandSinkTest {
                     "cursorBackward:4",
                     "cursorNextLine:5",
                     "cursorPreviousLine:6",
-                    "setCursorColumn:7",
-                    "setCursorRow:8",
-                    "setCursorAbsolute:9:10",
+                    "cursorForwardTabs:7",
+                    "cursorBackwardTabs:8",
+                    "setCursorColumn:9",
+                    "setCursorRow:10",
+                    "setCursorAbsolute:11:12",
+                    "setScrollRegion:13:14",
                     "eraseInDisplay:0:false",
                     "eraseInLine:1:true",
                     "insertLines:2",
@@ -144,6 +153,9 @@ class RecordingTerminalCommandSinkTest {
                     "eraseCharacters:6",
                     "scrollUp:7",
                     "scrollDown:8",
+                    "setTabStop",
+                    "clearTabStop",
+                    "clearAllTabStops",
                     "setAnsiMode:4:true",
                     "setDecMode:25:false",
                     "resetAttributes",

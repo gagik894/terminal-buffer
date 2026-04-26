@@ -238,6 +238,15 @@ class TerminalParserTest {
         }
 
         @Test
+        fun `ESC H sets tab stop through the full parser`() {
+            val f = TerminalParserFixture()
+
+            f.acceptAscii("\u001BH")
+
+            assertEquals(listOf("setTabStop"), f.sink.events)
+        }
+
+        @Test
         fun `CSI sequence dispatches through command dispatcher across chunks`() {
             val f = TerminalParserFixture()
 
@@ -249,6 +258,53 @@ class TerminalParserTest {
             assertAll(
                 { assertEquals(AnsiState.GROUND, f.state.fsmState) },
                 { assertEquals(listOf("setCursorAbsolute:11:33"), f.sink.events) }
+            )
+        }
+
+        @Test
+        fun `common cursor tab and margin CSI commands dispatch through the full parser`() {
+            val f = TerminalParserFixture()
+
+            f.acceptAscii("\u001B[10G")
+            f.acceptAscii("\u001B[7d")
+            f.acceptAscii("\u001B[2E")
+            f.acceptAscii("\u001B[3F")
+            f.acceptAscii("\u001B[4I")
+            f.acceptAscii("\u001B[5Z")
+            f.acceptAscii("\u001B[g")
+            f.acceptAscii("\u001B[3g")
+            f.acceptAscii("\u001B[5;10r")
+
+            assertEquals(
+                listOf(
+                    "setCursorColumn:9",
+                    "setCursorRow:6",
+                    "cursorNextLine:2",
+                    "cursorPreviousLine:3",
+                    "cursorForwardTabs:4",
+                    "cursorBackwardTabs:5",
+                    "clearTabStop",
+                    "clearAllTabStops",
+                    "setScrollRegion:4:9",
+                ),
+                f.sink.events
+            )
+        }
+
+        @Test
+        fun `DECSTBM omitted margins leave terminal bottom ownership to the sink`() {
+            val full = TerminalParserFixture()
+            val topOnly = TerminalParserFixture()
+            val bottomOnly = TerminalParserFixture()
+
+            full.acceptAscii("\u001B[r")
+            topOnly.acceptAscii("\u001B[5;r")
+            bottomOnly.acceptAscii("\u001B[;10r")
+
+            assertAll(
+                { assertEquals(listOf("setScrollRegion:0:-1"), full.sink.events) },
+                { assertEquals(listOf("setScrollRegion:4:-1"), topOnly.sink.events) },
+                { assertEquals(listOf("setScrollRegion:0:9"), bottomOnly.sink.events) }
             )
         }
 

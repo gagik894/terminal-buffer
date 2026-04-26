@@ -107,6 +107,14 @@ internal class RecordingTerminalCommandSink : TerminalCommandSink {
         events += "cursorPreviousLine:$n"
     }
 
+    override fun cursorForwardTabs(n: Int) {
+        events += "cursorForwardTabs:$n"
+    }
+
+    override fun cursorBackwardTabs(n: Int) {
+        events += "cursorBackwardTabs:$n"
+    }
+
     override fun setCursorColumn(col: Int) {
         events += "setCursorColumn:$col"
     }
@@ -117,6 +125,10 @@ internal class RecordingTerminalCommandSink : TerminalCommandSink {
 
     override fun setCursorAbsolute(row: Int, col: Int) {
         events += "setCursorAbsolute:$row:$col"
+    }
+
+    override fun setScrollRegion(top: Int, bottom: Int) {
+        events += "setScrollRegion:$top:$bottom"
     }
 
     override fun eraseInDisplay(mode: Int, selective: Boolean) {
@@ -153,6 +165,18 @@ internal class RecordingTerminalCommandSink : TerminalCommandSink {
 
     override fun scrollDown(n: Int) {
         events += "scrollDown:$n"
+    }
+
+    override fun setTabStop() {
+        events += "setTabStop"
+    }
+
+    override fun clearTabStop() {
+        events += "clearTabStop"
+    }
+
+    override fun clearAllTabStops() {
+        events += "clearAllTabStops"
     }
 
     override fun setAnsiMode(mode: Int, enable: Boolean) {

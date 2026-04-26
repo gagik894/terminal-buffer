@@ -22,6 +22,7 @@ internal object GeneratedCsiDispatchTable {
         70L,                 // CSI F  CPL
         71L,                 // CSI G  CHA
         72L,                 // CSI H  CUP
+        73L,                 // CSI I  CHT
         74L,                 // CSI J  ED
         75L,                 // CSI K  EL
         76L,                 // CSI L  IL
@@ -30,11 +31,14 @@ internal object GeneratedCsiDispatchTable {
         83L,                 // CSI S  SU
         84L,                 // CSI T  SD
         88L,                 // CSI X  ECH
+        90L,                 // CSI Z  CBT
         100L,                // CSI d  VPA
         102L,                // CSI f  HVP -> CUP
+        103L,                // CSI g  TBC
         104L,                // CSI h  SM ANSI
         108L,                // CSI l  RM ANSI
         109L,                // CSI m  SGR
+        114L,                // CSI r  DECSTBM
         16232L,              // CSI ? h  DECSET
         16236L,              // CSI ? l  DECRST
         281474978873456L,    // CSI ! p  DECSTR
@@ -50,6 +54,7 @@ internal object GeneratedCsiDispatchTable {
         CsiCommand.CPL,
         CsiCommand.CHA,
         CsiCommand.CUP,
+        CsiCommand.CHT,
         CsiCommand.ED,
         CsiCommand.EL,
         CsiCommand.IL,
@@ -58,11 +63,14 @@ internal object GeneratedCsiDispatchTable {
         CsiCommand.SU,
         CsiCommand.SD,
         CsiCommand.ECH,
+        CsiCommand.CBT,
         CsiCommand.VPA,
         CsiCommand.CUP,
+        CsiCommand.TBC,
         CsiCommand.SM_ANSI,
         CsiCommand.RM_ANSI,
         CsiCommand.SGR,
+        CsiCommand.DECSTBM,
         CsiCommand.SM_DEC,
         CsiCommand.RM_DEC,
         CsiCommand.DECSTR,

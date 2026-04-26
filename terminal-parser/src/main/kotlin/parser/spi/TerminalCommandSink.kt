@@ -57,6 +57,9 @@ internal interface TerminalCommandSink {
     fun cursorNextLine(n: Int)
     fun cursorPreviousLine(n: Int)
 
+    fun cursorForwardTabs(n: Int)
+    fun cursorBackwardTabs(n: Int)
+
     /**
      * Column is parser-translated to zero-origin before handoff.
      * The core may clamp; the parser must not.
@@ -75,6 +78,15 @@ internal interface TerminalCommandSink {
      */
     fun setCursorAbsolute(row: Int, col: Int)
 
+    /**
+     * DECSTBM scroll region.
+     *
+     * Top and bottom are parser-translated to zero-origin before handoff.
+     * A bottom value of -1 means the sequence omitted the bottom margin, so the
+     * core should use the terminal's current last row.
+     */
+    fun setScrollRegion(top: Int, bottom: Int)
+
     // -------------------------------------------------------------------------
     // Erase / edit / scroll
     // -------------------------------------------------------------------------
@@ -91,6 +103,14 @@ internal interface TerminalCommandSink {
 
     fun scrollUp(n: Int)
     fun scrollDown(n: Int)
+
+    // -------------------------------------------------------------------------
+    // Tab stops
+    // -------------------------------------------------------------------------
+
+    fun setTabStop()
+    fun clearTabStop()
+    fun clearAllTabStops()
 
     // -------------------------------------------------------------------------
     // Modes

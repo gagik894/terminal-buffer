@@ -207,6 +207,14 @@ class ActionEngineTest {
             sinkCalls += "cursorPreviousLine:$n"
         }
 
+        override fun cursorForwardTabs(n: Int) {
+            sinkCalls += "cursorForwardTabs:$n"
+        }
+
+        override fun cursorBackwardTabs(n: Int) {
+            sinkCalls += "cursorBackwardTabs:$n"
+        }
+
         override fun setCursorColumn(col: Int) {
             sinkCalls += "setCursorColumn:$col"
         }
@@ -217,6 +225,10 @@ class ActionEngineTest {
 
         override fun setCursorAbsolute(row: Int, col: Int) {
             sinkCalls += "setCursorAbsolute:$row:$col"
+        }
+
+        override fun setScrollRegion(top: Int, bottom: Int) {
+            sinkCalls += "setScrollRegion:$top:$bottom"
         }
 
         override fun eraseInDisplay(mode: Int, selective: Boolean) {
@@ -253,6 +265,18 @@ class ActionEngineTest {
 
         override fun scrollDown(n: Int) {
             sinkCalls += "scrollDown:$n"
+        }
+
+        override fun setTabStop() {
+            sinkCalls += "setTabStop"
+        }
+
+        override fun clearTabStop() {
+            sinkCalls += "clearTabStop"
+        }
+
+        override fun clearAllTabStops() {
+            sinkCalls += "clearAllTabStops"
         }
 
         override fun setAnsiMode(mode: Int, enable: Boolean) {
