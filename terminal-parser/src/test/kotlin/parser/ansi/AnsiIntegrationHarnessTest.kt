@@ -20,7 +20,7 @@ internal class AnsiIntegrationHarnessTest {
             { assertTrue(h.dispatcher.controls.isEmpty(), "controls") },
             { assertTrue(h.dispatcher.esc.isEmpty(), "ESC") },
             { assertTrue(h.dispatcher.csi.isEmpty(), "CSI") },
-            { assertTrue(h.sink.osc.isEmpty(), "OSC") }
+            { assertTrue(h.sink.events.isEmpty(), "sink") }
         )
     }
 
@@ -147,7 +147,7 @@ internal class AnsiIntegrationHarnessTest {
 
             assertAll(
                 { assertEquals('\\'.code, h.dispatcher.esc.single().finalByte) },
-                { assertTrue(h.sink.osc.isEmpty()) },
+                { assertTrue(h.sink.events.isEmpty()) },
                 { assertGround(h) }
             )
         }
@@ -371,10 +371,8 @@ internal class AnsiIntegrationHarnessTest {
 
             h.acceptAscii("\u001B]0;title\u0007")
 
-            val osc = h.sink.osc.single()
             assertAll(
-                { assertEquals("0;title", osc.payload.decodeToString()) },
-                { assertEquals(false, osc.overflowed) },
+                { assertEquals(listOf("setIconAndWindowTitle:title"), h.sink.events) },
                 { assertGround(h) }
             )
         }
@@ -385,10 +383,8 @@ internal class AnsiIntegrationHarnessTest {
 
             h.acceptAscii("\u001B]0;title\u001B\\")
 
-            val osc = h.sink.osc.single()
             assertAll(
-                { assertEquals("0;title", osc.payload.decodeToString()) },
-                { assertEquals(false, osc.overflowed) },
+                { assertEquals(listOf("setIconAndWindowTitle:title"), h.sink.events) },
                 { assertTrue(h.dispatcher.esc.isEmpty()) },
                 { assertGround(h) }
             )
@@ -401,7 +397,7 @@ internal class AnsiIntegrationHarnessTest {
             h.accept(byteArrayOf(0x1B, ']'.code.toByte(), 'a'.code.toByte(), 0x00, 'b'.code.toByte(), 0x07))
 
             assertAll(
-                { assertEquals("ab", h.sink.osc.single().payload.decodeToString()) },
+                { assertTrue(h.sink.events.isEmpty()) },
                 { assertTrue(h.dispatcher.controls.isEmpty()) },
                 { assertGround(h) }
             )
@@ -414,7 +410,7 @@ internal class AnsiIntegrationHarnessTest {
             h.acceptAscii("\u001B]a\\b\u0007")
 
             assertAll(
-                { assertEquals("a\\b", h.sink.osc.single().payload.decodeToString()) },
+                { assertTrue(h.sink.events.isEmpty()) },
                 { assertGround(h) }
             )
         }
@@ -426,7 +422,7 @@ internal class AnsiIntegrationHarnessTest {
             h.acceptAscii("\u001B]a\u001Bb\u0007")
 
             assertAll(
-                { assertEquals("ab", h.sink.osc.single().payload.decodeToString()) },
+                { assertTrue(h.sink.events.isEmpty()) },
                 { assertTrue(h.dispatcher.esc.isEmpty()) },
                 { assertGround(h) }
             )
@@ -439,7 +435,7 @@ internal class AnsiIntegrationHarnessTest {
             h.acceptAscii("\u001B]a\u001B\u001Bb\u0007")
 
             assertAll(
-                { assertEquals("ab", h.sink.osc.single().payload.decodeToString()) },
+                { assertTrue(h.sink.events.isEmpty()) },
                 { assertTrue(h.dispatcher.esc.isEmpty()) },
                 { assertGround(h) }
             )
@@ -452,7 +448,7 @@ internal class AnsiIntegrationHarnessTest {
             h.acceptAscii("\u001B]a\u001B]b\u0007")
 
             assertAll(
-                { assertEquals("a]b", h.sink.osc.single().payload.decodeToString()) },
+                { assertTrue(h.sink.events.isEmpty()) },
                 { assertTrue(h.dispatcher.esc.isEmpty()) },
                 { assertGround(h) }
             )
@@ -465,7 +461,7 @@ internal class AnsiIntegrationHarnessTest {
             h.accept(byteArrayOf(0x1B, ']'.code.toByte(), 'a'.code.toByte(), 0x1B, 0x07))
 
             assertAll(
-                { assertEquals("a", h.sink.osc.single().payload.decodeToString()) },
+                { assertTrue(h.sink.events.isEmpty()) },
                 { assertTrue(h.dispatcher.controls.isEmpty()) },
                 { assertGround(h) }
             )
@@ -478,7 +474,7 @@ internal class AnsiIntegrationHarnessTest {
             h.accept(byteArrayOf(0x1B, ']'.code.toByte(), 'a'.code.toByte(), 0x7F, 'b'.code.toByte(), 0x07))
 
             assertAll(
-                { assertEquals("ab", h.sink.osc.single().payload.decodeToString()) },
+                { assertTrue(h.sink.events.isEmpty()) },
                 { assertGround(h) }
             )
         }
@@ -489,9 +485,8 @@ internal class AnsiIntegrationHarnessTest {
 
             h.accept(byteArrayOf(0x1B, ']'.code.toByte(), 0xE2.toByte(), 0x82.toByte(), 0xAC.toByte(), 0x07))
 
-            val osc = h.sink.osc.single()
             assertAll(
-                { assertArrayEquals(byteArrayOf(0xE2.toByte(), 0x82.toByte(), 0xAC.toByte()), osc.payload) },
+                { assertTrue(h.sink.events.isEmpty()) },
                 { assertTrue(h.printable.utf8Bytes.isEmpty()) },
                 { assertGround(h) }
             )
@@ -503,11 +498,8 @@ internal class AnsiIntegrationHarnessTest {
 
             h.acceptAscii("\u001B]abcdef\u0007")
 
-            val osc = h.sink.osc.single()
             assertAll(
-                { assertEquals("abc", osc.payload.decodeToString()) },
-                { assertEquals(3, osc.length) },
-                { assertEquals(true, osc.overflowed) },
+                { assertTrue(h.sink.events.isEmpty()) },
                 { assertGround(h) }
             )
         }
@@ -519,7 +511,7 @@ internal class AnsiIntegrationHarnessTest {
             h.acceptAscii("\u001B]abc")
 
             assertAll(
-                { assertTrue(h.sink.osc.isEmpty()) },
+                { assertTrue(h.sink.events.isEmpty()) },
                 { assertEquals(AnsiState.OSC_STRING, h.state.fsmState) },
                 { assertEquals(3, h.state.payloadLength) }
             )
@@ -532,7 +524,7 @@ internal class AnsiIntegrationHarnessTest {
             h.accept(byteArrayOf(0x1B, ']'.code.toByte(), 'a'.code.toByte(), 0x18))
 
             assertAll(
-                { assertEquals("a", h.sink.osc.single().payload.decodeToString()) },
+                { assertTrue(h.sink.events.isEmpty()) },
                 { assertTrue(h.dispatcher.controls.isEmpty()) },
                 { assertGround(h) }
             )
@@ -770,7 +762,7 @@ internal class AnsiIntegrationHarnessTest {
             h.acceptAscii("tle\u0007")
 
             assertAll(
-                { assertEquals("0;title", h.sink.osc.single().payload.decodeToString()) },
+                { assertEquals(listOf("setIconAndWindowTitle:title"), h.sink.events) },
                 { assertGround(h) }
             )
         }
@@ -785,7 +777,7 @@ internal class AnsiIntegrationHarnessTest {
                 { assertEquals(listOf('a'.code, 'b'.code, 'c'.code, 'd'.code), h.printable.asciiBytes) },
                 { assertEquals(1, h.dispatcher.csi.size) },
                 { assertEquals(listOf(31), h.dispatcher.csi.single().params) },
-                { assertEquals("0;t", h.sink.osc.single().payload.decodeToString()) },
+                { assertEquals(listOf("setIconAndWindowTitle:t"), h.sink.events) },
                 { assertTrue(h.dispatcher.esc.isEmpty()) },
                 { assertGround(h) }
             )

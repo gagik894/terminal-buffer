@@ -3,37 +3,7 @@ package com.gagik.parser.ansi
 import com.gagik.parser.spi.TerminalCommandSink
 
 internal class RecordingTerminalCommandSink : TerminalCommandSink {
-    data class Osc(
-        val commandCode: Int,
-        val payload: ByteArray,
-        val length: Int,
-        val overflowed: Boolean,
-    ) {
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (javaClass != other?.javaClass) return false
-
-            other as Osc
-
-            if (commandCode != other.commandCode) return false
-            if (length != other.length) return false
-            if (overflowed != other.overflowed) return false
-            if (!payload.contentEquals(other.payload)) return false
-
-            return true
-        }
-
-        override fun hashCode(): Int {
-            var result = commandCode
-            result = 31 * result + length
-            result = 31 * result + overflowed.hashCode()
-            result = 31 * result + payload.contentHashCode()
-            return result
-        }
-    }
-
     val events = ArrayList<String>()
-    val osc = ArrayList<Osc>()
 
     override fun writeCodepoint(codepoint: Int) {
         events += "writeCodepoint:$codepoint"
@@ -247,18 +217,23 @@ internal class RecordingTerminalCommandSink : TerminalCommandSink {
         events += "setBackgroundRgb:$red:$green:$blue"
     }
 
-    override fun onOsc(
-        commandCode: Int,
-        payload: ByteArray,
-        length: Int,
-        overflowed: Boolean,
-    ) {
-        events += "osc:$commandCode:$length:$overflowed"
-        osc += Osc(
-            commandCode = commandCode,
-            payload = payload.copyOf(length),
-            length = length,
-            overflowed = overflowed,
-        )
+    override fun setWindowTitle(title: String) {
+        events += "setWindowTitle:$title"
+    }
+
+    override fun setIconTitle(title: String) {
+        events += "setIconTitle:$title"
+    }
+
+    override fun setIconAndWindowTitle(title: String) {
+        events += "setIconAndWindowTitle:$title"
+    }
+
+    override fun startHyperlink(uri: String, id: String?) {
+        events += "startHyperlink:$uri:${id ?: "null"}"
+    }
+
+    override fun endHyperlink() {
+        events += "endHyperlink"
     }
 }

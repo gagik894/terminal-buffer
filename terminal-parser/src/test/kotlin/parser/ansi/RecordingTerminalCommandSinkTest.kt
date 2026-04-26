@@ -9,54 +9,6 @@ import org.junit.jupiter.api.Test
 class RecordingTerminalCommandSinkTest {
 
     @Nested
-    @DisplayName("OSC recording")
-    inner class OscRecording {
-
-        @Test
-        fun `records OSC metadata and bounded payload bytes`() {
-            val sink = RecordingTerminalCommandSink()
-            val payload = byteArrayOf('0'.code.toByte(), ';'.code.toByte(), 't'.code.toByte(), '!'.code.toByte())
-
-            sink.onOsc(
-                commandCode = 0,
-                payload = payload,
-                length = 3,
-                overflowed = true
-            )
-
-            val osc = sink.osc.single()
-            assertAll(
-                { assertEquals(0, osc.commandCode) },
-                { assertArrayEquals(byteArrayOf('0'.code.toByte(), ';'.code.toByte(), 't'.code.toByte()), osc.payload) },
-                { assertEquals(3, osc.length) },
-                { assertTrue(osc.overflowed) }
-            )
-        }
-
-        @Test
-        fun `takes a defensive copy of OSC payload at recorded length`() {
-            val sink = RecordingTerminalCommandSink()
-            val payload = byteArrayOf('a'.code.toByte(), 'b'.code.toByte(), 'c'.code.toByte())
-
-            sink.onOsc(
-                commandCode = 52,
-                payload = payload,
-                length = 2,
-                overflowed = false
-            )
-            payload[0] = 'z'.code.toByte()
-
-            val osc = sink.osc.single()
-            assertAll(
-                { assertEquals(52, osc.commandCode) },
-                { assertArrayEquals(byteArrayOf('a'.code.toByte(), 'b'.code.toByte()), osc.payload) },
-                { assertEquals(2, osc.length) },
-                { assertEquals(false, osc.overflowed) }
-            )
-        }
-    }
-
-    @Nested
     @DisplayName("terminal command recording")
     inner class TerminalCommandRecording {
 
@@ -117,6 +69,12 @@ class RecordingTerminalCommandSinkTest {
             sink.setBackgroundIndexed(17)
             sink.setForegroundRgb(10, 20, 30)
             sink.setBackgroundRgb(40, 50, 60)
+            sink.setWindowTitle("window")
+            sink.setIconTitle("icon")
+            sink.setIconAndWindowTitle("both")
+            sink.startHyperlink(uri = "https://example.com", id = "abc")
+            sink.startHyperlink(uri = "https://example.org", id = null)
+            sink.endHyperlink()
 
             assertEquals(
                 listOf(
@@ -172,7 +130,13 @@ class RecordingTerminalCommandSinkTest {
                     "setForegroundIndexed:196",
                     "setBackgroundIndexed:17",
                     "setForegroundRgb:10:20:30",
-                    "setBackgroundRgb:40:50:60"
+                    "setBackgroundRgb:40:50:60",
+                    "setWindowTitle:window",
+                    "setIconTitle:icon",
+                    "setIconAndWindowTitle:both",
+                    "startHyperlink:https://example.com:abc",
+                    "startHyperlink:https://example.org:null",
+                    "endHyperlink"
                 ),
                 sink.events
             )
@@ -183,8 +147,7 @@ class RecordingTerminalCommandSinkTest {
             val sink = RecordingTerminalCommandSink()
 
             assertAll(
-                { assertTrue(sink.events.isEmpty()) },
-                { assertTrue(sink.osc.isEmpty()) }
+                { assertTrue(sink.events.isEmpty()) }
             )
         }
     }

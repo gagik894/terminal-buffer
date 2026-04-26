@@ -7,6 +7,7 @@ import com.gagik.parser.api.TerminalParsers
 import com.gagik.parser.fixture.ParserEvents.writeCluster
 import com.gagik.parser.fixture.ParserEvents.writeCodepoint
 import com.gagik.parser.fixture.TerminalParserFixture
+import com.gagik.parser.runtime.ParserState
 import com.gagik.parser.utf8.Utf8Decoder
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
@@ -319,18 +320,66 @@ class TerminalParserTest {
         }
 
         @Test
-        fun `OSC payload is bounded and dispatched on BEL or ST`() {
+        fun `OSC titles dispatch on BEL or ST`() {
             val bel = TerminalParserFixture()
             val st = TerminalParserFixture()
+            val window = TerminalParserFixture()
 
             bel.acceptAscii("\u001B]0;title\u0007")
             st.acceptAscii("\u001B]1;name\u001B\\")
+            window.acceptAscii("\u001B]2;window\u001B\\")
 
             assertAll(
-                { assertEquals("0;title", bel.sink.osc.single().payload.decodeToString()) },
-                { assertEquals("1;name", st.sink.osc.single().payload.decodeToString()) },
-                { assertTrue(bel.sink.events.single().startsWith("osc:")) },
-                { assertTrue(st.sink.events.single().startsWith("osc:")) }
+                { assertEquals(listOf("setIconAndWindowTitle:title"), bel.sink.events) },
+                { assertEquals(listOf("setIconTitle:name"), st.sink.events) },
+                { assertEquals(listOf("setWindowTitle:window"), window.sink.events) }
+            )
+        }
+
+        @Test
+        fun `OSC malformed unsupported overflowed and clipboard payloads are ignored`() {
+            val malformed = TerminalParserFixture()
+            val unsupported = TerminalParserFixture()
+            val overflowed = TerminalParserFixture(state = ParserState(maxPayload = 4))
+            val clipboard = TerminalParserFixture()
+
+            malformed.acceptAscii("\u001B]x;title\u0007")
+            unsupported.acceptAscii("\u001B]9;title\u001B\\")
+            overflowed.acceptAscii("\u001B]0;too-long\u0007")
+            clipboard.acceptAscii("\u001B]52;c;SGVsbG8=\u001B\\")
+
+            assertAll(
+                { assertTrue(malformed.sink.events.isEmpty()) },
+                { assertTrue(unsupported.sink.events.isEmpty()) },
+                { assertTrue(overflowed.sink.events.isEmpty()) },
+                { assertTrue(clipboard.sink.events.isEmpty()) }
+            )
+        }
+
+        @Test
+        fun `OSC 8 starts and ends hyperlinks through the full parser`() {
+            val withoutId = TerminalParserFixture()
+            val withId = TerminalParserFixture()
+            val end = TerminalParserFixture()
+
+            withoutId.acceptAscii("\u001B]8;;https://example.com\u001B\\")
+            withId.acceptAscii("\u001B]8;id=abc;https://example.com\u001B\\")
+            end.acceptAscii("\u001B]8;;\u001B\\")
+
+            assertAll(
+                {
+                    assertEquals(
+                        listOf("startHyperlink:https://example.com:null"),
+                        withoutId.sink.events,
+                    )
+                },
+                {
+                    assertEquals(
+                        listOf("startHyperlink:https://example.com:abc"),
+                        withId.sink.events,
+                    )
+                },
+                { assertEquals(listOf("endHyperlink"), end.sink.events) }
             )
         }
 
@@ -342,8 +391,7 @@ class TerminalParserTest {
 
             assertAll(
                 { assertEquals(AnsiState.GROUND, f.state.fsmState) },
-                { assertTrue(f.sink.events.isEmpty()) },
-                { assertTrue(f.sink.osc.isEmpty()) }
+                { assertTrue(f.sink.events.isEmpty()) }
             )
         }
     }

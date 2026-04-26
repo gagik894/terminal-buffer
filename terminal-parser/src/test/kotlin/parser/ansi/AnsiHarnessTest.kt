@@ -54,7 +54,7 @@ class AnsiHarnessTest {
                 { assertTrue(harness.printable.asciiBytes.isEmpty()) },
                 { assertTrue(harness.printable.utf8Bytes.isEmpty()) },
                 { assertTrue(harness.dispatcher.controls.isEmpty()) },
-                { assertTrue(harness.sink.osc.isEmpty()) }
+                { assertTrue(harness.sink.events.isEmpty()) }
             )
         }
     }
@@ -99,17 +99,13 @@ class AnsiHarnessTest {
     inner class StringTraces {
 
         @Test
-        fun `OSC BEL dispatches bounded OSC payload`() {
+        fun `OSC BEL dispatches semantic OSC title`() {
             val harness = AnsiHarness()
 
             harness.acceptAscii("\u001B]0;t\u0007")
 
-            val osc = harness.sink.osc.single()
             assertAll(
-                { assertEquals(-1, osc.commandCode) },
-                { assertArrayEquals(byteArrayOf('0'.code.toByte(), ';'.code.toByte(), 't'.code.toByte()), osc.payload) },
-                { assertEquals(3, osc.length) },
-                { assertEquals(false, osc.overflowed) },
+                { assertEquals(listOf("setIconAndWindowTitle:t"), harness.sink.events) },
                 { assertTrue(harness.dispatcher.controls.isEmpty()) },
                 { assertEquals(AnsiState.GROUND, harness.state.fsmState) }
             )
@@ -121,9 +117,8 @@ class AnsiHarnessTest {
 
             harness.acceptAscii("\u001B]1;x\u001B\\")
 
-            val osc = harness.sink.osc.single()
             assertAll(
-                { assertArrayEquals(byteArrayOf('1'.code.toByte(), ';'.code.toByte(), 'x'.code.toByte()), osc.payload) },
+                { assertEquals(listOf("setIconTitle:x"), harness.sink.events) },
                 { assertTrue(harness.dispatcher.esc.isEmpty()) },
                 { assertEquals(AnsiState.GROUND, harness.state.fsmState) }
             )
@@ -152,7 +147,7 @@ class AnsiHarnessTest {
                 { assertEquals(AnsiState.GROUND, harness.state.fsmState) },
                 { assertTrue(harness.dispatcher.esc.isEmpty()) },
                 { assertEquals(0, harness.state.payloadLength) },
-                { assertTrue(harness.sink.osc.isEmpty()) }
+                { assertTrue(harness.sink.events.isEmpty()) }
             )
         }
     }

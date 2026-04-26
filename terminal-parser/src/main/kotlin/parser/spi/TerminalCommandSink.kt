@@ -155,21 +155,13 @@ internal interface TerminalCommandSink {
     fun setBackgroundRgb(red: Int, green: Int, blue: Int)
 
     // -------------------------------------------------------------------------
-    // Payload hooks
+    // OSC
     // -------------------------------------------------------------------------
 
-    /**
-     * Bounded OSC payload handoff.
-     *
-     * Ownership rule:
-     * - [payload] is parser-owned scratch storage.
-     * - The sink must consume or copy synchronously.
-     * - The parser may overwrite the buffer after this call returns.
-     */
-    fun onOsc(
-        commandCode: Int,
-        payload: ByteArray,
-        length: Int,
-        overflowed: Boolean,
-    )
+    fun setWindowTitle(title: String)
+    fun setIconTitle(title: String)
+    fun setIconAndWindowTitle(title: String)
+
+    fun startHyperlink(uri: String, id: String?)
+    fun endHyperlink()
 }

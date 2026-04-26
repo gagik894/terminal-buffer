@@ -39,13 +39,6 @@ class ActionEngineTest {
         val payloadOverflowed: Boolean,
     )
 
-    private data class OscCall(
-        val commandCode: Int,
-        val payload: List<Int>,
-        val length: Int,
-        val overflowed: Boolean,
-    )
-
     private class RecordingPrintableSink(
         private val events: MutableList<String>,
     ) : PrintableActionSink {
@@ -132,7 +125,6 @@ class ActionEngineTest {
     private class RecordingTerminalCommandSink(
         private val events: MutableList<String>,
     ) : TerminalCommandSink {
-        val oscCalls = mutableListOf<OscCall>()
         val sinkCalls = mutableListOf<String>()
 
         override fun writeCodepoint(codepoint: Int) {
@@ -347,19 +339,24 @@ class ActionEngineTest {
             sinkCalls += "setBackgroundRgb:$red:$green:$blue"
         }
 
-        override fun onOsc(
-            commandCode: Int,
-            payload: ByteArray,
-            length: Int,
-            overflowed: Boolean,
-        ) {
-            oscCalls += OscCall(
-                commandCode = commandCode,
-                payload = payload.take(length).map { it.toInt() and 0xFF },
-                length = length,
-                overflowed = overflowed
-            )
-            events += "osc:$commandCode:$length:$overflowed"
+        override fun setWindowTitle(title: String) {
+            sinkCalls += "setWindowTitle:$title"
+        }
+
+        override fun setIconTitle(title: String) {
+            sinkCalls += "setIconTitle:$title"
+        }
+
+        override fun setIconAndWindowTitle(title: String) {
+            sinkCalls += "setIconAndWindowTitle:$title"
+        }
+
+        override fun startHyperlink(uri: String, id: String?) {
+            sinkCalls += "startHyperlink:$uri:${id ?: "null"}"
+        }
+
+        override fun endHyperlink() {
+            sinkCalls += "endHyperlink"
         }
     }
 
@@ -620,10 +617,9 @@ class ActionEngineTest {
             )
 
             assertAll(
-                { assertEquals(listOf("osc:0:3:true"), fixture.events) },
+                { assertTrue(fixture.events.isEmpty()) },
                 { assertTrue(fixture.dispatcher.controlBytes.isEmpty()) },
-                { assertEquals(1, fixture.sink.oscCalls.size) },
-                { assertEquals(listOf('0'.code, ';'.code, 't'.code), fixture.sink.oscCalls.single().payload) },
+                { assertTrue(fixture.sink.sinkCalls.isEmpty()) },
                 { assertEquals(0, state.payloadLength) },
                 { assertEquals(-1, state.payloadCode) },
                 { assertFalse(state.payloadOverflowed) },
@@ -994,7 +990,7 @@ class ActionEngineTest {
             assertAll(
                 { assertEquals(listOf("flush", "esc:${'\\'.code}"), fixture.events) },
                 { assertEquals(listOf('\\'.code), fixture.dispatcher.escFinals) },
-                { assertTrue(fixture.sink.oscCalls.isEmpty()) },
+                { assertTrue(fixture.sink.sinkCalls.isEmpty()) },
                 { assertEquals(3, state.payloadLength, "string termination is matrix-driven, not ESC_DISPATCH-driven") },
                 { assertEquals(0, state.paramCount) },
                 { assertEquals(AnsiState.GROUND, state.fsmState) }
@@ -1017,7 +1013,7 @@ class ActionEngineTest {
             assertAll(
                 { assertEquals(listOf("flush", "esc:${'\\'.code}"), fixture.events) },
                 { assertEquals(listOf('\\'.code), fixture.dispatcher.escFinals) },
-                { assertTrue(fixture.sink.oscCalls.isEmpty()) },
+                { assertTrue(fixture.sink.sinkCalls.isEmpty()) },
                 { assertEquals(AnsiState.GROUND, state.fsmState) }
             )
         }
@@ -1176,9 +1172,8 @@ class ActionEngineTest {
             )
 
             assertAll(
-                { assertEquals(listOf("osc:0:3:true"), fixture.events) },
-                { assertEquals(1, fixture.sink.oscCalls.size) },
-                { assertEquals(listOf('0'.code, ';'.code, 't'.code), fixture.sink.oscCalls.single().payload) },
+                { assertTrue(fixture.events.isEmpty()) },
+                { assertTrue(fixture.sink.sinkCalls.isEmpty()) },
                 { assertTrue(fixture.dispatcher.escFinals.isEmpty()) },
                 { assertEquals(0, state.paramCount) },
                 { assertEquals(0, state.intermediateCount) },
@@ -1206,7 +1201,7 @@ class ActionEngineTest {
 
             assertAll(
                 { assertTrue(fixture.events.isEmpty()) },
-                { assertTrue(fixture.sink.oscCalls.isEmpty()) },
+                { assertTrue(fixture.sink.sinkCalls.isEmpty()) },
                 { assertTrue(fixture.dispatcher.escFinals.isEmpty()) },
                 { assertEquals(0, state.paramCount) },
                 { assertEquals(0, state.intermediateCount) },
@@ -1234,7 +1229,7 @@ class ActionEngineTest {
 
             assertAll(
                 { assertTrue(fixture.events.isEmpty()) },
-                { assertTrue(fixture.sink.oscCalls.isEmpty()) },
+                { assertTrue(fixture.sink.sinkCalls.isEmpty()) },
                 { assertTrue(fixture.dispatcher.escFinals.isEmpty()) },
                 { assertEquals(0, state.paramCount) },
                 { assertEquals(0, state.intermediateCount) },
@@ -1278,8 +1273,7 @@ class ActionEngineTest {
             runMatrixTrace(fixture, state, 0x1B, ']'.code, '0'.code, ';'.code, 't'.code, 0x07)
 
             assertAll(
-                { assertEquals(1, fixture.sink.oscCalls.size) },
-                { assertEquals(listOf('0'.code, ';'.code, 't'.code), fixture.sink.oscCalls.single().payload) },
+                { assertEquals(listOf("setIconAndWindowTitle:t"), fixture.sink.sinkCalls) },
                 { assertTrue(fixture.dispatcher.controlBytes.isEmpty()) },
                 { assertEquals(0, state.payloadLength) },
                 { assertEquals(AnsiState.GROUND, state.fsmState) }
@@ -1294,8 +1288,7 @@ class ActionEngineTest {
             runMatrixTrace(fixture, state, 0x1B, ']'.code, '0'.code, ';'.code, 't'.code, 0x1B, '\\'.code)
 
             assertAll(
-                { assertEquals(1, fixture.sink.oscCalls.size) },
-                { assertEquals(listOf('0'.code, ';'.code, 't'.code), fixture.sink.oscCalls.single().payload) },
+                { assertEquals(listOf("setIconAndWindowTitle:t"), fixture.sink.sinkCalls) },
                 { assertTrue(fixture.dispatcher.escFinals.isEmpty()) },
                 { assertEquals(0, state.payloadLength) },
                 { assertEquals(AnsiState.GROUND, state.fsmState) }
@@ -1310,8 +1303,7 @@ class ActionEngineTest {
             runMatrixTrace(fixture, state, 0x1B, ']'.code, 'a'.code, 0x1B, 'b'.code, 0x07)
 
             assertAll(
-                { assertEquals(1, fixture.sink.oscCalls.size) },
-                { assertEquals(listOf('a'.code, 'b'.code), fixture.sink.oscCalls.single().payload) },
+                { assertTrue(fixture.sink.sinkCalls.isEmpty()) },
                 { assertTrue(fixture.dispatcher.escFinals.isEmpty()) },
                 { assertTrue(fixture.dispatcher.controlBytes.isEmpty()) },
                 { assertEquals(AnsiState.GROUND, state.fsmState) }
@@ -1326,8 +1318,7 @@ class ActionEngineTest {
             runMatrixTrace(fixture, state, 0x1B, ']'.code, 'a'.code, 0x1B, 0x1B, 'b'.code, 0x07)
 
             assertAll(
-                { assertEquals(1, fixture.sink.oscCalls.size) },
-                { assertEquals(listOf('a'.code, 'b'.code), fixture.sink.oscCalls.single().payload) },
+                { assertTrue(fixture.sink.sinkCalls.isEmpty()) },
                 { assertTrue(fixture.dispatcher.escFinals.isEmpty()) },
                 { assertEquals(AnsiState.GROUND, state.fsmState) }
             )
@@ -1343,7 +1334,7 @@ class ActionEngineTest {
             assertAll(
                 { assertEquals(AnsiState.OSC_STRING, state.fsmState) },
                 { assertTrue(fixture.dispatcher.controlBytes.isEmpty()) },
-                { assertTrue(fixture.sink.oscCalls.isEmpty()) },
+                { assertTrue(fixture.sink.sinkCalls.isEmpty()) },
                 { assertEquals(0, state.payloadLength) }
             )
         }
@@ -1359,7 +1350,7 @@ class ActionEngineTest {
                 { assertEquals(AnsiState.DCS_ENTRY, state.fsmState) },
                 { assertTrue(fixture.dispatcher.controlBytes.isEmpty()) },
                 { assertEquals(0, state.payloadLength) },
-                { assertTrue(fixture.sink.oscCalls.isEmpty()) }
+                { assertTrue(fixture.sink.sinkCalls.isEmpty()) }
             )
         }
 
@@ -1423,7 +1414,7 @@ class ActionEngineTest {
                 { assertEquals(AnsiState.GROUND, state.fsmState) },
                 { assertTrue(fixture.dispatcher.escFinals.isEmpty()) },
                 { assertEquals(0, state.payloadLength) },
-                { assertTrue(fixture.sink.oscCalls.isEmpty()) }
+                { assertTrue(fixture.sink.sinkCalls.isEmpty()) }
             )
         }
     }

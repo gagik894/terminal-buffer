@@ -1,5 +1,6 @@
 package com.gagik.parser.ansi
 
+import com.gagik.parser.ansi.osc.OscDispatcher
 import com.gagik.parser.runtime.ParserState
 import com.gagik.parser.spi.TerminalCommandSink
 
@@ -155,8 +156,8 @@ internal class ActionEngine(
 
             FsmAction.OSC_EXECUTE_CONTROL -> {
                 if (byteValue == 0x07) {
-                    sink.onOsc(
-                        commandCode = state.payloadCode,
+                    OscDispatcher.dispatch(
+                        sink = sink,
                         payload = state.payloadBuffer,
                         length = state.payloadLength,
                         overflowed = state.payloadOverflowed,
@@ -171,8 +172,8 @@ internal class ActionEngine(
             }
 
             FsmAction.OSC_END -> {
-                sink.onOsc(
-                    commandCode = state.payloadCode,
+                OscDispatcher.dispatch(
+                    sink = sink,
                     payload = state.payloadBuffer,
                     length = state.payloadLength,
                     overflowed = state.payloadOverflowed,
