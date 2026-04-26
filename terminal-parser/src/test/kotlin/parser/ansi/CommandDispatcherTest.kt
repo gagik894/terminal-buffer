@@ -529,6 +529,38 @@ class CommandDispatcherTest {
         }
 
         @Test
+        fun `CSI 31 1 m applies foreground red then bold in order`() {
+            assertEquals(
+                listOf("setForegroundIndexed:1", "setBold:true"),
+                dispatchCsi('m', params = listOf(31, 1)).events
+            )
+        }
+
+        @Test
+        fun `CSI 0 31 m resets then applies foreground red`() {
+            assertEquals(
+                listOf("resetAttributes", "setForegroundIndexed:1"),
+                dispatchCsi('m', params = listOf(0, 31)).events
+            )
+        }
+
+        @Test
+        fun `CSI omitted then 31 m resets then applies foreground red`() {
+            assertEquals(
+                listOf("resetAttributes", "setForegroundIndexed:1"),
+                dispatchCsi('m', params = listOf(-1, 31)).events
+            )
+        }
+
+        @Test
+        fun `CSI 31 then omitted m applies foreground red then resets`() {
+            assertEquals(
+                listOf("setForegroundIndexed:1", "resetAttributes"),
+                dispatchCsi('m', params = listOf(31, -1)).events
+            )
+        }
+
+        @Test
         fun `CSI 3 m and 23 m toggle italic`() {
             assertEquals(listOf("setItalic:true"), dispatchCsi('m', params = listOf(3)).events)
             assertEquals(listOf("setItalic:false"), dispatchCsi('m', params = listOf(23)).events)
@@ -613,6 +645,16 @@ class CommandDispatcherTest {
         }
 
         @Test
+        fun `CSI 38 5 m ignores malformed indexed foreground`() {
+            assertTrue(dispatchCsi('m', params = listOf(38, 5)).events.isEmpty())
+        }
+
+        @Test
+        fun `CSI 38 5 300 m ignores invalid indexed foreground`() {
+            assertTrue(dispatchCsi('m', params = listOf(38, 5, 300)).events.isEmpty())
+        }
+
+        @Test
         fun `CSI 48 5 indexed background dispatches 256-color background`() {
             assertEquals(
                 listOf("setBackgroundIndexed:17"),
@@ -629,10 +671,59 @@ class CommandDispatcherTest {
         }
 
         @Test
+        fun `CSI 38 2 incomplete RGB foreground is ignored`() {
+            assertTrue(dispatchCsi('m', params = listOf(38, 2, 10, 20)).events.isEmpty())
+        }
+
+        @Test
+        fun `CSI 38 2 RGB foreground then bold applies in order`() {
+            assertEquals(
+                listOf("setForegroundRgb:10:20:30", "setBold:true"),
+                dispatchCsi('m', params = listOf(38, 2, 10, 20, 30, 1)).events
+            )
+        }
+
+        @Test
         fun `CSI 48 2 RGB background dispatches truecolor background`() {
             assertEquals(
                 listOf("setBackgroundRgb:10:20:30"),
                 dispatchCsi('m', params = listOf(48, 2, 10, 20, 30)).events
+            )
+        }
+
+        @Test
+        fun `CSI colon indexed foreground dispatches indexed foreground`() {
+            assertEquals(
+                listOf("setForegroundIndexed:196"),
+                dispatchCsi(
+                    finalByte = 'm',
+                    params = listOf(38, 5, 196),
+                    subParameterMask = 0b110,
+                ).events
+            )
+        }
+
+        @Test
+        fun `CSI colon indexed background dispatches indexed background`() {
+            assertEquals(
+                listOf("setBackgroundIndexed:17"),
+                dispatchCsi(
+                    finalByte = 'm',
+                    params = listOf(48, 5, 17),
+                    subParameterMask = 0b110,
+                ).events
+            )
+        }
+
+        @Test
+        fun `CSI colon RGB foreground without color-space slot dispatches truecolor foreground`() {
+            assertEquals(
+                listOf("setForegroundRgb:10:20:30"),
+                dispatchCsi(
+                    finalByte = 'm',
+                    params = listOf(38, 2, 10, 20, 30),
+                    subParameterMask = 0b1_1110,
+                ).events
             )
         }
 
@@ -644,6 +735,30 @@ class CommandDispatcherTest {
                     finalByte = 'm',
                     params = listOf(38, 2, -1, 10, 20, 30),
                     subParameterMask = 0b11_1110,
+                ).events
+            )
+        }
+
+        @Test
+        fun `CSI colon underline double dispatches double underline only`() {
+            assertEquals(
+                listOf("setUnderlineStyle:2"),
+                dispatchCsi(
+                    finalByte = 'm',
+                    params = listOf(4, 2),
+                    subParameterMask = 0b10,
+                ).events
+            )
+        }
+
+        @Test
+        fun `mixed semicolon and colon SGR groups preserve ordering`() {
+            assertEquals(
+                listOf("resetAttributes", "setForegroundIndexed:196", "setBold:true"),
+                dispatchCsi(
+                    finalByte = 'm',
+                    params = listOf(0, 38, 5, 196, 1),
+                    subParameterMask = 0b1100,
                 ).events
             )
         }

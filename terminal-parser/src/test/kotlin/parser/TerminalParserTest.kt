@@ -322,6 +322,30 @@ class TerminalParserTest {
         }
 
         @Test
+        fun `CSI omitted and trailing omitted SGR params reset in sequence through the full parser`() {
+            val omittedFirst = TerminalParserFixture()
+            val omittedLast = TerminalParserFixture()
+
+            omittedFirst.acceptAscii("\u001B[;31m")
+            omittedLast.acceptAscii("\u001B[31;m")
+
+            assertAll(
+                {
+                    assertEquals(
+                        listOf("resetAttributes", "setForegroundIndexed:1"),
+                        omittedFirst.sink.events,
+                    )
+                },
+                {
+                    assertEquals(
+                        listOf("setForegroundIndexed:1", "resetAttributes"),
+                        omittedLast.sink.events,
+                    )
+                }
+            )
+        }
+
+        @Test
         fun `CSI 38 5 indexed foreground applies through the full parser`() {
             val f = TerminalParserFixture()
 
@@ -346,6 +370,51 @@ class TerminalParserTest {
             f.acceptAscii("\u001B[38:2::10:20:30m")
 
             assertEquals(listOf("setForegroundRgb:10:20:30"), f.sink.events)
+        }
+
+        @Test
+        fun `CSI colon color and underline SGR groups apply through the full parser`() {
+            val indexedForeground = TerminalParserFixture()
+            val indexedBackground = TerminalParserFixture()
+            val rgbForeground = TerminalParserFixture()
+            val underline = TerminalParserFixture()
+
+            indexedForeground.acceptAscii("\u001B[38:5:196m")
+            indexedBackground.acceptAscii("\u001B[48:5:17m")
+            rgbForeground.acceptAscii("\u001B[38:2:10:20:30m")
+            underline.acceptAscii("\u001B[4:2m")
+
+            assertAll(
+                { assertEquals(listOf("setForegroundIndexed:196"), indexedForeground.sink.events) },
+                { assertEquals(listOf("setBackgroundIndexed:17"), indexedBackground.sink.events) },
+                { assertEquals(listOf("setForegroundRgb:10:20:30"), rgbForeground.sink.events) },
+                { assertEquals(listOf("setUnderlineStyle:2"), underline.sink.events) }
+            )
+        }
+
+        @Test
+        fun `malformed SGR extended colors are ignored while later normal SGR survives through the full parser`() {
+            val malformedIndexed = TerminalParserFixture()
+            val invalidIndexed = TerminalParserFixture()
+            val incompleteRgb = TerminalParserFixture()
+            val rgbThenBold = TerminalParserFixture()
+
+            malformedIndexed.acceptAscii("\u001B[38;5m")
+            invalidIndexed.acceptAscii("\u001B[38;5;300m")
+            incompleteRgb.acceptAscii("\u001B[38;2;10;20m")
+            rgbThenBold.acceptAscii("\u001B[38;2;10;20;30;1m")
+
+            assertAll(
+                { assertTrue(malformedIndexed.sink.events.isEmpty()) },
+                { assertTrue(invalidIndexed.sink.events.isEmpty()) },
+                { assertTrue(incompleteRgb.sink.events.isEmpty()) },
+                {
+                    assertEquals(
+                        listOf("setForegroundRgb:10:20:30", "setBold:true"),
+                        rgbThenBold.sink.events,
+                    )
+                }
+            )
         }
     }
 

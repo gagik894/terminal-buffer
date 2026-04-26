@@ -44,8 +44,7 @@ internal object SgrDispatcher {
                 }
 
                 param == 4 -> {
-                    sink.setUnderlineStyle(SgrUnderlineStyle.SINGLE)
-                    i + 1
+                    dispatchUnderlineStyle(sink, state, i)
                 }
 
                 param == 5 || param == 6 -> {
@@ -187,6 +186,26 @@ internal object SgrDispatcher {
 
             else -> startIndex + 2
         }
+    }
+
+    private fun dispatchUnderlineStyle(
+        sink: TerminalCommandSink,
+        state: ParserState,
+        startIndex: Int,
+    ): Int {
+        val styleIndex = startIndex + 1
+        if (!isColonOpened(state, styleIndex)) {
+            sink.setUnderlineStyle(SgrUnderlineStyle.SINGLE)
+            return startIndex + 1
+        }
+
+        when (paramOrMissing(state, styleIndex)) {
+            0 -> sink.setUnderlineStyle(SgrUnderlineStyle.NONE)
+            1 -> sink.setUnderlineStyle(SgrUnderlineStyle.SINGLE)
+            2 -> sink.setUnderlineStyle(SgrUnderlineStyle.DOUBLE)
+        }
+
+        return styleIndex + 1
     }
 
     private fun dispatchIndexedColor(
