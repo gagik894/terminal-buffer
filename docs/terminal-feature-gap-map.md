@@ -1,0 +1,295 @@
+# Terminal Feature Gap Map
+
+This is the living backlog for turning the current terminal parser/core into a
+professional terminal emulator pipeline.
+
+The intent is to make gaps explicit. If a feature is missing, unsupported, or
+only partially modeled, it should be listed here rather than hidden behind a
+silent no-op.
+
+Status labels:
+
+- `TODO(parser)`: byte/protocol recognition or semantic dispatch is missing.
+- `TODO(core)`: terminal state, grid physics, pen storage, or public API is missing.
+- `TODO(integration)`: parser and core both have enough shape, but the bridge is incomplete.
+- `TODO(input)`: host-bound keyboard/mouse/paste encoding is missing.
+- `TODO(policy)`: feature needs an explicit security or compatibility policy before implementation.
+
+## Parser Gaps
+
+### CSI Protocols
+
+- `TODO(parser)`: `DECSLRM` left/right margins, usually `CSI Pl ; Pr s`.
+  Core exposes `setLeftRightMargins`, but parser does not route the CSI signature.
+- `TODO(parser)`: selective erase dispatch:
+  - `DECSEL`, selective erase in line.
+  - `DECSED`, selective erase in display.
+  Core already exposes selective erase operations.
+- `TODO(parser)`: `DECSCA` selective-erase protection.
+  Core has protected-cell storage and mutation behavior, but parser does not emit
+  `setSelectiveEraseProtection`.
+- `TODO(parser)`: `RIS`, `ESC c`, full terminal reset.
+  Core exposes `TerminalBufferApi.reset`.
+- `TODO(parser)`: full DEC private mode vocabulary and tests beyond the current common set:
+  - alternate-screen variants `47`, `1047`, `1048`, `1049`
+  - cursor blink mode
+  - mouse UTF-8 and URXVT encodings
+  - synchronized output mode `?2026`
+  - focus, paste, mouse, and application-mode interactions
+- `TODO(parser)`: DEC alignment test `DECALN`, `ESC # 8`.
+- `TODO(parser)`: device status/report sequences:
+  - `DSR`
+  - `CPR`
+  - `DA`, `DA2`, `DA3`
+  - DEC-specific status reports
+  These need a terminal-to-host output channel, not just a sink call.
+- `TODO(parser)`: character attribute/protection commands not covered by SGR:
+  - `DECSCA`
+  - `DECSCUSR`, cursor style
+  - `DECSACE`
+- `TODO(parser)`: full tab-stop and margin variants beyond the current common set.
+- `TODO(parser)`: rectangular area operations:
+  - `DECCRA`
+  - `DECERA`
+  - `DECFRA`
+  - `DECSERA`
+  - `DECSACE`
+- `TODO(parser)`: insert/delete/erase variants with selective protection and rectangular bounds.
+- `TODO(parser)`: scroll variants and xterm extensions not yet routed:
+  - `DECSTBM` is present
+  - `SU` / `SD` are present
+  - left/right-margin-aware variants need broader integration tests
+
+### ESC Protocols
+
+- `TODO(parser)`: full reset `ESC c`.
+- `TODO(parser)`: DEC alignment test `ESC # 8`.
+- `TODO(parser)`: complete charset designation:
+  - ISO 2022 G0-G3 single-byte sets beyond ASCII and DEC Special Graphics
+  - UK, US, Dutch, Finnish, French, German, Italian, Norwegian/Danish, Spanish,
+    Swedish, Swiss, Portuguese
+  - line drawing aliases used by common terminal descriptions
+- `TODO(parser)`: 8-bit C1 equivalents for ESC-prefixed controls if raw C1 mode
+  is supported later.
+- `TODO(parser)`: save/restore state parity between DEC and SCO cursor save forms,
+  if compatibility requires it.
+
+### OSC Protocols
+
+Implemented low-risk baseline:
+
+- OSC 0, 1, 2 title variants
+- OSC 8 hyperlinks
+- OSC 52 is intentionally ignored
+
+Missing:
+
+- `TODO(policy)`: OSC 52 clipboard support. This needs an explicit permission
+  and security policy before implementation.
+- `TODO(parser)`: OSC 4 / 10 / 11 / 12 color palette queries and updates.
+- `TODO(parser)`: OSC 7 current directory.
+- `TODO(parser)`: OSC 9 / 9;9 desktop notifications, if desired.
+- `TODO(parser)`: OSC 133 shell integration markers.
+- `TODO(parser)`: OSC 1337/iTerm2 extensions, if desired.
+- `TODO(parser)`: OSC query responses. Requires terminal-to-host output.
+- `TODO(parser)`: payload encoding policy for non-UTF-8 or invalid UTF-8 OSC data.
+
+### DCS Protocols
+
+Current state:
+
+- DCS payload is bounded and terminated correctly.
+- Milestone behavior discards payload.
+
+Missing:
+
+- `TODO(parser)`: DCS dispatch policy and command router.
+- `TODO(parser)`: XTGETTCAP / XTSETTCAP terminal capability query/response.
+- `TODO(parser)`: DECRQSS request status string.
+- `TODO(parser)`: Sixel graphics, if the emulator will support inline graphics.
+- `TODO(parser)`: ReGIS / DEC vector graphics, likely out of scope unless a DEC
+  compatibility mode is a goal.
+- `TODO(policy)`: any DCS that can exfiltrate host capabilities needs a response
+  policy and terminal-to-host channel.
+
+### Text and Unicode
+
+- `TODO(parser)`: replace curated seed grapheme tables with generated Unicode
+  data from UAX #29.
+- `TODO(parser)`: full Grapheme_Cluster_Break table coverage.
+- `TODO(parser)`: full Extended_Pictographic table coverage.
+- `TODO(parser)`: versioned Unicode table generation and tests.
+- `TODO(parser)`: malformed UTF-8 policy tests across all structural boundary
+  bytes, not only the current representative hostile cases.
+- `TODO(parser)`: configurable replacement policy if needed by host applications.
+- `TODO(parser)`: broader ISO 2022 charset mapping.
+
+## Core Gaps
+
+### Pen and Attributes
+
+Current core attributes store indexed foreground/background, bold, italic,
+underline, and selective-erase protection.
+
+Missing:
+
+- `TODO(core)`: 256-color indexed foreground/background storage.
+- `TODO(core)`: RGB/truecolor foreground/background storage.
+- `TODO(core)`: inverse/reverse-video cell attribute.
+  This is high priority because terminal UIs use SGR 7 heavily.
+- `TODO(core)`: faint/dim intensity.
+- `TODO(core)`: blink attribute.
+- `TODO(core)`: conceal/hidden attribute.
+- `TODO(core)`: strikethrough attribute.
+- `TODO(core)`: underline style beyond boolean underline:
+  - none
+  - single
+  - double
+  - curly
+  - dotted
+  - dashed
+  - underline color, if supported
+- `TODO(core)`: SGR overline.
+- `TODO(core)`: palette model for default, ANSI 16, 256-color, and RGB colors.
+- `TODO(core)`: renderer-facing effective color calculation with reverse video,
+  bold-as-bright policy, and default color policy.
+
+### Reset and Mode Semantics
+
+- `TODO(core)`: DECSTR soft reset API.
+  Do not fake this with full `reset`, because DECSTR is less destructive than RIS.
+- `TODO(core)`: distinguish alternate-screen variants:
+  - `47`
+  - `1047`
+  - `1048`
+  - `1049`
+  Current core exposes only 1049-style enter/exit behavior.
+- `TODO(core)`: cursor style state for `DECSCUSR`.
+- `TODO(core)`: cursor blink is currently durable mode state; renderer contract
+  may need a richer cursor presentation snapshot.
+- `TODO(core)`: synchronized output mode state (`?2026`) if renderer integration
+  needs batching semantics.
+- `TODO(core)`: bell hook or event channel.
+- `TODO(core)`: title/icon/hyperlink storage policy if those should belong to
+  core rather than the integration adapter.
+
+### Grid Operations
+
+- `TODO(core)`: rectangular area operations if parser support is added:
+  - copy rectangle
+  - erase rectangle
+  - fill rectangle
+  - selective erase rectangle
+- `TODO(core)`: left/right margin interactions need continued property testing
+  across all edit/erase/scroll operations.
+- `TODO(core)`: full DEC protection behavior across all rectangular operations.
+- `TODO(core)`: scrollback policy under alternate-screen and private-mode
+  combinations beyond current tested cases.
+- `TODO(core)`: soft-wrap metadata compatibility with copy/paste/export.
+
+### Unicode Width
+
+- `TODO(core)`: generated width tables from current Unicode data:
+  - EastAsianWidth
+  - emoji presentation
+  - zero-width and combining ranges
+  - ambiguous-width policy
+- `TODO(core)`: width policy for emoji ZWJ clusters and variation-selector
+  presentation should be explicit and versioned.
+- `TODO(core)`: configurable ambiguous-width policy is present, but table coverage
+  should be generated and audited.
+- `TODO(core)`: invalid/unassigned codepoint width policy.
+
+### Query and Response Channel
+
+- `TODO(core)`: terminal-to-host response/event API for:
+  - DSR/CPR
+  - DA/DA2/DA3
+  - XTGETTCAP
+  - OSC queries
+  - mouse reports
+  - focus reports
+  - bracketed paste boundaries
+- `TODO(core)`: event API for bell, title changes, hyperlinks, palette updates,
+  and terminal notifications if these move out of integration.
+
+## Integration Gaps
+
+- `TODO(integration)`: map parser SGR 256-color only after core supports 256-color
+  attributes. The adapter must not clamp 256-color indexes into 16-color values.
+- `TODO(integration)`: map RGB SGR only after core supports RGB pen attributes.
+- `TODO(integration)`: map inverse/faint/blink/conceal/strikethrough only after
+  core exposes those attributes.
+- `TODO(integration)`: map DECSTR only after core exposes a soft-reset API.
+- `TODO(integration)`: map alternate-screen `47` and `1047` only after core
+  exposes their exact semantics.
+- `TODO(integration)`: map parser RIS to core `reset` once parser emits RIS.
+- `TODO(integration)`: map DECSLRM once parser emits left/right margins.
+- `TODO(integration)`: map DECSEL/DECSED/DECSCA once parser emits selective erase
+  and protection commands.
+- `TODO(integration)`: decide whether OSC title/hyperlink state belongs in core,
+  integration metadata, or a host callback interface.
+- `TODO(integration)`: add a host callback/event sink for bell, title, hyperlink,
+  palette, device responses, mouse reports, and clipboard policy.
+
+## Input Module Gaps
+
+There is no production `:terminal-input` module yet.
+
+Missing:
+
+- `TODO(input)`: keyboard encoding for normal and application cursor-key modes.
+- `TODO(input)`: keypad encoding for numeric and application keypad modes.
+- `TODO(input)`: modifier encoding:
+  - xterm modifyOtherKeys
+  - CSI u
+  - legacy modifier encodings
+- `TODO(input)`: mouse report encoding:
+  - X10
+  - normal tracking
+  - button-event tracking
+  - any-event tracking
+  - SGR encoding
+  - UTF-8 and URXVT encodings if supported
+- `TODO(input)`: focus in/out reports.
+- `TODO(input)`: bracketed paste wrapping.
+- `TODO(input)`: paste sanitization policy.
+- `TODO(input)`: terminal-to-host response queue shared with parser/core query
+  responses.
+
+## Rendering and Host Integration Gaps
+
+Rendering is intentionally outside the current core/parser modules, but a
+professional emulator needs explicit contracts for it.
+
+- `TODO(host)`: renderer API for cell attributes, cursor shape, cursor blink,
+  reverse video, selection, hyperlinks, and dirty regions.
+- `TODO(host)`: font measurement policy and fallback fonts.
+- `TODO(host)`: double-width glyph display, emoji presentation, and ambiguous
+  width presentation must match core width decisions.
+- `TODO(host)`: text selection and clipboard integration.
+- `TODO(host)`: scrollback viewport separate from active cursor viewport.
+- `TODO(host)`: accessibility/export APIs.
+- `TODO(host)`: performance benchmarks for large scrollback, resize, and dense
+  SGR streams.
+
+## Security and Policy Gaps
+
+- `TODO(policy)`: OSC 52 clipboard permission model.
+- `TODO(policy)`: DCS/OSC query response allowlist.
+- `TODO(policy)`: hyperlink validation and display policy.
+- `TODO(policy)`: maximum payload sizes per protocol family.
+- `TODO(policy)`: whether title/icon updates are always accepted or host-gated.
+- `TODO(policy)`: paste sanitization and bracketed paste defaults.
+- `TODO(policy)`: terminal capability identity. Claiming xterm compatibility
+  requires implementing enough behavior to make that claim true.
+
+## Recommended Next Order
+
+1. `TODO(core)`: expand pen attributes for inverse and 256-color support.
+2. `TODO(integration)`: wire SGR inverse and 256-color once core supports them.
+3. `TODO(parser)`: add RIS, DECSLRM, DECSEL/DECSED, and DECSCA routing.
+4. `TODO(integration)`: map those parser commands into existing core APIs.
+5. `TODO(parser/core)`: add terminal-to-host response channel for DSR/CPR/DA.
+6. `TODO(input)`: build the input encoder using core mode snapshots.
+7. `TODO(parser)`: add DCS router with a strict response/security policy.

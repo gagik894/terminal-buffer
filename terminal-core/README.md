@@ -35,8 +35,6 @@ The core is cluster-capable but not a grapheme segmenter.
 
 The detailed public contract lives in
 [`docs/terminal-core-contract.md`](terminal-core/docs/terminal-core-contract.md).
-Known parser/core/integration gaps are tracked in
-[`docs/terminal-feature-gap-map.md`](docs/terminal-feature-gap-map.md).
 
 - Parser-facing durable mode control lives on `TerminalModeController`.
 - Input/UI-facing durable mode reads live on `TerminalModeReader` via immutable
