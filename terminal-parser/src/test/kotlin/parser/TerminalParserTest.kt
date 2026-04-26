@@ -2,6 +2,9 @@ package com.gagik.parser
 
 import com.gagik.parser.ansi.AnsiState
 import com.gagik.parser.ansi.RecordingTerminalCommandSink
+import com.gagik.parser.api.TerminalOutputParser
+import com.gagik.parser.api.TerminalParsers
+import com.gagik.parser.impl.TerminalParser
 import com.gagik.parser.runtime.ParserState
 import com.gagik.parser.utf8.Utf8Decoder
 import org.junit.jupiter.api.Assertions.*
@@ -111,6 +114,17 @@ class TerminalParserTest {
                 { assertTrue(f.sink.events.isEmpty()) },
                 { assertEquals(AnsiState.GROUND, f.state.fsmState) }
             )
+        }
+
+        @Test
+        fun `factory creates parser behind TerminalOutputParser contract`() {
+            val sink = RecordingTerminalCommandSink()
+            val parser: TerminalOutputParser = TerminalParsers.create(sink)
+
+            parser.accept("A".encodeToByteArray())
+            parser.endOfInput()
+
+            assertEquals(listOf(writeCodepoint('A'.code)), sink.events)
         }
 
         @Test

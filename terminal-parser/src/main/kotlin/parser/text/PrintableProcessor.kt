@@ -1,8 +1,8 @@
 package com.gagik.parser.text
 
-import com.gagik.parser.TerminalCommandSink
 import com.gagik.parser.charset.CharsetMapper
 import com.gagik.parser.runtime.ParserState
+import com.gagik.parser.spi.TerminalCommandSink
 import com.gagik.parser.utf8.Utf8DecodeResult
 import com.gagik.parser.utf8.Utf8Decoder
 

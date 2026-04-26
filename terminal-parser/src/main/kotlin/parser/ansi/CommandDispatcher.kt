@@ -1,8 +1,8 @@
 package com.gagik.parser.ansi
 
-import com.gagik.parser.TerminalCommandSink
 import com.gagik.parser.charset.CharsetMapper
 import com.gagik.parser.runtime.ParserState
+import com.gagik.parser.spi.TerminalCommandSink
 
 /**
  * Semantic dispatcher boundary used by ActionEngine.

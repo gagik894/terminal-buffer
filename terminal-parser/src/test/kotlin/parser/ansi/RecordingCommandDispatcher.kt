@@ -1,7 +1,7 @@
 package com.gagik.parser.ansi
 
-import com.gagik.parser.TerminalCommandSink
 import com.gagik.parser.runtime.ParserState
+import com.gagik.parser.spi.TerminalCommandSink
 
 internal class RecordingCommandDispatcher : CommandDispatcher {
     data class C0(val byte: Int)

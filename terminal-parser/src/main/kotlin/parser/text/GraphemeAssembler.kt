@@ -1,7 +1,7 @@
 package com.gagik.parser.text
 
-import com.gagik.parser.TerminalCommandSink
 import com.gagik.parser.runtime.ParserState
+import com.gagik.parser.spi.TerminalCommandSink
 
 /**
  * Minimal allocation-free grapheme assembly boundary.

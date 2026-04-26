@@ -1,6 +1,6 @@
 package com.gagik.parser.ansi
 
-import com.gagik.parser.TerminalCommandSink
+import com.gagik.parser.spi.TerminalCommandSink
 
 internal class RecordingTerminalCommandSink : TerminalCommandSink {
     data class Osc(

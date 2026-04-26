@@ -1,7 +1,7 @@
 package com.gagik.parser.ansi
 
-import com.gagik.parser.TerminalCommandSink
 import com.gagik.parser.runtime.ParserState
+import com.gagik.parser.spi.TerminalCommandSink
 
 /**
  * Executes parser-internal FSM actions against [ParserState].

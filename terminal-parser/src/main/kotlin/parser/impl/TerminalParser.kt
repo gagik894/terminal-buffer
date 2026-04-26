@@ -1,7 +1,9 @@
-package com.gagik.parser
+package com.gagik.parser.impl
 
 import com.gagik.parser.ansi.*
+import com.gagik.parser.api.TerminalOutputParser
 import com.gagik.parser.runtime.ParserState
+import com.gagik.parser.spi.TerminalCommandSink
 import com.gagik.parser.text.PrintableProcessor
 import com.gagik.parser.text.PrintableProcessorActionSink
 import com.gagik.parser.utf8.Utf8DecodeResult

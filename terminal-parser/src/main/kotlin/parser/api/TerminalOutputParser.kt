@@ -1,4 +1,6 @@
-package com.gagik.parser
+package com.gagik.parser.api
+
+import com.gagik.parser.spi.TerminalCommandSink
 
 /**
  * Byte-stream parser contract for terminal host output.

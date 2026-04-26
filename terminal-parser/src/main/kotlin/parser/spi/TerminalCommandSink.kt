@@ -1,4 +1,4 @@
-package com.gagik.parser
+package com.gagik.parser.spi
 
 /**
  * Parser-facing terminal command sink.
