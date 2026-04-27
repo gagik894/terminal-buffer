@@ -172,7 +172,7 @@ internal object TerminalResizer {
  */
 private class LogicalLineBuilder(initialCapacity: Int) {
     var codepoints = IntArray(initialCapacity)
-    var attrs = IntArray(initialCapacity)
+    var attrs = LongArray(initialCapacity)
     var size = 0
     var cursorAbsoluteIndex = -1
 
@@ -183,7 +183,7 @@ private class LogicalLineBuilder(initialCapacity: Int) {
      * @param attr The packed cell attribute.
      * @param isCursor `true` if this cell is the current cursor position.
      */
-    fun append(raw: Int, attr: Int, isCursor: Boolean) {
+    fun append(raw: Int, attr: Long, isCursor: Boolean) {
         if (size == codepoints.size) grow()
         if (isCursor) cursorAbsoluteIndex = size
         codepoints[size] = raw

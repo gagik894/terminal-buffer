@@ -3,6 +3,7 @@ package com.gagik.core.buffer.impl
 import com.gagik.core.api.TerminalWriter
 import com.gagik.core.engine.CursorEngine
 import com.gagik.core.engine.MutationEngine
+import com.gagik.core.model.AttributeColor
 import com.gagik.core.state.TerminalState
 import com.gagik.core.util.UnicodeWidth
 
@@ -134,9 +135,21 @@ internal class TerminalWriterImpl(
         bg: Int,
         bold: Boolean,
         italic: Boolean,
-        underline: Boolean
+        underline: Boolean,
+        inverse: Boolean
     ) {
-        state.pen.setAttributes(fg, bg, bold, italic, underline)
+        state.pen.setAttributes(fg, bg, bold, italic, underline, inverse)
+    }
+
+    override fun setPenColors(
+        foreground: AttributeColor,
+        background: AttributeColor,
+        bold: Boolean,
+        italic: Boolean,
+        underline: Boolean,
+        inverse: Boolean
+    ) {
+        state.pen.setColors(foreground, background, bold, italic, underline, inverse)
     }
 
     override fun setSelectiveEraseProtection(enabled: Boolean) {

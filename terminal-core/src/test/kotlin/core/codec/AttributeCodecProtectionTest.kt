@@ -19,7 +19,7 @@ class AttributeCodecProtectionTest {
 
         assertAll(
             { assertTrue(AttributeCodec.isProtected(packed)) },
-            { assertEquals(1 shl 13, packed and (1 shl 13)) },
+            { assertEquals(1L shl 52, packed and (1L shl 52)) },
             { assertTrue(unpacked.selectiveEraseProtected) }
         )
     }

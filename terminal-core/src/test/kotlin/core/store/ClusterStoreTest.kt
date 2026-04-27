@@ -318,7 +318,7 @@ class ClusterStoreTest {
         fun `freeRange does not double free live shifted handles`() {
             val store = ClusterStore()
             val line = Line(width = 4, store = store)
-            val attr = 0
+            val attr = 0L
 
             line.setCluster(0, intArrayOf(10, 11), 2, attr)
             line.setCluster(1, intArrayOf(20, 21), 2, attr)

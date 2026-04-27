@@ -1,5 +1,7 @@
 package com.gagik.core.api
 
+import com.gagik.core.model.AttributeColor
+
 /**
  * Write-side contract for the terminal buffer.
  *
@@ -235,20 +237,34 @@ interface TerminalWriter {
     /**
      * Sets the active pen attributes used by all subsequent write and erase operations.
      *
-     * Out-of-range colour indices are clamped to the nearest valid value.
+     * Out-of-range colour codes are clamped to the nearest valid value.
      *
-     * @param fg Foreground colour index (0 = default).
-     * @param bg Background colour index (0 = default).
+     * @param fg Foreground colour code (0 = default, 1..256 = indexed palette colors).
+     * @param bg Background colour code (0 = default, 1..256 = indexed palette colors).
      * @param bold `true` to enable bold weight.
      * @param italic `true` to enable italic style.
      * @param underline `true` to enable underline.
+     * @param inverse `true` to enable inverse/reverse-video.
      */
     fun setPenAttributes(
         fg: Int,
         bg: Int,
         bold: Boolean = false,
         italic: Boolean = false,
-        underline: Boolean = false
+        underline: Boolean = false,
+        inverse: Boolean = false
+    )
+
+    /**
+     * Sets the active pen attributes using explicit default, indexed, or RGB colors.
+     */
+    fun setPenColors(
+        foreground: AttributeColor,
+        background: AttributeColor,
+        bold: Boolean = false,
+        italic: Boolean = false,
+        underline: Boolean = false,
+        inverse: Boolean = false
     )
 
     /**

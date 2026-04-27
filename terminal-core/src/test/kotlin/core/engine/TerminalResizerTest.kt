@@ -318,7 +318,7 @@ class TerminalResizerTest {
                 { assertEquals(0x1F468, dest[0]) },
                 { assertEquals(0x200D,  dest[1]) },
                 { assertEquals(0x1F469, dest[2]) },
-                { assertEquals(42, line.getPackedAttr(0)) }
+                { assertEquals(42L, line.getPackedAttr(0)) }
             )
         }
 
@@ -371,7 +371,7 @@ class TerminalResizerTest {
                 { assertEquals(2, written) },
                 { assertEquals(0x1F600, dest[0]) },
                 { assertEquals(0x200D, dest[1]) },
-                { assertEquals(7, secondRow.getPackedAttr(0)) }
+                { assertEquals(7L, secondRow.getPackedAttr(0)) }
             )
         }
     }

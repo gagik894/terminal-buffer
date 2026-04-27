@@ -28,7 +28,7 @@ internal class TerminalReaderImpl(
 		return if (line.width == 0) TerminalConstants.EMPTY else line.getCodepoint(col)
 	}
 
-	override fun getPackedAttrAt(col: Int, row: Int): Int {
+	override fun getPackedAttrAt(col: Int, row: Int): Long {
 		if (!state.dimensions.isValidCol(col)) return state.pen.currentAttr
 		val line = getLine(row)
 		return if (line.width == 0) state.pen.currentAttr else line.getPackedAttr(col)

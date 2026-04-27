@@ -9,7 +9,7 @@ package com.gagik.core.model
 internal class SavedCursorState {
     var col: Int = 0
     var row: Int = 0
-    var attr: Int = 0
+    var attr: Long = 0
     var pendingWrap: Boolean = false
     var isOriginMode: Boolean = false
     var isSaved: Boolean = false

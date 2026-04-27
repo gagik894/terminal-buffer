@@ -2,6 +2,7 @@ package com.gagik.integration
 
 import com.gagik.core.TerminalBuffers
 import com.gagik.core.api.TerminalBufferApi
+import com.gagik.core.model.AttributeColor
 import com.gagik.core.model.MouseEncodingMode
 import com.gagik.core.model.MouseTrackingMode
 import com.gagik.parser.api.TerminalOutputParser
@@ -241,8 +242,8 @@ class CoreTerminalCommandSinkTest {
             val attr = f.terminal.getAttrAt(0, 0)
 
             assertAll(
-                { assertEquals(2, attr?.fg) },
-                { assertEquals(5, attr?.bg) },
+                { assertEquals(AttributeColor.indexed(1), attr?.foreground) },
+                { assertEquals(AttributeColor.indexed(4), attr?.background) },
                 { assertEquals(true, attr?.bold) },
                 { assertEquals(true, attr?.italic) },
                 { assertEquals(true, attr?.underline) },
@@ -262,15 +263,15 @@ class CoreTerminalCommandSinkTest {
 
             assertAll(
                 { assertEquals(true, first?.bold) },
-                { assertEquals(2, first?.fg) },
+                { assertEquals(AttributeColor.indexed(1), first?.foreground) },
                 { assertEquals(false, second?.bold) },
-                { assertEquals(0, second?.fg) },
-                { assertEquals(0, second?.bg) },
+                { assertEquals(AttributeColor.DEFAULT, second?.foreground) },
+                { assertEquals(AttributeColor.DEFAULT, second?.background) },
             )
         }
 
         @Test
-        fun `256-color indexed SGR is ignored until core supports 256-color pen state`() {
+        fun `256-color indexed SGR is ignored until adapter maps it to core pen state`() {
             val f = Fixture()
 
             f.acceptAscii("\u001B[38;5;196mX")
@@ -278,7 +279,7 @@ class CoreTerminalCommandSinkTest {
 
             val attr = f.terminal.getAttrAt(0, 0)
 
-            assertEquals(0, attr?.fg)
+            assertEquals(AttributeColor.DEFAULT, attr?.foreground)
         }
 
         @Test

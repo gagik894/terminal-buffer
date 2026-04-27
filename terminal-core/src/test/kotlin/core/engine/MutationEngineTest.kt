@@ -33,14 +33,14 @@ class MutationEngineTest {
         }
     }
 
-    private fun assertLineAttrs(state: TerminalState, row: Int, expected: IntArray) {
+    private fun assertLineAttrs(state: TerminalState, row: Int, expected: LongArray) {
         val line = lineAt(state, row)
         for (i in expected.indices) {
             assertEquals(expected[i], line.getPackedAttr(i), "Attr mismatch at row=$row col=$i")
         }
     }
 
-    private fun seedLine(state: TerminalState, row: Int, text: String, attr: Int = 0) {
+    private fun seedLine(state: TerminalState, row: Int, text: String, attr: Long = 0) {
         val line = lineAt(state, row)
         for ((i, ch) in text.withIndex()) {
             if (i >= line.width) break
@@ -630,7 +630,7 @@ class MutationEngineTest {
 
             assertAll(
                 { assertLineCodepoints(state, 0, intArrayOf('A'.code, 'D'.code, 'E'.code, 'F'.code, TerminalConstants.EMPTY, TerminalConstants.EMPTY)) },
-                { assertLineAttrs(state, 0, intArrayOf(10, 10, 10, 10, fillAttr, fillAttr)) },
+                { assertLineAttrs(state, 0, longArrayOf(10, 10, 10, 10, fillAttr, fillAttr)) },
                 { assertEquals(1, state.cursor.col) },
                 { assertEquals(0, state.cursor.row) }
             )
@@ -872,7 +872,7 @@ class MutationEngineTest {
 
             writer.insertLines(1)
 
-            assertLineAttrs(state, 1, intArrayOf(clearAttr, clearAttr, clearAttr))
+            assertLineAttrs(state, 1, longArrayOf(clearAttr, clearAttr, clearAttr))
             assertLineCodepoints(state, 2, intArrayOf('B'.code, 'B'.code, 'B'.code))
         }
 
@@ -1170,7 +1170,7 @@ class MutationEngineTest {
 
             writer.printCodepoint('X'.code, 1)
 
-            assertLineAttrs(state, 0, intArrayOf(10, newAttr, 10, 10, 10))
+            assertLineAttrs(state, 0, longArrayOf(10, newAttr, 10, 10, 10))
         }
     }
 
@@ -1621,8 +1621,8 @@ class MutationEngineTest {
 
             writer.clearViewport()
 
-            assertLineAttrs(state, 0, intArrayOf(clearAttr, clearAttr))
-            assertLineAttrs(state, 1, intArrayOf(clearAttr, clearAttr))
+            assertLineAttrs(state, 0, longArrayOf(clearAttr, clearAttr))
+            assertLineAttrs(state, 1, longArrayOf(clearAttr, clearAttr))
         }
 
         @Test
@@ -1634,8 +1634,8 @@ class MutationEngineTest {
 
             writer.clearAllHistory()
 
-            assertLineAttrs(state, 0, intArrayOf(clearAttr, clearAttr))
-            assertLineAttrs(state, 1, intArrayOf(clearAttr, clearAttr))
+            assertLineAttrs(state, 0, longArrayOf(clearAttr, clearAttr))
+            assertLineAttrs(state, 1, longArrayOf(clearAttr, clearAttr))
         }
     }
 

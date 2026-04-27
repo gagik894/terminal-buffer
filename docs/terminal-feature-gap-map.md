@@ -204,15 +204,14 @@ Missing:
 
 ### Pen and Attributes
 
-Current core attributes store indexed foreground/background, bold, italic,
-underline, and selective-erase protection.
+Current core attributes store default/indexed/RGB foreground/background, bold,
+italic, underline, inverse/reverse-video, and selective-erase protection.
 
 Missing:
 
-- `TODO(core)`: 256-color indexed foreground/background storage.
-- `TODO(core)`: RGB/truecolor foreground/background storage.
-- `TODO(core)`: inverse/reverse-video cell attribute.
-  This is high priority because terminal UIs use SGR 7 heavily.
+- `DONE(core)`: 256-color indexed foreground/background storage.
+- `DONE(core)`: RGB/truecolor foreground/background storage.
+- `DONE(core)`: inverse/reverse-video cell attribute.
 - `TODO(core)`: faint/dim intensity.
 - `TODO(core)`: blink attribute.
 - `TODO(core)`: conceal/hidden attribute.
@@ -291,11 +290,12 @@ Missing:
 
 ## Integration Gaps
 
-- `TODO(integration)`: map parser SGR 256-color only after core supports 256-color
-  attributes. The adapter must not clamp 256-color indexes into 16-color values.
-- `TODO(integration)`: map RGB SGR only after core supports RGB pen attributes.
-- `TODO(integration)`: map inverse/faint/blink/conceal/strikethrough only after
-  core exposes those attributes.
+- `TODO(integration)`: map parser SGR 256-color to core indexed attributes.
+  The adapter must not clamp 256-color indexes into 16-color values.
+- `TODO(integration)`: map RGB SGR to core RGB pen attributes.
+- `TODO(integration)`: map inverse SGR to core inverse pen attributes.
+- `TODO(integration)`: map faint/blink/conceal/strikethrough only after core
+  exposes those attributes.
 - `TODO(integration)`: map DECSTR only after core exposes a soft-reset API.
 - `TODO(integration)`: map alternate-screen `47` and `1047` only after core
   exposes their exact semantics.
@@ -368,14 +368,13 @@ professional emulator needs explicit contracts for it.
 
 ## Recommended Next Order
 
-1. `TODO(core)`: expand pen attributes for inverse and 256-color support.
-2. `TODO(integration)`: wire SGR inverse and 256-color once core supports them.
-3. `TODO(parser)`: add RIS, DECSLRM, DECSEL/DECSED, and DECSCA routing.
-4. `TODO(integration)`: map those parser commands into existing core APIs.
-5. `TODO(parser/core)`: add terminal-to-host response channel for DSR/CPR/DA.
-6. `TODO(input)`: build the input encoder using core mode snapshots.
-7. `TODO(input)`: add Kitty Keyboard Protocol support.
-8. `TODO(parser/core)`: add xterm title stack and safe window/grid size reports.
-9. `TODO(parser)`: add DCS router with a strict response/security policy.
-10. `TODO(parser)`: choose and implement one modern graphics path, if inline
+1. `TODO(integration)`: wire SGR inverse, 256-color, and RGB color attributes.
+2. `TODO(parser)`: add RIS, DECSLRM, DECSEL/DECSED, and DECSCA routing.
+3. `TODO(integration)`: map those parser commands into existing core APIs.
+4. `TODO(parser/core)`: add terminal-to-host response channel for DSR/CPR/DA.
+5. `TODO(input)`: build the input encoder using core mode snapshots.
+6. `TODO(input)`: add Kitty Keyboard Protocol support.
+7. `TODO(parser/core)`: add xterm title stack and safe window/grid size reports.
+8. `TODO(parser)`: add DCS router with a strict response/security policy.
+9. `TODO(parser)`: choose and implement one modern graphics path, if inline
     graphics are a product goal.

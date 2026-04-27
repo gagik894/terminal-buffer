@@ -25,11 +25,11 @@ interface TerminalLineApi {
     fun getCodepoint(col: Int): Int
 
     /**
-     * Returns the packed attribute integer for the cell at [col].
+     * Returns the packed attribute word for the cell at [col].
      * Decode with [com.gagik.core.codec.AttributeCodec] to access individual fields.
      * Use this method in production render loops; it is zero-allocation.
      */
-    fun getPackedAttr(col: Int): Int
+    fun getPackedAttr(col: Int): Long
 
     /**
      * Returns `true` if the cell at [col] holds a multi-codepoint grapheme cluster

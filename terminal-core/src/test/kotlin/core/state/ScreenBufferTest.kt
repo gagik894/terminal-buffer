@@ -147,9 +147,9 @@ class ScreenBufferTest {
             { assertEquals("", buffer.ring[0].toTextTrimmed()) },
             { assertEquals("", buffer.ring[1].toTextTrimmed()) },
             { assertEquals("", buffer.ring[2].toTextTrimmed()) },
-            { assertEquals(37, buffer.ring[0].getPackedAttr(0)) },
-            { assertEquals(37, buffer.ring[1].getPackedAttr(0)) },
-            { assertEquals(37, buffer.ring[2].getPackedAttr(0)) },
+            { assertEquals(37L, buffer.ring[0].getPackedAttr(0)) },
+            { assertEquals(37L, buffer.ring[1].getPackedAttr(0)) },
+            { assertEquals(37L, buffer.ring[2].getPackedAttr(0)) },
             { assertSame(storeBefore, buffer.ring[0].store) },
             { assertSame(storeBefore, buffer.ring[1].store) },
             { assertSame(storeBefore, buffer.ring[2].store) }
@@ -205,8 +205,8 @@ class ScreenBufferTest {
             { assertEquals(12, buffer.ring[0].width) },
             { assertEquals("", buffer.ring[0].toTextTrimmed()) },
             { assertEquals("", buffer.ring[4].toTextTrimmed()) },
-            { assertEquals(29, buffer.ring[0].getPackedAttr(0)) },
-            { assertEquals(29, buffer.ring[4].getPackedAttr(0)) },
+            { assertEquals(29L, buffer.ring[0].getPackedAttr(0)) },
+            { assertEquals(29L, buffer.ring[4].getPackedAttr(0)) },
             { assertSame(buffer.store, buffer.ring[0].store) },
             { assertSame(buffer.store, buffer.ring[4].store) },
 
@@ -240,7 +240,7 @@ class ScreenBufferTest {
             { assertEquals(0, buffer.scrollBottom) },
             { assertTrue(buffer.isFullViewportScroll(1)) },
             { assertEquals("", buffer.ring[0].toTextTrimmed()) },
-            { assertEquals(41, buffer.ring[0].getPackedAttr(0)) }
+            { assertEquals(41L, buffer.ring[0].getPackedAttr(0)) }
         )
     }
 

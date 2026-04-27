@@ -4,11 +4,11 @@ import com.gagik.core.api.TerminalLineApi
 import com.gagik.core.store.ClusterStore
 
 /**
- * A mutable physical terminal line backed by two primitive arrays.
+ * A mutable physical terminal line backed by primitive arrays.
  *
  * ## Cell encoding
  *
- * Each column is represented by a pair of parallel `Int` values:
+ * Each column is represented by parallel primitive values:
  * - `codepoints[col]` — the raw storage value (see [TerminalConstants] for the full encoding)
  * - `attrs[col]`      — the packed cell attribute (decoded via [com.gagik.core.codec.AttributeCodec])
  *
@@ -44,7 +44,7 @@ internal class Line(
     private val codepoints = IntArray(width) { TerminalConstants.EMPTY }
 
     /** Packed cell attributes, parallel to [codepoints]. */
-    private val attrs = IntArray(width)
+    private val attrs = LongArray(width)
 
     /**
      * True when this line's content continues on the next physical line.
@@ -73,7 +73,7 @@ internal class Line(
      *
      * @param col Column index.
      */
-    fun setRawCell(col: Int, raw: Int, attr: Int) {
+    fun setRawCell(col: Int, raw: Int, attr: Long) {
         codepoints[col] = raw
         attrs[col]      = attr
     }
@@ -98,7 +98,7 @@ internal class Line(
      *
      * @param col Column index.
      */
-    override fun getPackedAttr(col: Int): Int = attrs[col]
+    override fun getPackedAttr(col: Int): Long = attrs[col]
 
     /**
      * Returns `true` if [col] holds a multi-codepoint grapheme cluster.
@@ -130,7 +130,7 @@ internal class Line(
      * Writes a single codepoint into [col], freeing any cluster handle previously
      * stored there. This is the standard write path for all non-cluster cells.
      */
-    fun setCell(col: Int, codepoint: Int, attr: Int) {
+    fun setCell(col: Int, codepoint: Int, attr: Long) {
         freeHandleAt(col)
         codepoints[col] = codepoint
         attrs[col]      = attr
@@ -146,7 +146,7 @@ internal class Line(
      * @param cpLen  Number of valid codepoints in [cps].
      * @param attr   Packed cell attribute.
      */
-    fun setCluster(col: Int, cps: IntArray, cpLen: Int, attr: Int) {
+    fun setCluster(col: Int, cps: IntArray, cpLen: Int, attr: Long) {
         freeHandleAt(col)
         codepoints[col] = store.alloc(cps, 0, cpLen)
         attrs[col]      = attr
@@ -156,7 +156,7 @@ internal class Line(
      * Clears all cells to [defaultAttr] and frees every cluster handle in the line.
      * Also resets the [wrapped] flag.
      */
-    fun clear(defaultAttr: Int) {
+    fun clear(defaultAttr: Long) {
         store.freeRange(codepoints, 0, width)
         codepoints.fill(TerminalConstants.EMPTY)
         attrs.fill(defaultAttr)
@@ -167,7 +167,7 @@ internal class Line(
      * Clears cells from [startCol] (inclusive) to the end of the line,
      * freeing any cluster handles in that range.
      */
-    fun clearFromColumn(startCol: Int, attr: Int) {
+    fun clearFromColumn(startCol: Int, attr: Long) {
         val from = startCol.coerceAtLeast(0)
         if (from >= width) return
         store.freeRange(codepoints, from, width)
@@ -179,7 +179,7 @@ internal class Line(
      * Clears cells from the start of the line through [endCol] (inclusive),
      * freeing any cluster handles in that range.
      */
-    fun clearToColumn(endCol: Int, attr: Int) {
+    fun clearToColumn(endCol: Int, attr: Long) {
         val to = (endCol + 1).coerceAtMost(width)
         if (to <= 0) return
         store.freeRange(codepoints, 0, to)
@@ -191,7 +191,7 @@ internal class Line(
      * Clears cells in `[startCol, endExclusive)`, freeing any cluster handles in
      * that range and leaving cells outside the range untouched.
      */
-    fun clearRange(startCol: Int, endExclusive: Int, attr: Int) {
+    fun clearRange(startCol: Int, endExclusive: Int, attr: Long) {
         val from = startCol.coerceIn(0, width)
         val to = endExclusive.coerceIn(0, width)
         if (from >= to) return
@@ -206,7 +206,7 @@ internal class Line(
      * The wide-cluster leader at [col] must be annihilated by the caller before
      * this method is invoked.
      */
-    fun insertCells(col: Int, count: Int, defaultAttr: Int) {
+    fun insertCells(col: Int, count: Int, defaultAttr: Long) {
         insertCellsInRange(col, count, width - 1, defaultAttr)
     }
 
@@ -214,7 +214,7 @@ internal class Line(
      * Inserts [count] blank cells at [col], shifting existing content to the
      * right within `[col, rightInclusive]` only.
      */
-    fun insertCellsInRange(col: Int, count: Int, rightInclusive: Int, defaultAttr: Int) {
+    fun insertCellsInRange(col: Int, count: Int, rightInclusive: Int, defaultAttr: Long) {
         if (col !in 0 until width || count <= 0) return
         if (rightInclusive !in 0 until width || col > rightInclusive) return
 
@@ -245,7 +245,7 @@ internal class Line(
      * @param count      Number of cells to delete. Non-positive values are ignored.
      * @param defaultAttr Packed attribute used to fill the vacated trailing cells.
      */
-    fun deleteCells(col: Int, count: Int, defaultAttr: Int) {
+    fun deleteCells(col: Int, count: Int, defaultAttr: Long) {
         deleteCellsInRange(col, count, width - 1, defaultAttr)
     }
 
@@ -253,7 +253,7 @@ internal class Line(
      * Deletes [count] cells at [col], shifting surviving content left within
      * `[col, rightInclusive]` only.
      */
-    fun deleteCellsInRange(col: Int, count: Int, rightInclusive: Int, defaultAttr: Int) {
+    fun deleteCellsInRange(col: Int, count: Int, rightInclusive: Int, defaultAttr: Long) {
         if (col !in 0 until width || count <= 0) return
         if (rightInclusive !in 0 until width || col > rightInclusive) return
 
@@ -281,7 +281,7 @@ internal class Line(
      * Fills every cell with [codepoint] and [attr], freeing all cluster handles first.
      * Used for bulk background-color fills (e.g. erase-display operations).
      */
-    fun fill(codepoint: Int, attr: Int) {
+    fun fill(codepoint: Int, attr: Long) {
         store.freeRange(codepoints, 0, width)
         codepoints.fill(codepoint)
         attrs.fill(attr)
@@ -351,7 +351,7 @@ internal class Line(
 internal object VoidLine : TerminalLineApi {
     override val width: Int = 0
     override fun getCodepoint(col: Int): Int = TerminalConstants.EMPTY
-    override fun getPackedAttr(col: Int): Int = 0
+    override fun getPackedAttr(col: Int): Long = 0
     override fun isCluster(col: Int): Boolean = false
     override fun readCluster(col: Int, dest: IntArray): Int = 0
 }

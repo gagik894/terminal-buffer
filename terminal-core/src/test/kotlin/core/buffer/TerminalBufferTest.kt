@@ -2,6 +2,7 @@ package com.gagik.core.buffer
 
 import com.gagik.core.TerminalBuffers
 import com.gagik.core.api.TerminalBufferApi
+import com.gagik.core.model.AttributeColor
 import com.gagik.core.model.Attributes
 import com.gagik.core.model.MouseEncodingMode
 import com.gagik.core.model.MouseTrackingMode
@@ -81,7 +82,18 @@ class TerminalBufferTest {
 			{ assertEquals(3, buffer.cursorCol) },
 			{ assertEquals(1, buffer.cursorRow) },
 			{ assertEquals('X'.code, buffer.getCodepointAt(2, 1)) },
-			{ assertEquals(Attributes(3, 7, bold = true, italic = true, underline = false), buffer.getAttrAt(2, 1)) }
+			{
+				assertEquals(
+					Attributes(
+						foreground = AttributeColor.indexed(2),
+						background = AttributeColor.indexed(6),
+						bold = true,
+						italic = true,
+						underline = false
+					),
+					buffer.getAttrAt(2, 1)
+				)
+			}
 		)
 	}
 

@@ -122,7 +122,7 @@ internal class ScreenBuffer(
      * place: every live line must be cleared before logical reachability is
      * dropped, otherwise cluster payloads can leak in the shared [store].
      */
-    fun clearGrid(penAttr: Int, viewportHeight: Int) {
+    fun clearGrid(penAttr: Long, viewportHeight: Int) {
         for (i in 0 until ring.size) {
             ring[i].clear(penAttr)
         }
@@ -138,7 +138,7 @@ internal class ScreenBuffer(
      * replace them independently because every [Line] in the ring closes over
      * the active store instance.
      */
-    fun replaceStorage(newWidth: Int, newHeight: Int, penAttr: Int) {
+    fun replaceStorage(newWidth: Int, newHeight: Int, penAttr: Long) {
         store = ClusterStore()
         ring = HistoryRing(maxHistory + newHeight) { Line(newWidth, store) }
         repeat(newHeight) { ring.push().clear(penAttr) }

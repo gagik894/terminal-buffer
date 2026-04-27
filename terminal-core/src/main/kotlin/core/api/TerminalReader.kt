@@ -41,5 +41,5 @@ interface TerminalReader {
      * Returns the packed cell attributes, or the active pen attribute if out of bounds.
      * This mirrors the terminal's current erase/write attribute for off-grid queries.
      */
-    fun getPackedAttrAt(col: Int, row: Int): Int
+    fun getPackedAttrAt(col: Int, row: Int): Long
 }

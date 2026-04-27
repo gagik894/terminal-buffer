@@ -99,7 +99,7 @@ internal class TerminalBuffer private constructor(
     private data class SavedCursorSnapshot(
         val col: Int,
         val row: Int,
-        val attr: Int,
+        val attr: Long,
         val pendingWrap: Boolean,
         val isOriginMode: Boolean,
         val isSaved: Boolean

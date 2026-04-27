@@ -3,6 +3,7 @@ package com.gagik.core.buffer.impl
 import com.gagik.core.codec.AttributeCodec
 import com.gagik.core.engine.CursorEngine
 import com.gagik.core.engine.MutationEngine
+import com.gagik.core.model.AttributeColor
 import com.gagik.core.model.Attributes
 import com.gagik.core.state.TerminalState
 import org.junit.jupiter.api.Assertions.*
@@ -24,10 +25,39 @@ class TerminalWriterImplTest {
             { assertEquals(0, state.cursor.row) },
             {
                 assertEquals(
-                    Attributes(3, 7, bold = true, italic = true, underline = false),
+                    Attributes(
+                        foreground = AttributeColor.indexed(2),
+                        background = AttributeColor.indexed(6),
+                        bold = true,
+                        italic = true,
+                        underline = false
+                    ),
                     AttributeCodec.unpack(state.ring[state.resolveRingIndex(0)].getPackedAttr(0))
                 )
             }
+        )
+    }
+
+    @Test
+    fun `writes codepoints with explicit rgb indexed and inverse colors`() {
+        val state = TerminalState(5, 2, 2)
+        val writer = TerminalWriterImpl(state, MutationEngine(state), CursorEngine(state))
+
+        writer.setPenColors(
+            foreground = AttributeColor.rgb(0x10, 0x20, 0x30),
+            background = AttributeColor.indexed(231),
+            underline = true,
+            inverse = true
+        )
+        writer.writeCodepoint('R'.code)
+
+        val unpacked = AttributeCodec.unpack(state.ring[state.resolveRingIndex(0)].getPackedAttr(0))
+
+        assertAll(
+            { assertEquals(AttributeColor.rgb(0x10, 0x20, 0x30), unpacked.foreground) },
+            { assertEquals(AttributeColor.indexed(231), unpacked.background) },
+            { assertTrue(unpacked.underline) },
+            { assertTrue(unpacked.inverse) }
         )
     }
 

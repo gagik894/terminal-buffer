@@ -34,7 +34,7 @@ internal class MutationEngine(
     private val height: Int get() = state.dimensions.height
     private val leftMargin: Int get() = state.effectiveLeftMargin
     private val rightMargin: Int get() = state.effectiveRightMargin
-    private val blankAttr: Int get() = state.pen.blankAttr
+    private val blankAttr: Long get() = state.pen.blankAttr
     private var clusterScratch = IntArray(16)
 
     /**
