@@ -1,39 +1,102 @@
-# Terminal Buffer Project: AI Assistant Directives
+# Terminal Core Agent Guide
 
-## 1. Project Identity & Scope [CRITICAL]
-You are assisting in the development of a high-performance, in-memory terminal buffer written in Kotlin/JVM 21.
-* **WE ONLY BUILD THE BUFFER.** Do not generate UI code, rendering code, Swing/Compose wrappers, or OS-level PTY/I/O integrations.
-* **HEADLESS BY DESIGN.** The engine only understands coordinates, integers, and state transitions.
-* **THE PRIME DIRECTIVE:** Zero-allocation on the hot path. CPU cache locality is our highest priority.
+`terminal-core` is the headless terminal state engine. It owns grid mutation,
+cursor physics, scrollback, modes, tab stops, pen attributes, width policy, and
+cluster storage.
 
-## 2. The Data-Oriented Mandate
+It must not parse escape sequences, decode UTF-8, segment graphemes, encode
+input events, or render UI.
 
-Must be fast, performant, and cache-friendly. The design is intentionally low-level and flat.
-Do NOT use Object-Oriented design patterns for memory storage.
-* **Primitives Only:** The grid is stored as flat `IntArray`s (one for codepoints, one for packed attributes).
+## Core Boundary
 
-## 3. The Cell Physics & Invariants (The Grid Contract)
-Every cell `i` in the `IntArray` must strictly adhere to one of these states. You must enforce these invariants in all mutation code:
-* **`0` (EMPTY):** A blank cell. (We do not use NUL or space sentinels, 0 is the default).
-* **`> 0` (CODEPOINT):** A standard 1-cell Unicode character.
-* **`-1` (WIDE_SPACER):** A ghost cell. Must strictly follow a width-2 leader.
+Core receives semantic operations from parser/integration-facing APIs such as
+`writeCodepoint`, `writeCluster`, cursor movement, erase/edit commands, mode
+setters, and pen setters.
 
-## 4. The Overwrite Protocol
-When mutating the grid (inserting, overwriting, or clearing), you must NEVER leave orphaned spacers or corrupted leaders.
-* **Rule 1:** Before writing to `col`, you must invoke the `findClusterStart(col)` logic to determine the canonical owner of the cell.
-* **Rule 2 (Annihilation):** If writing to a cell that belongs to a multi-cell cluster or wide character, you must zero-out (`EMPTY`) the entire span of the previous cluster before writing the new data.
+Core owns:
 
-## 5. Memory Lifecycle (The Arena Model)
-* **No Global State:** Complex strings are not interned globally. They are stored in an `Arena` (or local Pool) tied to a bounded lifecycle (e.g., a block of lines).
-* **Garbage Collection:** When lines are evicted from the `HistoryRing`, their associated Arena data must die with them.
-* **Explicit Widths:** When storing a complex cluster, its physical grid width must be explicitly stored and queried from the Arena, never inferred implicitly.
+- cursor bounds and clamping
+- origin mode and margin-relative movement
+- wrapping and pending-wrap behavior
+- scroll regions and scrollback
+- tab-stop state
+- primary and alternate buffers
+- cell width decisions
+- durable terminal modes
+- packed cell attributes and cluster handles
 
-## 6. API Surface & Architecture
-* **The Coordinator:** `TerminalBuffer` delegates input to `InputHandler`, reflow to `TerminalResizer`, and state to `TerminalState`.
-* **The Firewall:** The Buffer API (`moveTo`, `printCodepoint`, `erase`) is a black box. The external Parser/FSM must NEVER directly touch the `IntArray`s.
-* **Out-of-Bounds:** `getLine(row)` returns `VoidLine`. `getCodepointAt()` returns `0`. Do not throw IndexOutOfBounds exceptions for valid screen coordinate queries.
+Parser owns what text/protocol was received. Core owns where that text lands and
+how many cells it occupies.
 
-## 7. Developer Workflow & Testing
-* **Validation First:** If modifying grid mutation logic, write or update tests in `src/test/kotlin/terminal/` first.
-* **Gradle:** Use `./gradlew test`.
-* **Test Focus:** Rely on `TerminalResizerTest.kt` and buffer behavior tests to catch regression in width calculations, cursor bounding, and history preservation.
+## Data-Oriented Rules
+
+- Keep grid storage flat and primitive.
+- Preserve cache-friendly layouts: `IntArray` cells, packed attributes, bounded
+  cluster stores, and explicit sentinel values.
+- Do not introduce object-per-cell storage.
+- Do not allocate in mutation hot paths unless the operation inherently stores a
+  grapheme cluster or resizes/reflows.
+- Keep complex cluster data tied to bounded screen/history lifecycles.
+
+## Cell Invariants
+
+Every grid mutation must preserve cell invariants:
+
+- `0` means empty.
+- Positive values represent direct scalar codepoints when locally encoded that
+  way by the current storage model.
+- Wide spacers and cluster handles must never be orphaned.
+- Overwriting any cell in a wide or clustered span must clear the full previous
+  span before writing the new content.
+
+If a mutation touches wrapping, insert/delete, erase, scroll, resize, margins, or
+wide clusters, add tests that prove no corrupted leaders, spacers, or stale
+cluster references remain.
+
+## Width Ownership
+
+Width calculation belongs here, not in `terminal-parser`.
+
+Core width policy must account for:
+
+- East Asian wide/full-width codepoints.
+- combining and zero-width codepoints.
+- emoji presentation and ZWJ clusters.
+- variation selectors.
+- ambiguous-width policy from terminal mode/configuration.
+
+Generated Unicode tables should eventually replace curated seed ranges. Keep the
+API table-shaped now so generation is a mechanical upgrade later.
+
+## Attribute Ownership
+
+Core must represent pen attributes truthfully. If an attribute is not supported,
+do not let integration fake it.
+
+High-priority gaps:
+
+- inverse/reverse-video cell attribute
+- 256-color indexed foreground/background
+- RGB/truecolor foreground/background
+- faint, blink, conceal, strikethrough
+- richer underline styles and underline color
+
+Document each gap in `docs/terminal-feature-gap-map.md` until implemented.
+
+## Testing
+
+Core tests should focus on invariants and terminal physics:
+
+- cursor movement with margins, origin mode, and bounds
+- wrap and pending-wrap behavior
+- insert/delete/erase with wide and clustered cells
+- scroll regions and scrollback retention
+- alternate buffer behavior
+- resize/reflow with cluster preservation
+- tab stops
+- mode snapshots
+- pen attribute storage and reset behavior
+
+Tests must verify expected terminal behavior, not current bugs. Prefer small
+unit tests for exact mechanics and broader invariant tests around mutation
+engines.

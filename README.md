@@ -37,6 +37,8 @@ The detailed public contract lives in
 [`docs/terminal-core-contract.md`](terminal-core/docs/terminal-core-contract.md).
 Known parser/core/integration gaps are tracked in
 [`docs/terminal-feature-gap-map.md`](docs/terminal-feature-gap-map.md).
+Agent/session guidance lives in [`AGENTS.md`](AGENTS.md), with reusable
+playbooks in [`docs/agent-skills.md`](docs/agent-skills.md).
 
 - Parser-facing durable mode control lives on `TerminalModeController`.
 - Input/UI-facing durable mode reads live on `TerminalModeReader` via immutable
