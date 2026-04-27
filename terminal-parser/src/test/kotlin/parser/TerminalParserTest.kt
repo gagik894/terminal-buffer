@@ -248,6 +248,15 @@ class TerminalParserTest {
         }
 
         @Test
+        fun `ESC c dispatches full terminal reset through the full parser`() {
+            val f = TerminalParserFixture()
+
+            f.acceptAscii("\u001Bc")
+
+            assertEquals(listOf("resetTerminal"), f.sink.events)
+        }
+
+        @Test
         fun `CSI sequence dispatches through command dispatcher across chunks`() {
             val f = TerminalParserFixture()
 
@@ -306,6 +315,43 @@ class TerminalParserTest {
                 { assertEquals(listOf("setScrollRegion:0:-1"), full.sink.events) },
                 { assertEquals(listOf("setScrollRegion:4:-1"), topOnly.sink.events) },
                 { assertEquals(listOf("setScrollRegion:0:9"), bottomOnly.sink.events) }
+            )
+        }
+
+        @Test
+        fun `DECSLRM omitted margins leave terminal right edge ownership to the sink`() {
+            val full = TerminalParserFixture()
+            val leftOnly = TerminalParserFixture()
+            val rightOnly = TerminalParserFixture()
+
+            full.acceptAscii("\u001B[s")
+            leftOnly.acceptAscii("\u001B[5;s")
+            rightOnly.acceptAscii("\u001B[;10s")
+
+            assertAll(
+                { assertEquals(listOf("setLeftRightMargins:0:-1"), full.sink.events) },
+                { assertEquals(listOf("setLeftRightMargins:4:-1"), leftOnly.sink.events) },
+                { assertEquals(listOf("setLeftRightMargins:0:9"), rightOnly.sink.events) }
+            )
+        }
+
+        @Test
+        fun `DEC selective erase and protection commands dispatch through the full parser`() {
+            val eraseDisplay = TerminalParserFixture()
+            val eraseLine = TerminalParserFixture()
+            val protected = TerminalParserFixture()
+            val unprotected = TerminalParserFixture()
+
+            eraseDisplay.acceptAscii("\u001B[?2J")
+            eraseLine.acceptAscii("\u001B[?1K")
+            protected.acceptAscii("\u001B[1\"q")
+            unprotected.acceptAscii("\u001B[2\"q")
+
+            assertAll(
+                { assertEquals(listOf("eraseInDisplay:2:true"), eraseDisplay.sink.events) },
+                { assertEquals(listOf("eraseInLine:1:true"), eraseLine.sink.events) },
+                { assertEquals(listOf("setSelectiveEraseProtection:true"), protected.sink.events) },
+                { assertEquals(listOf("setSelectiveEraseProtection:false"), unprotected.sink.events) }
             )
         }
 

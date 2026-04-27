@@ -41,6 +41,13 @@ interface TerminalCommandSink {
      */
     fun softReset()
 
+    /**
+     * RIS full terminal reset: ESC c.
+     *
+     * The parser identifies the sequence; the core owns the actual reset semantics.
+     */
+    fun resetTerminal()
+
     fun saveCursor()
     fun restoreCursor()
 
@@ -85,6 +92,15 @@ interface TerminalCommandSink {
      * core should use the terminal's current last row.
      */
     fun setScrollRegion(top: Int, bottom: Int)
+
+    /**
+     * DECSLRM left/right margins.
+     *
+     * Left and right are parser-translated to zero-origin before handoff.
+     * A right value of -1 means the sequence omitted the right margin, so the
+     * core should use the terminal's current last column.
+     */
+    fun setLeftRightMargins(left: Int, right: Int)
 
     // -------------------------------------------------------------------------
     // Erase / edit / scroll
@@ -143,6 +159,7 @@ interface TerminalCommandSink {
     fun setInverse(enabled: Boolean)
     fun setConceal(enabled: Boolean)
     fun setStrikethrough(enabled: Boolean)
+    fun setSelectiveEraseProtection(enabled: Boolean)
 
     fun setForegroundDefault()
     fun setBackgroundDefault()

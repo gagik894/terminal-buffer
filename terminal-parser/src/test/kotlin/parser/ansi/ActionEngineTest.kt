@@ -167,6 +167,10 @@ class ActionEngineTest {
             sinkCalls += "softReset"
         }
 
+        override fun resetTerminal() {
+            sinkCalls += "resetTerminal"
+        }
+
         override fun saveCursor() {
             sinkCalls += "saveCursor"
         }
@@ -221,6 +225,10 @@ class ActionEngineTest {
 
         override fun setScrollRegion(top: Int, bottom: Int) {
             sinkCalls += "setScrollRegion:$top:$bottom"
+        }
+
+        override fun setLeftRightMargins(left: Int, right: Int) {
+            sinkCalls += "setLeftRightMargins:$left:$right"
         }
 
         override fun eraseInDisplay(mode: Int, selective: Boolean) {
@@ -313,6 +321,10 @@ class ActionEngineTest {
 
         override fun setStrikethrough(enabled: Boolean) {
             sinkCalls += "setStrikethrough:$enabled"
+        }
+
+        override fun setSelectiveEraseProtection(enabled: Boolean) {
+            sinkCalls += "setSelectiveEraseProtection:$enabled"
         }
 
         override fun setForegroundDefault() {

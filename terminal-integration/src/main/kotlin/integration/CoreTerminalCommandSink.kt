@@ -17,8 +17,6 @@ import com.gagik.parser.spi.TerminalCommandSink
  *
  * TODO(core-gap): Core pen attributes do not yet model faint, blink, conceal, or
  * strikethrough. These SGR attributes are intentionally not faked here.
- * TODO(parser-gap): Core already exposes DECSLRM, DECSEL/DECSED, DECSCA, and RIS. Parser routing
- * for those sequences is still missing, so this adapter cannot receive them yet.
  */
 class CoreTerminalCommandSink(
     private val terminal: TerminalBufferApi,
@@ -85,6 +83,11 @@ class CoreTerminalCommandSink(
         resetAttributes()
     }
 
+    override fun resetTerminal() {
+        terminal.reset()
+        resetPenMirror()
+    }
+
     override fun saveCursor() {
         terminal.saveCursor()
     }
@@ -145,6 +148,15 @@ class CoreTerminalCommandSink(
         terminal.setScrollRegion(
             top = top + 1,
             bottom = if (bottom < 0) terminal.height else bottom + 1,
+        )
+    }
+
+    override fun setLeftRightMargins(left: Int, right: Int) {
+        // Parser SPI passes zero-based inclusive margins; core TerminalWriter keeps DECSLRM's
+        // one-based inclusive API. This conversion is intentional.
+        terminal.setLeftRightMargins(
+            left = left + 1,
+            right = if (right < 0) terminal.width else right + 1,
         )
     }
 
@@ -253,13 +265,17 @@ class CoreTerminalCommandSink(
     }
 
     override fun resetAttributes() {
+        resetPenMirror()
+        terminal.resetPen()
+    }
+
+    private fun resetPenMirror() {
         foreground = AttributeColor.DEFAULT
         background = AttributeColor.DEFAULT
         bold = false
         italic = false
         underline = false
         inverse = false
-        terminal.resetPen()
     }
 
     override fun setBold(enabled: Boolean) {
@@ -296,6 +312,10 @@ class CoreTerminalCommandSink(
 
     override fun setStrikethrough(enabled: Boolean) {
         // TODO(core-gap): Add strikethrough cell attribute before wiring SGR 9/29.
+    }
+
+    override fun setSelectiveEraseProtection(enabled: Boolean) {
+        terminal.setSelectiveEraseProtection(enabled)
     }
 
     override fun setForegroundDefault() {

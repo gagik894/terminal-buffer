@@ -45,6 +45,10 @@ internal class RecordingTerminalCommandSink : TerminalCommandSink {
         events += "softReset"
     }
 
+    override fun resetTerminal() {
+        events += "resetTerminal"
+    }
+
     override fun saveCursor() {
         events += "saveCursor"
     }
@@ -99,6 +103,10 @@ internal class RecordingTerminalCommandSink : TerminalCommandSink {
 
     override fun setScrollRegion(top: Int, bottom: Int) {
         events += "setScrollRegion:$top:$bottom"
+    }
+
+    override fun setLeftRightMargins(left: Int, right: Int) {
+        events += "setLeftRightMargins:$left:$right"
     }
 
     override fun eraseInDisplay(mode: Int, selective: Boolean) {
@@ -191,6 +199,10 @@ internal class RecordingTerminalCommandSink : TerminalCommandSink {
 
     override fun setStrikethrough(enabled: Boolean) {
         events += "setStrikethrough:$enabled"
+    }
+
+    override fun setSelectiveEraseProtection(enabled: Boolean) {
+        events += "setSelectiveEraseProtection:$enabled"
     }
 
     override fun setForegroundDefault() {

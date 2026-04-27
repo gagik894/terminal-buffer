@@ -40,6 +40,7 @@ class GeneratedCsiDispatchTableTest {
             assertEquals(CsiCommand.RM_ANSI, lookup('l'))
             assertEquals(CsiCommand.SGR, lookup('m'))
             assertEquals(CsiCommand.DECSTBM, lookup('r'))
+            assertEquals(CsiCommand.DECSLRM, lookup('s'))
         }
 
         @Test
@@ -49,10 +50,23 @@ class GeneratedCsiDispatchTableTest {
         }
 
         @Test
+        fun `DEC selective erase signatures route separately from normal erase`() {
+            assertEquals(CsiCommand.DECSED, lookup('J', privateMarker = '?'.code))
+            assertEquals(CsiCommand.DECSEL, lookup('K', privateMarker = '?'.code))
+        }
+
+        @Test
         fun `DECSTR routes only through CSI bang p`() {
             assertEquals(CsiCommand.DECSTR, lookup('p', intermediates = '!'.code, intermediateCount = 1))
             assertEquals(CsiCommand.UNKNOWN, lookup('p'))
             assertEquals(CsiCommand.UNKNOWN, lookup('p', intermediates = '"'.code, intermediateCount = 1))
+        }
+
+        @Test
+        fun `DECSCA routes only through CSI double quote q`() {
+            assertEquals(CsiCommand.DECSCA, lookup('q', intermediates = '"'.code, intermediateCount = 1))
+            assertEquals(CsiCommand.UNKNOWN, lookup('q'))
+            assertEquals(CsiCommand.UNKNOWN, lookup('q', intermediates = '!'.code, intermediateCount = 1))
         }
 
         @Test

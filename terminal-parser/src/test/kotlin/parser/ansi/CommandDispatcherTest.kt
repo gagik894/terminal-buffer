@@ -198,6 +198,11 @@ class CommandDispatcherTest {
         }
 
         @Test
+        fun `ESC c dispatches full terminal reset`() {
+            assertEquals(listOf("resetTerminal"), dispatchEsc('c').events)
+        }
+
+        @Test
         fun `ESC M performs reverseIndex`() {
             assertEquals(listOf("reverseIndex"), dispatchEsc('M').events)
         }
@@ -446,6 +451,26 @@ class CommandDispatcherTest {
         }
 
         @Test
+        fun `CSI private J and K dispatch selective erase commands`() {
+            assertEquals(
+                listOf("eraseInDisplay:0:true"),
+                dispatchCsi('J', privateMarker = '?'.code).events,
+            )
+            assertEquals(
+                listOf("eraseInDisplay:2:true"),
+                dispatchCsi('J', params = listOf(2), privateMarker = '?'.code).events,
+            )
+            assertEquals(
+                listOf("eraseInLine:0:true"),
+                dispatchCsi('K', privateMarker = '?'.code).events,
+            )
+            assertEquals(
+                listOf("eraseInLine:1:true"),
+                dispatchCsi('K', params = listOf(1), privateMarker = '?'.code).events,
+            )
+        }
+
+        @Test
         fun `CSI L M at P and X dispatch edit commands`() {
             assertEquals(listOf("insertLines:1"), dispatchCsi('L').events)
             assertEquals(listOf("deleteLines:2"), dispatchCsi('M', params = listOf(2)).events)
@@ -468,6 +493,36 @@ class CommandDispatcherTest {
             assertEquals(listOf("setScrollRegion:4:-1"), dispatchCsi('r', params = listOf(5, -1)).events)
             assertEquals(listOf("setScrollRegion:4:9"), dispatchCsi('r', params = listOf(5, 10)).events)
             assertEquals(listOf("setScrollRegion:0:-1"), dispatchCsi('r', params = listOf(0, 0)).events)
+        }
+
+        @Test
+        fun `CSI s dispatches DECSLRM left right margins as zero-origin margins`() {
+            assertEquals(listOf("setLeftRightMargins:0:-1"), dispatchCsi('s').events)
+            assertEquals(listOf("setLeftRightMargins:0:9"), dispatchCsi('s', params = listOf(-1, 10)).events)
+            assertEquals(listOf("setLeftRightMargins:4:-1"), dispatchCsi('s', params = listOf(5, -1)).events)
+            assertEquals(listOf("setLeftRightMargins:4:9"), dispatchCsi('s', params = listOf(5, 10)).events)
+            assertEquals(listOf("setLeftRightMargins:0:-1"), dispatchCsi('s', params = listOf(0, 0)).events)
+        }
+
+        @Test
+        fun `CSI double quote q dispatches DECSCA selective erase protection`() {
+            assertEquals(
+                listOf("setSelectiveEraseProtection:false"),
+                dispatchCsi('q', intermediates = '"'.code, intermediateCount = 1).events,
+            )
+            assertEquals(
+                listOf("setSelectiveEraseProtection:false"),
+                dispatchCsi('q', params = listOf(0), intermediates = '"'.code, intermediateCount = 1).events,
+            )
+            assertEquals(
+                listOf("setSelectiveEraseProtection:true"),
+                dispatchCsi('q', params = listOf(1), intermediates = '"'.code, intermediateCount = 1).events,
+            )
+            assertEquals(
+                listOf("setSelectiveEraseProtection:false"),
+                dispatchCsi('q', params = listOf(2), intermediates = '"'.code, intermediateCount = 1).events,
+            )
+            assertTrue(dispatchCsi('q', params = listOf(3), intermediates = '"'.code, intermediateCount = 1).events.isEmpty())
         }
     }
 

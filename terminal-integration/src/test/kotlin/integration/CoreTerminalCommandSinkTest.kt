@@ -117,6 +117,31 @@ class CoreTerminalCommandSinkTest {
                 { assertEquals(2, f.terminal.cursorCol) },
             )
         }
+
+        @Test
+        fun `RIS hard reset parsed from bytes resets core state`() {
+            val f = Fixture(terminal = TerminalBuffers.create(width = 6, height = 2))
+
+            f.acceptAscii("ABC")
+            f.acceptAscii("\u001B[1;38;5;196m")
+            f.acceptAscii("\u001B[?7l")
+            f.acceptAscii("\u001B[2;3H")
+            f.acceptAscii("\u001Bc")
+            f.acceptAscii("X")
+            f.end()
+
+            val attr = f.terminal.getAttrAt(0, 0)
+
+            assertAll(
+                { assertEquals("X", f.terminal.getLineAsString(0)) },
+                { assertEquals("", f.terminal.getLineAsString(1)) },
+                { assertEquals(1, f.terminal.cursorCol) },
+                { assertEquals(0, f.terminal.cursorRow) },
+                { assertTrue(f.terminal.getModeSnapshot().isAutoWrap) },
+                { assertEquals(AttributeColor.DEFAULT, attr?.foreground) },
+                { assertEquals(false, attr?.bold) },
+            )
+        }
     }
 
     @Nested
@@ -201,6 +226,20 @@ class CoreTerminalCommandSinkTest {
 
             f.acceptAscii("\u001B[?3l")
             assertEquals(80, f.terminal.width)
+        }
+
+        @Test
+        fun `DECSLRM parsed from bytes updates core left right margins when mode is enabled`() {
+            val f = Fixture(terminal = TerminalBuffers.create(width = 8, height = 3))
+
+            f.acceptAscii("\u001B[?69h")
+            f.acceptAscii("\u001B[3;6s")
+            f.end()
+
+            assertAll(
+                { assertEquals(2, f.terminal.cursorCol) },
+                { assertEquals(0, f.terminal.cursorRow) },
+            )
         }
 
         @Test
@@ -306,6 +345,38 @@ class CoreTerminalCommandSinkTest {
                 { assertEquals(AttributeColor.DEFAULT, second?.background) },
                 { assertEquals(true, second?.bold) },
                 { assertEquals(false, second?.inverse) },
+            )
+        }
+
+        @Test
+        fun `DECSCA and DECSEL preserve protected cells through parser and adapter`() {
+            val f = Fixture(terminal = TerminalBuffers.create(width = 6, height = 2))
+
+            f.acceptAscii("\u001B[1\"qA")
+            f.acceptAscii("\u001B[2\"qB")
+            f.acceptAscii("\u001B[?2K")
+            f.end()
+
+            assertAll(
+                { assertEquals("A", f.terminal.getLineAsString(0)) },
+                { assertTrue(f.terminal.getAttrAt(0, 0)?.selectiveEraseProtected == true) },
+            )
+        }
+
+        @Test
+        fun `DECSCA and DECSED preserve protected cells through parser and adapter`() {
+            val f = Fixture(terminal = TerminalBuffers.create(width = 6, height = 2))
+
+            f.acceptAscii("\u001B[1\"qA")
+            f.acceptAscii("\u001B[2\"qB")
+            f.acceptAscii("\u001B[2;1HC")
+            f.acceptAscii("\u001B[?2J")
+            f.end()
+
+            assertAll(
+                { assertEquals("A", f.terminal.getLineAsString(0)) },
+                { assertEquals("", f.terminal.getLineAsString(1)) },
+                { assertTrue(f.terminal.getAttrAt(0, 0)?.selectiveEraseProtected == true) },
             )
         }
 

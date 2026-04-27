@@ -39,9 +39,13 @@ internal object GeneratedCsiDispatchTable {
         108L,                // CSI l  RM ANSI
         109L,                // CSI m  SGR
         114L,                // CSI r  DECSTBM
+        115L,                // CSI s  DECSLRM
+        16202L,              // CSI ? J  DECSED
+        16203L,              // CSI ? K  DECSEL
         16232L,              // CSI ? h  DECSET
         16236L,              // CSI ? l  DECRST
         281474978873456L,    // CSI ! p  DECSTR
+        281474978938993L,    // CSI " q  DECSCA
     )
 
     private val COMMANDS: IntArray = intArrayOf(
@@ -71,9 +75,13 @@ internal object GeneratedCsiDispatchTable {
         CsiCommand.RM_ANSI,
         CsiCommand.SGR,
         CsiCommand.DECSTBM,
+        CsiCommand.DECSLRM,
+        CsiCommand.DECSED,
+        CsiCommand.DECSEL,
         CsiCommand.SM_DEC,
         CsiCommand.RM_DEC,
         CsiCommand.DECSTR,
+        CsiCommand.DECSCA,
     )
 
     init {

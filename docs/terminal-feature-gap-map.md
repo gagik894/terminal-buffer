@@ -73,17 +73,15 @@ surface or maintenance cost without meaningful modern terminal value.
 
 ### CSI Protocols
 
-- `TODO(parser)`: `DECSLRM` left/right margins, usually `CSI Pl ; Pr s`.
-  Core exposes `setLeftRightMargins`, but parser does not route the CSI signature.
-- `TODO(parser)`: selective erase dispatch:
+- `DONE(parser/integration)`: `DECSLRM` left/right margins, usually
+  `CSI Pl ; Pr s`, route through parser and integration to core margins.
+- `DONE(parser/integration)`: selective erase dispatch routes to core:
   - `DECSEL`, selective erase in line.
   - `DECSED`, selective erase in display.
-  Core already exposes selective erase operations.
-- `TODO(parser)`: `DECSCA` selective-erase protection.
-  Core has protected-cell storage and mutation behavior, but parser does not emit
-  `setSelectiveEraseProtection`.
-- `TODO(parser)`: `RIS`, `ESC c`, full terminal reset.
-  Core exposes `TerminalBufferApi.reset`.
+- `DONE(parser/integration)`: `DECSCA` selective-erase protection routes to
+  core protected-cell pen state.
+- `DONE(parser/integration)`: `RIS`, `ESC c`, full terminal reset routes to
+  `TerminalBufferApi.reset`.
 - `TODO(parser)`: full DEC private mode vocabulary and tests beyond the current common set:
   - alternate-screen variants `47`, `1047`, `1048`, `1049`
   - cursor blink mode
@@ -112,7 +110,6 @@ surface or maintenance cost without meaningful modern terminal value.
   - DEC-specific status reports
   These need a terminal-to-host output channel, not just a sink call.
 - `TODO(parser)`: character attribute/protection commands not covered by SGR:
-  - `DECSCA`
   - `DECSCUSR`, cursor style
   - `DECSACE`
 - `TODO(parser)`: full tab-stop and margin variants beyond the current common set.
@@ -134,7 +131,7 @@ surface or maintenance cost without meaningful modern terminal value.
 
 ### ESC Protocols
 
-- `TODO(parser)`: full reset `ESC c`.
+- `DONE(parser/integration)`: full reset `ESC c`.
 - `TODO(parser)`: DEC alignment test `ESC # 8`.
 - `TODO(parser)`: complete charset designation:
   - ISO 2022 G0-G3 single-byte sets beyond ASCII and DEC Special Graphics
@@ -297,9 +294,9 @@ Missing:
 - `TODO(integration)`: map DECSTR only after core exposes a soft-reset API.
 - `TODO(integration)`: map alternate-screen `47` and `1047` only after core
   exposes their exact semantics.
-- `TODO(integration)`: map parser RIS to core `reset` once parser emits RIS.
-- `TODO(integration)`: map DECSLRM once parser emits left/right margins.
-- `TODO(integration)`: map DECSEL/DECSED/DECSCA once parser emits selective erase
+- `DONE(integration)`: parser RIS maps to core `reset`.
+- `DONE(integration)`: parser DECSLRM maps to core left/right margins.
+- `DONE(integration)`: parser DECSEL/DECSED/DECSCA map to core selective erase
   and protection commands.
 - `TODO(integration)`: decide whether OSC title/hyperlink state belongs in core,
   integration metadata, or a host callback interface.
@@ -366,12 +363,10 @@ professional emulator needs explicit contracts for it.
 
 ## Recommended Next Order
 
-1. `TODO(parser)`: add RIS, DECSLRM, DECSEL/DECSED, and DECSCA routing.
-2. `TODO(integration)`: map those parser commands into existing core APIs.
-3. `TODO(parser/core)`: add terminal-to-host response channel for DSR/CPR/DA.
-4. `TODO(input)`: build the input encoder using core mode snapshots.
-5. `TODO(input)`: add Kitty Keyboard Protocol support.
-6. `TODO(parser/core)`: add xterm title stack and safe window/grid size reports.
-7. `TODO(parser)`: add DCS router with a strict response/security policy.
-8. `TODO(parser)`: choose and implement one modern graphics path, if inline
+1. `TODO(parser/core)`: add terminal-to-host response channel for DSR/CPR/DA.
+2. `TODO(input)`: build the input encoder using core mode snapshots.
+3. `TODO(input)`: add Kitty Keyboard Protocol support.
+4. `TODO(parser/core)`: add xterm title stack and safe window/grid size reports.
+5. `TODO(parser)`: add DCS router with a strict response/security policy.
+6. `TODO(parser)`: choose and implement one modern graphics path, if inline
     graphics are a product goal.

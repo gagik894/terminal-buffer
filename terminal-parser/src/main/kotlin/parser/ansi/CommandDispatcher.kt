@@ -64,6 +64,7 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
         when (finalByte) {
             '7'.code -> sink.saveCursor()
             '8'.code -> sink.restoreCursor()
+            'c'.code -> sink.resetTerminal()
             'D'.code -> sink.lineFeed()
             'E'.code -> sink.nextLine()
             'H'.code -> sink.setTabStop()
@@ -105,6 +106,8 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
 
             CsiCommand.ED -> sink.eraseInDisplay(modeParam(state, 0), selective = false)
             CsiCommand.EL -> sink.eraseInLine(modeParam(state, 0), selective = false)
+            CsiCommand.DECSED -> sink.eraseInDisplay(modeParam(state, 0), selective = true)
+            CsiCommand.DECSEL -> sink.eraseInLine(modeParam(state, 0), selective = true)
             CsiCommand.IL -> sink.insertLines(countParam(state, 0))
             CsiCommand.DL -> sink.deleteLines(countParam(state, 0))
             CsiCommand.ICH -> sink.insertCharacters(countParam(state, 0))
@@ -117,12 +120,11 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
                 top = scrollRegionTopParam(state, 0),
                 bottom = scrollRegionBottomParam(state, 1),
             )
-            // TODO(parser-protocol): Core already exposes DECSLRM left/right margins, but the
-            // CSI signature table does not route CSI s yet. Add DECSLRM parsing before wiring it
-            // through TerminalCommandSink.
-            // TODO(parser-protocol): Core supports DECSEL/DECSED and DECSCA protection, but the
-            // parser currently only emits non-selective ED/EL and has no DECSCA command.
-            // TODO(parser-protocol): Core exposes full RIS reset, but ESC c is not routed yet.
+            CsiCommand.DECSLRM -> sink.setLeftRightMargins(
+                left = leftRightMarginLeftParam(state, 0),
+                right = leftRightMarginRightParam(state, 1),
+            )
+            CsiCommand.DECSCA -> dispatchSelectiveEraseProtection(sink, state)
 
             CsiCommand.SM_ANSI -> dispatchAnsiMode(sink, state, enable = true)
             CsiCommand.RM_ANSI -> dispatchAnsiMode(sink, state, enable = false)
@@ -159,6 +161,16 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
         return if (value <= 0) -1 else value - 1
     }
 
+    private fun leftRightMarginLeftParam(state: ParserState, index: Int): Int {
+        val value = paramOrMissing(state, index)
+        return if (value <= 0) 0 else value - 1
+    }
+
+    private fun leftRightMarginRightParam(state: ParserState, index: Int): Int {
+        val value = paramOrMissing(state, index)
+        return if (value <= 0) -1 else value - 1
+    }
+
     private fun paramOrMissing(state: ParserState, index: Int): Int {
         return if (index < state.paramCount) state.params[index] else -1
     }
@@ -190,6 +202,16 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
         when (modeParam(state, 0)) {
             0 -> sink.clearTabStop()
             3 -> sink.clearAllTabStops()
+        }
+    }
+
+    private fun dispatchSelectiveEraseProtection(
+        sink: TerminalCommandSink,
+        state: ParserState,
+    ) {
+        when (modeParam(state, 0)) {
+            0, 2 -> sink.setSelectiveEraseProtection(false)
+            1 -> sink.setSelectiveEraseProtection(true)
         }
     }
 

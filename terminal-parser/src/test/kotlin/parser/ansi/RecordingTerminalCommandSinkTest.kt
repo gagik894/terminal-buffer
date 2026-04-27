@@ -26,6 +26,7 @@ class RecordingTerminalCommandSinkTest {
             sink.reverseIndex()
             sink.nextLine()
             sink.softReset()
+            sink.resetTerminal()
             sink.saveCursor()
             sink.restoreCursor()
             sink.cursorUp(1)
@@ -40,6 +41,7 @@ class RecordingTerminalCommandSinkTest {
             sink.setCursorRow(10)
             sink.setCursorAbsolute(11, 12)
             sink.setScrollRegion(13, 14)
+            sink.setLeftRightMargins(15, 16)
             sink.eraseInDisplay(0, selective = false)
             sink.eraseInLine(1, selective = true)
             sink.insertLines(2)
@@ -63,6 +65,7 @@ class RecordingTerminalCommandSinkTest {
             sink.setInverse(false)
             sink.setConceal(true)
             sink.setStrikethrough(false)
+            sink.setSelectiveEraseProtection(true)
             sink.setForegroundDefault()
             sink.setBackgroundDefault()
             sink.setForegroundIndexed(196)
@@ -88,6 +91,7 @@ class RecordingTerminalCommandSinkTest {
                     "reverseIndex",
                     "nextLine",
                     "softReset",
+                    "resetTerminal",
                     "saveCursor",
                     "restoreCursor",
                     "cursorUp:1",
@@ -102,6 +106,7 @@ class RecordingTerminalCommandSinkTest {
                     "setCursorRow:10",
                     "setCursorAbsolute:11:12",
                     "setScrollRegion:13:14",
+                    "setLeftRightMargins:15:16",
                     "eraseInDisplay:0:false",
                     "eraseInLine:1:true",
                     "insertLines:2",
@@ -125,6 +130,7 @@ class RecordingTerminalCommandSinkTest {
                     "setInverse:false",
                     "setConceal:true",
                     "setStrikethrough:false",
+                    "setSelectiveEraseProtection:true",
                     "setForegroundDefault",
                     "setBackgroundDefault",
                     "setForegroundIndexed:196",
