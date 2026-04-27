@@ -290,10 +290,8 @@ Missing:
 
 ## Integration Gaps
 
-- `TODO(integration)`: map parser SGR 256-color to core indexed attributes.
-  The adapter must not clamp 256-color indexes into 16-color values.
-- `TODO(integration)`: map RGB SGR to core RGB pen attributes.
-- `TODO(integration)`: map inverse SGR to core inverse pen attributes.
+- `DONE(integration)`: parser SGR inverse, 256-color indexed, and RGB/truecolor
+  attributes are mapped to core pen attributes without clamping.
 - `TODO(integration)`: map faint/blink/conceal/strikethrough only after core
   exposes those attributes.
 - `TODO(integration)`: map DECSTR only after core exposes a soft-reset API.
@@ -368,13 +366,12 @@ professional emulator needs explicit contracts for it.
 
 ## Recommended Next Order
 
-1. `TODO(integration)`: wire SGR inverse, 256-color, and RGB color attributes.
-2. `TODO(parser)`: add RIS, DECSLRM, DECSEL/DECSED, and DECSCA routing.
-3. `TODO(integration)`: map those parser commands into existing core APIs.
-4. `TODO(parser/core)`: add terminal-to-host response channel for DSR/CPR/DA.
-5. `TODO(input)`: build the input encoder using core mode snapshots.
-6. `TODO(input)`: add Kitty Keyboard Protocol support.
-7. `TODO(parser/core)`: add xterm title stack and safe window/grid size reports.
-8. `TODO(parser)`: add DCS router with a strict response/security policy.
-9. `TODO(parser)`: choose and implement one modern graphics path, if inline
+1. `TODO(parser)`: add RIS, DECSLRM, DECSEL/DECSED, and DECSCA routing.
+2. `TODO(integration)`: map those parser commands into existing core APIs.
+3. `TODO(parser/core)`: add terminal-to-host response channel for DSR/CPR/DA.
+4. `TODO(input)`: build the input encoder using core mode snapshots.
+5. `TODO(input)`: add Kitty Keyboard Protocol support.
+6. `TODO(parser/core)`: add xterm title stack and safe window/grid size reports.
+7. `TODO(parser)`: add DCS router with a strict response/security policy.
+8. `TODO(parser)`: choose and implement one modern graphics path, if inline
     graphics are a product goal.

@@ -236,17 +236,18 @@ class CoreTerminalCommandSinkTest {
         fun `SGR indexed color and styles update core pen attributes`() {
             val f = Fixture()
 
-            f.acceptAscii("\u001B[1;3;4;31;44mX")
+            f.acceptAscii("\u001B[1;3;4;7;38;5;196;48;5;17mX")
             f.end()
 
             val attr = f.terminal.getAttrAt(0, 0)
 
             assertAll(
-                { assertEquals(AttributeColor.indexed(1), attr?.foreground) },
-                { assertEquals(AttributeColor.indexed(4), attr?.background) },
+                { assertEquals(AttributeColor.indexed(196), attr?.foreground) },
+                { assertEquals(AttributeColor.indexed(17), attr?.background) },
                 { assertEquals(true, attr?.bold) },
                 { assertEquals(true, attr?.italic) },
                 { assertEquals(true, attr?.underline) },
+                { assertEquals(true, attr?.inverse) },
             )
         }
 
@@ -271,15 +272,41 @@ class CoreTerminalCommandSinkTest {
         }
 
         @Test
-        fun `256-color indexed SGR is ignored until adapter maps it to core pen state`() {
+        fun `RGB SGR updates core pen colors`() {
             val f = Fixture()
 
-            f.acceptAscii("\u001B[38;5;196mX")
+            f.acceptAscii("\u001B[38;2;10;20;30;48;2;40;50;60mX")
             f.end()
 
             val attr = f.terminal.getAttrAt(0, 0)
 
-            assertEquals(AttributeColor.DEFAULT, attr?.foreground)
+            assertAll(
+                { assertEquals(AttributeColor.rgb(10, 20, 30), attr?.foreground) },
+                { assertEquals(AttributeColor.rgb(40, 50, 60), attr?.background) },
+            )
+        }
+
+        @Test
+        fun `SGR default colors and inverse reset preserve other pen attributes`() {
+            val f = Fixture()
+
+            f.acceptAscii("\u001B[1;7;38;5;196;48;2;40;50;60mX")
+            f.acceptAscii("\u001B[27;39;49mY")
+            f.end()
+
+            val first = f.terminal.getAttrAt(0, 0)
+            val second = f.terminal.getAttrAt(1, 0)
+
+            assertAll(
+                { assertEquals(AttributeColor.indexed(196), first?.foreground) },
+                { assertEquals(AttributeColor.rgb(40, 50, 60), first?.background) },
+                { assertEquals(true, first?.bold) },
+                { assertEquals(true, first?.inverse) },
+                { assertEquals(AttributeColor.DEFAULT, second?.foreground) },
+                { assertEquals(AttributeColor.DEFAULT, second?.background) },
+                { assertEquals(true, second?.bold) },
+                { assertEquals(false, second?.inverse) },
+            )
         }
 
         @Test

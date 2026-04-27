@@ -1,6 +1,7 @@
 package com.gagik.integration
 
 import com.gagik.core.api.TerminalBufferApi
+import com.gagik.core.model.AttributeColor
 import com.gagik.core.model.MouseEncodingMode
 import com.gagik.core.model.MouseTrackingMode
 import com.gagik.parser.ansi.mode.AnsiMode
@@ -14,9 +15,8 @@ import com.gagik.parser.spi.TerminalCommandSink
  * cursor physics, and width policy. This adapter is the narrow place where ANSI/DEC
  * mode ids become concrete core API calls.
  *
- * TODO(core-gap): Core pen attributes currently model indexed foreground/background plus
- * bold/italic/underline/protection only. RGB color, faint, blink, inverse SGR, conceal, and
- * strikethrough are intentionally not faked here.
+ * TODO(core-gap): Core pen attributes do not yet model faint, blink, conceal, or
+ * strikethrough. These SGR attributes are intentionally not faked here.
  * TODO(parser-gap): Core already exposes DECSLRM, DECSEL/DECSED, DECSCA, and RIS. Parser routing
  * for those sequences is still missing, so this adapter cannot receive them yet.
  */
@@ -32,11 +32,12 @@ class CoreTerminalCommandSink(
     var activeHyperlinkId: String? = null
         private set
 
-    private var fg: Int = 0
-    private var bg: Int = 0
+    private var foreground: AttributeColor = AttributeColor.DEFAULT
+    private var background: AttributeColor = AttributeColor.DEFAULT
     private var bold: Boolean = false
     private var italic: Boolean = false
     private var underline: Boolean = false
+    private var inverse: Boolean = false
 
     override fun writeCodepoint(codepoint: Int) {
         terminal.writeCodepoint(codepoint)
@@ -252,11 +253,12 @@ class CoreTerminalCommandSink(
     }
 
     override fun resetAttributes() {
-        fg = 0
-        bg = 0
+        foreground = AttributeColor.DEFAULT
+        background = AttributeColor.DEFAULT
         bold = false
         italic = false
         underline = false
+        inverse = false
         terminal.resetPen()
     }
 
@@ -284,7 +286,8 @@ class CoreTerminalCommandSink(
     }
 
     override fun setInverse(enabled: Boolean) {
-        // TODO(core-gap): Add inverse/reverse-video cell attribute. CLI TUIs rely heavily on SGR 7/27.
+        inverse = enabled
+        applyPen()
     }
 
     override fun setConceal(enabled: Boolean) {
@@ -296,33 +299,35 @@ class CoreTerminalCommandSink(
     }
 
     override fun setForegroundDefault() {
-        fg = 0
+        foreground = AttributeColor.DEFAULT
         applyPen()
     }
 
     override fun setBackgroundDefault() {
-        bg = 0
+        background = AttributeColor.DEFAULT
         applyPen()
     }
 
     override fun setForegroundIndexed(index: Int) {
-        val mapped = parserIndexedColorToCore(index) ?: return
-        fg = mapped
+        if (index !in 0..255) return
+        foreground = AttributeColor.indexed(index)
         applyPen()
     }
 
     override fun setBackgroundIndexed(index: Int) {
-        val mapped = parserIndexedColorToCore(index) ?: return
-        bg = mapped
+        if (index !in 0..255) return
+        background = AttributeColor.indexed(index)
         applyPen()
     }
 
     override fun setForegroundRgb(red: Int, green: Int, blue: Int) {
-        // TODO(core-gap): Add RGB/truecolor storage to core Pen/Attributes before wiring SGR 38;2.
+        foreground = AttributeColor.rgb(red, green, blue)
+        applyPen()
     }
 
     override fun setBackgroundRgb(red: Int, green: Int, blue: Int) {
-        // TODO(core-gap): Add RGB/truecolor storage to core Pen/Attributes before wiring SGR 48;2.
+        background = AttributeColor.rgb(red, green, blue)
+        applyPen()
     }
 
     override fun setWindowTitle(title: String) {
@@ -356,21 +361,13 @@ class CoreTerminalCommandSink(
     }
 
     private fun applyPen() {
-        terminal.setPenAttributes(
-            fg = fg,
-            bg = bg,
+        terminal.setPenColors(
+            foreground = foreground,
+            background = background,
             bold = bold,
             italic = italic,
             underline = underline,
+            inverse = inverse,
         )
-    }
-
-    private fun parserIndexedColorToCore(index: Int): Int? {
-        // TODO(core-gap): Parser supports SGR 38;5/48;5 indexes 0..255, but core currently stores
-        // only default + ANSI 16 colors. Ignore higher indexes until core supports 256-color pen state.
-        if (index !in 0..15) {
-            return null
-        }
-        return index + 1
     }
 }
