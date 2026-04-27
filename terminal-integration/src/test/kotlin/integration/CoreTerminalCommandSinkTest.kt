@@ -254,6 +254,19 @@ class CoreTerminalCommandSinkTest {
         }
 
         @Test
+        fun `safe xterm window reports parsed from bytes queue terminal-to-host responses`() {
+            val f = Fixture(terminal = TerminalBuffers.create(width = 120, height = 40))
+
+            f.terminal.setWindowSizePixels(width = 800, height = 400)
+            f.acceptAscii("\u001B[14t")
+            f.acceptAscii("\u001B[18t")
+            f.acceptAscii("\u001B[8;10;20t")
+            f.end()
+
+            assertEquals("\u001B[4;400;800t\u001B[8;40;120t", f.drainResponses())
+        }
+
+        @Test
         fun `DECSLRM parsed from bytes updates core left right margins when mode is enabled`() {
             val f = Fixture(terminal = TerminalBuffers.create(width = 8, height = 3))
 
@@ -424,6 +437,33 @@ class CoreTerminalCommandSinkTest {
             assertAll(
                 { assertNull(f.sink.activeHyperlinkUri) },
                 { assertNull(f.sink.activeHyperlinkId) },
+            )
+        }
+
+        @Test
+        fun `xterm title stack push and pop restores icon and window titles`() {
+            val f = Fixture()
+
+            f.acceptAscii("\u001B]0;base\u0007")
+            f.acceptAscii("\u001B[22t")
+            f.acceptAscii("\u001B]1;icon-temp\u0007")
+            f.acceptAscii("\u001B]2;window-temp\u0007")
+            f.acceptAscii("\u001B[23t")
+
+            assertAll(
+                { assertEquals("base", f.sink.iconTitle) },
+                { assertEquals("base", f.sink.windowTitle) },
+            )
+
+            f.acceptAscii("\u001B]1;icon-only-base\u0007")
+            f.acceptAscii("\u001B]2;window-stays\u0007")
+            f.acceptAscii("\u001B[22;1t")
+            f.acceptAscii("\u001B]1;icon-only-temp\u0007")
+            f.acceptAscii("\u001B[23;1t")
+
+            assertAll(
+                { assertEquals("icon-only-base", f.sink.iconTitle) },
+                { assertEquals("window-stays", f.sink.windowTitle) },
             )
         }
     }

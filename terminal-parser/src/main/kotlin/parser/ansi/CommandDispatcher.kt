@@ -121,6 +121,7 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
             CsiCommand.DSR -> sink.requestDeviceStatusReport(modeParam(state, 0), decPrivate = false)
             CsiCommand.DSR_DEC -> sink.requestDeviceStatusReport(modeParam(state, 0), decPrivate = true)
             CsiCommand.TBC -> dispatchTabClear(sink, state)
+            CsiCommand.WINDOW_OP -> dispatchWindowOperation(sink, state)
             CsiCommand.DECSTBM -> sink.setScrollRegion(
                 top = scrollRegionTopParam(state, 0),
                 bottom = scrollRegionBottomParam(state, 1),
@@ -219,6 +220,25 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
             1 -> sink.setSelectiveEraseProtection(true)
         }
     }
+
+    private fun dispatchWindowOperation(
+        sink: TerminalCommandSink,
+        state: ParserState,
+    ) {
+        when (modeParam(state, 0)) {
+            14, 18 -> sink.requestWindowReport(modeParam(state, 0))
+            22 -> {
+                val scope = titleStackScopeParam(state)
+                if (scope in 0..2) sink.pushTitleStack(scope)
+            }
+            23 -> {
+                val scope = titleStackScopeParam(state)
+                if (scope in 0..2) sink.popTitleStack(scope)
+            }
+        }
+    }
+
+    private fun titleStackScopeParam(state: ParserState): Int = modeParam(state, 1)
 
     private inline fun forEachMaterializedMode(
         state: ParserState,

@@ -88,14 +88,14 @@ surface or maintenance cost without meaningful modern terminal value.
   - mouse UTF-8 and URXVT encodings
   - synchronized output mode `?2026`
   - focus, paste, mouse, and application-mode interactions
-- `TODO(parser/core)`: xterm title stack:
+- `DONE(parser/integration)`: xterm title stack:
   - `CSI 22 t` push window/icon title
   - `CSI 23 t` pop window/icon title
   Shells use this when temporarily changing titles for foreground commands.
-- `TODO(parser/core)`: window/grid size reports:
+- `DONE(parser/core/integration)`: safe xterm window/grid size reports:
   - `CSI 14 t`, report window size in pixels
   - `CSI 18 t`, report terminal size in characters
-  Requires terminal-to-host response plumbing and renderer/host size knowledge.
+  Pixel reports are silent until the host supplies positive pixel dimensions.
 - `TODO(policy)`: xterm window manipulation:
   - `CSI 3 t`, move window
   - `CSI 8 t`, resize window
@@ -281,6 +281,7 @@ Missing:
 - `DONE(core)`: terminal-to-host response queue and safe response generation for:
   - DSR/CPR
   - primary DA and secondary DA2
+  - safe xterm grid/pixel size reports
 - `TODO(policy)`: DA3 terminal unit id behavior.
 - `TODO(core)`: terminal-to-host response/event API for:
   - XTGETTCAP
@@ -370,5 +371,8 @@ professional emulator needs explicit contracts for it.
 
 ## Recommended Next Order
 
-3. `TODO(parser/core)`: add xterm title stack and safe window/grid size reports.
-4. `TODO(parser)`: add DCS router with a strict response/security policy.
+1. `TODO(input)`: build the input encoder using core mode snapshots.
+2. `TODO(input)`: add Kitty Keyboard Protocol support.
+3. `TODO(parser)`: add DCS router with a strict response/security policy.
+4. `TODO(parser)`: choose and implement one modern graphics path, if inline
+   graphics are a product goal.

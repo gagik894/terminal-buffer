@@ -173,6 +173,18 @@ internal class RecordingTerminalCommandSink : TerminalCommandSink {
         events += "requestDeviceAttributes:$kind:$parameter"
     }
 
+    override fun requestWindowReport(mode: Int) {
+        events += "requestWindowReport:$mode"
+    }
+
+    override fun pushTitleStack(scope: Int) {
+        events += "pushTitleStack:$scope"
+    }
+
+    override fun popTitleStack(scope: Int) {
+        events += "popTitleStack:$scope"
+    }
+
     override fun resetAttributes() {
         events += "resetAttributes"
     }

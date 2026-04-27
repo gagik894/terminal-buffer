@@ -487,6 +487,27 @@ class CommandDispatcherTest {
         }
 
         @Test
+        fun `CSI t dispatches only safe window reports and title stack operations`() {
+            assertEquals(listOf("requestWindowReport:14"), dispatchCsi('t', params = listOf(14)).events)
+            assertEquals(listOf("requestWindowReport:18"), dispatchCsi('t', params = listOf(18)).events)
+            assertEquals(listOf("pushTitleStack:0"), dispatchCsi('t', params = listOf(22)).events)
+            assertEquals(listOf("pushTitleStack:1"), dispatchCsi('t', params = listOf(22, 1)).events)
+            assertEquals(listOf("pushTitleStack:2"), dispatchCsi('t', params = listOf(22, 2)).events)
+            assertEquals(listOf("popTitleStack:0"), dispatchCsi('t', params = listOf(23)).events)
+            assertEquals(listOf("popTitleStack:1"), dispatchCsi('t', params = listOf(23, 1)).events)
+            assertEquals(listOf("popTitleStack:2"), dispatchCsi('t', params = listOf(23, 2)).events)
+        }
+
+        @Test
+        fun `unsafe or malformed CSI t operations are ignored`() {
+            assertTrue(dispatchCsi('t').events.isEmpty())
+            assertTrue(dispatchCsi('t', params = listOf(3)).events.isEmpty())
+            assertTrue(dispatchCsi('t', params = listOf(8, 40, 120)).events.isEmpty())
+            assertTrue(dispatchCsi('t', params = listOf(22, 3)).events.isEmpty())
+            assertTrue(dispatchCsi('t', params = listOf(23, 3)).events.isEmpty())
+        }
+
+        @Test
         fun `CSI n dispatches DSR and CPR requests`() {
             assertEquals(
                 listOf("requestDeviceStatusReport:5:false"),

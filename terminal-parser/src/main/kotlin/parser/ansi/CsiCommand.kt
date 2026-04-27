@@ -48,4 +48,5 @@ internal object CsiCommand {
     const val DA_TERTIARY: Int = 35
     const val DSR: Int = 36
     const val DSR_DEC: Int = 37
+    const val WINDOW_OP: Int = 38
 }

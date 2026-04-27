@@ -81,6 +81,39 @@ class TerminalResponseChannelTest {
     }
 
     @Test
+    fun `grid size report queues current terminal dimensions`() {
+        val buffer = TerminalBuffers.create(width = 120, height = 40)
+
+        buffer.requestWindowReport(TerminalResponseChannel.WINDOW_REPORT_GRID_CELLS)
+
+        assertEquals("\u001B[8;40;120t", drain(buffer))
+    }
+
+    @Test
+    fun `pixel size report is silent until host provides positive pixel dimensions`() {
+        val buffer = TerminalBuffers.create(width = 10, height = 5)
+
+        buffer.requestWindowReport(TerminalResponseChannel.WINDOW_REPORT_PIXELS)
+
+        assertEquals(0, buffer.pendingResponseBytes)
+
+        buffer.setWindowSizePixels(width = 800, height = 400)
+        buffer.requestWindowReport(TerminalResponseChannel.WINDOW_REPORT_PIXELS)
+
+        assertEquals("\u001B[4;400;800t", drain(buffer))
+    }
+
+    @Test
+    fun `unsupported window reports stay silent`() {
+        val buffer = TerminalBuffers.create(width = 10, height = 5)
+
+        buffer.requestWindowReport(8)
+        buffer.requestWindowReport(999)
+
+        assertEquals(0, buffer.pendingResponseBytes)
+    }
+
+    @Test
     fun `hard reset clears pending host responses`() {
         val buffer = TerminalBuffers.create(width = 10, height = 5)
 

@@ -295,6 +295,18 @@ class ActionEngineTest {
             sinkCalls += "requestDeviceAttributes:$kind:$parameter"
         }
 
+        override fun requestWindowReport(mode: Int) {
+            sinkCalls += "requestWindowReport:$mode"
+        }
+
+        override fun pushTitleStack(scope: Int) {
+            sinkCalls += "pushTitleStack:$scope"
+        }
+
+        override fun popTitleStack(scope: Int) {
+            sinkCalls += "popTitleStack:$scope"
+        }
+
         override fun resetAttributes() {
             sinkCalls += "resetAttributes"
         }

@@ -42,6 +42,7 @@ internal object GeneratedCsiDispatchTable {
         110L,                // CSI n  DSR
         114L,                // CSI r  DECSTBM
         115L,                // CSI s  DECSLRM
+        116L,                // CSI t  xterm window/title operation
         15715L,              // CSI = c  DA3
         15971L,              // CSI > c  DA2
         16202L,              // CSI ? J  DECSED
@@ -83,6 +84,7 @@ internal object GeneratedCsiDispatchTable {
         CsiCommand.DSR,
         CsiCommand.DECSTBM,
         CsiCommand.DECSLRM,
+        CsiCommand.WINDOW_OP,
         CsiCommand.DA_TERTIARY,
         CsiCommand.DA_SECONDARY,
         CsiCommand.DECSED,

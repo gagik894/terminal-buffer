@@ -30,6 +30,9 @@ class CoreTerminalCommandSink(
     var activeHyperlinkId: String? = null
         private set
 
+    private val windowTitleStack = ArrayDeque<String>()
+    private val iconTitleStack = ArrayDeque<String>()
+
     private var foreground: AttributeColor = AttributeColor.DEFAULT
     private var background: AttributeColor = AttributeColor.DEFAULT
     private var bold: Boolean = false
@@ -272,6 +275,32 @@ class CoreTerminalCommandSink(
         terminal.requestDeviceAttributes(kind, parameter)
     }
 
+    override fun requestWindowReport(mode: Int) {
+        terminal.requestWindowReport(mode)
+    }
+
+    override fun pushTitleStack(scope: Int) {
+        when (scope) {
+            0 -> {
+                pushTitle(windowTitleStack, windowTitle)
+                pushTitle(iconTitleStack, iconTitle)
+            }
+            1 -> pushTitle(iconTitleStack, iconTitle)
+            2 -> pushTitle(windowTitleStack, windowTitle)
+        }
+    }
+
+    override fun popTitleStack(scope: Int) {
+        when (scope) {
+            0 -> {
+                popTitle(windowTitleStack)?.let { windowTitle = it }
+                popTitle(iconTitleStack)?.let { iconTitle = it }
+            }
+            1 -> popTitle(iconTitleStack)?.let { iconTitle = it }
+            2 -> popTitle(windowTitleStack)?.let { windowTitle = it }
+        }
+    }
+
     override fun resetAttributes() {
         resetPenMirror()
         terminal.resetPen()
@@ -388,6 +417,17 @@ class CoreTerminalCommandSink(
         terminal.setMouseTrackingMode(if (enabled) mode else MouseTrackingMode.OFF)
     }
 
+    private fun pushTitle(stack: ArrayDeque<String>, title: String) {
+        if (stack.size == MAX_TITLE_STACK_DEPTH) {
+            stack.removeFirst()
+        }
+        stack.addLast(title)
+    }
+
+    private fun popTitle(stack: ArrayDeque<String>): String? {
+        return if (stack.isEmpty()) null else stack.removeLast()
+    }
+
     private fun applyPen() {
         terminal.setPenColors(
             foreground = foreground,
@@ -397,5 +437,9 @@ class CoreTerminalCommandSink(
             underline = underline,
             inverse = inverse,
         )
+    }
+
+    private companion object {
+        const val MAX_TITLE_STACK_DEPTH: Int = 16
     }
 }

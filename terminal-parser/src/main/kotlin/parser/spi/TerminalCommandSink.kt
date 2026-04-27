@@ -164,6 +164,23 @@ interface TerminalCommandSink {
      */
     fun requestDeviceAttributes(kind: Int, parameter: Int)
 
+    /**
+     * Safe xterm window report request.
+     *
+     * Supported modes are owned by the sink/core. Window manipulation requests
+     * must not be represented here.
+     */
+    fun requestWindowReport(mode: Int)
+
+    /**
+     * Xterm title stack push/pop scopes:
+     * - 0: icon and window title
+     * - 1: icon title
+     * - 2: window title
+     */
+    fun pushTitleStack(scope: Int)
+    fun popTitleStack(scope: Int)
+
     // -------------------------------------------------------------------------
     // SGR / pen attributes
     // -------------------------------------------------------------------------
