@@ -23,6 +23,9 @@ internal class TerminalState(
     val tabStops = TabStops(initialWidth)
     val pen = Pen()
     val dimensions = GridDimensions(initialWidth, initialHeight)
+    val hostResponses = HostResponseQueue()
+    var windowPixelWidth: Int = 0
+    var windowPixelHeight: Int = 0
 
     // Physical screens.
 

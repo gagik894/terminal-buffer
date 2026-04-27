@@ -366,6 +366,30 @@ class TerminalParserTest {
         }
 
         @Test
+        fun `DSR CPR and DA requests dispatch through the full parser`() {
+            val f = TerminalParserFixture()
+
+            f.acceptAscii("\u001B[5n")
+            f.acceptAscii("\u001B[6n")
+            f.acceptAscii("\u001B[?6n")
+            f.acceptAscii("\u001B[c")
+            f.acceptAscii("\u001B[>c")
+            f.acceptAscii("\u001B[=c")
+
+            assertEquals(
+                listOf(
+                    "requestDeviceStatusReport:5:false",
+                    "requestDeviceStatusReport:6:false",
+                    "requestDeviceStatusReport:6:true",
+                    "requestDeviceAttributes:0:0",
+                    "requestDeviceAttributes:1:0",
+                    "requestDeviceAttributes:2:0",
+                ),
+                f.sink.events,
+            )
+        }
+
+        @Test
         fun `OSC titles dispatch on BEL or ST`() {
             val bel = TerminalParserFixture()
             val st = TerminalParserFixture()

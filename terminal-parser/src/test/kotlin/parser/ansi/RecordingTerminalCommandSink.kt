@@ -165,6 +165,14 @@ internal class RecordingTerminalCommandSink : TerminalCommandSink {
         events += "setDecMode:$mode:$enable"
     }
 
+    override fun requestDeviceStatusReport(mode: Int, decPrivate: Boolean) {
+        events += "requestDeviceStatusReport:$mode:$decPrivate"
+    }
+
+    override fun requestDeviceAttributes(kind: Int, parameter: Int) {
+        events += "requestDeviceAttributes:$kind:$parameter"
+    }
+
     override fun resetAttributes() {
         events += "resetAttributes"
     }

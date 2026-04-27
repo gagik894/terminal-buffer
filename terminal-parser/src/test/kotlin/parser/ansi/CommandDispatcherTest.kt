@@ -487,6 +487,22 @@ class CommandDispatcherTest {
         }
 
         @Test
+        fun `CSI n dispatches DSR and CPR requests`() {
+            assertEquals(
+                listOf("requestDeviceStatusReport:5:false"),
+                dispatchCsi('n', params = listOf(5)).events,
+            )
+            assertEquals(
+                listOf("requestDeviceStatusReport:6:false"),
+                dispatchCsi('n', params = listOf(6)).events,
+            )
+            assertEquals(
+                listOf("requestDeviceStatusReport:6:true"),
+                dispatchCsi('n', params = listOf(6), privateMarker = '?'.code).events,
+            )
+        }
+
+        @Test
         fun `CSI r dispatches DECSTBM scroll region as zero-origin margins`() {
             assertEquals(listOf("setScrollRegion:0:-1"), dispatchCsi('r').events)
             assertEquals(listOf("setScrollRegion:0:9"), dispatchCsi('r', params = listOf(-1, 10)).events)
@@ -557,6 +573,20 @@ class CommandDispatcherTest {
     @Nested
     @DisplayName("CSI mode dispatch")
     inner class CsiModeDispatch {
+
+        @Test
+        fun `CSI c dispatches primary secondary and tertiary DA requests`() {
+            assertEquals(listOf("requestDeviceAttributes:0:0"), dispatchCsi('c').events)
+            assertEquals(listOf("requestDeviceAttributes:0:1"), dispatchCsi('c', params = listOf(1)).events)
+            assertEquals(
+                listOf("requestDeviceAttributes:1:0"),
+                dispatchCsi('c', privateMarker = '>'.code).events,
+            )
+            assertEquals(
+                listOf("requestDeviceAttributes:2:0"),
+                dispatchCsi('c', privateMarker = '='.code).events,
+            )
+        }
 
         @Test
         fun `CSI h and l dispatch ANSI mode set and reset`() {

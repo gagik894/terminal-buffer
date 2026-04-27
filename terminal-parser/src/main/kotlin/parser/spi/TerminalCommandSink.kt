@@ -146,6 +146,25 @@ interface TerminalCommandSink {
     fun setDecMode(mode: Int, enable: Boolean)
 
     // -------------------------------------------------------------------------
+    // Terminal-to-host responses
+    // -------------------------------------------------------------------------
+
+    /**
+     * DSR/CPR request: CSI Ps n or CSI ? Ps n.
+     */
+    fun requestDeviceStatusReport(mode: Int, decPrivate: Boolean)
+
+    /**
+     * DA request.
+     *
+     * Kind values:
+     * - 0: primary DA, CSI Ps c
+     * - 1: secondary DA, CSI > Ps c
+     * - 2: tertiary DA, CSI = Ps c
+     */
+    fun requestDeviceAttributes(kind: Int, parameter: Int)
+
+    // -------------------------------------------------------------------------
     // SGR / pen attributes
     // -------------------------------------------------------------------------
 

@@ -56,6 +56,8 @@ class RecordingTerminalCommandSinkTest {
             sink.clearAllTabStops()
             sink.setAnsiMode(4, enable = true)
             sink.setDecMode(25, enable = false)
+            sink.requestDeviceStatusReport(6, decPrivate = true)
+            sink.requestDeviceAttributes(kind = 1, parameter = 0)
             sink.resetAttributes()
             sink.setBold(true)
             sink.setFaint(false)
@@ -121,6 +123,8 @@ class RecordingTerminalCommandSinkTest {
                     "clearAllTabStops",
                     "setAnsiMode:4:true",
                     "setDecMode:25:false",
+                    "requestDeviceStatusReport:6:true",
+                    "requestDeviceAttributes:1:0",
                     "resetAttributes",
                     "setBold:true",
                     "setFaint:false",

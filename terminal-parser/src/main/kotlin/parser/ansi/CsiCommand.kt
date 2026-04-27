@@ -43,4 +43,9 @@ internal object CsiCommand {
     const val DECSED: Int = 30
     const val DECSEL: Int = 31
     const val DECSCA: Int = 32
+    const val DA_PRIMARY: Int = 33
+    const val DA_SECONDARY: Int = 34
+    const val DA_TERTIARY: Int = 35
+    const val DSR: Int = 36
+    const val DSR_DEC: Int = 37
 }

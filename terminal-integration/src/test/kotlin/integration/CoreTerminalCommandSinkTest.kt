@@ -27,6 +27,12 @@ class CoreTerminalCommandSinkTest {
         fun end() {
             parser.endOfInput()
         }
+
+        fun drainResponses(): String {
+            val destination = ByteArray(128)
+            val count = terminal.readResponseBytes(destination)
+            return destination.decodeToString(0, count)
+        }
     }
 
     @Nested
@@ -226,6 +232,25 @@ class CoreTerminalCommandSinkTest {
 
             f.acceptAscii("\u001B[?3l")
             assertEquals(80, f.terminal.width)
+        }
+
+        @Test
+        fun `DSR CPR and DA parsed from bytes queue terminal-to-host responses`() {
+            val f = Fixture(terminal = TerminalBuffers.create(width = 10, height = 5))
+
+            f.acceptAscii("\u001B[5n")
+            f.acceptAscii("\u001B[2;3H")
+            f.acceptAscii("\u001B[6n")
+            f.acceptAscii("\u001B[?6n")
+            f.acceptAscii("\u001B[c")
+            f.acceptAscii("\u001B[>c")
+            f.acceptAscii("\u001B[=c")
+            f.end()
+
+            assertEquals(
+                "\u001B[0n\u001B[2;3R\u001B[?2;3R\u001B[?1;2c\u001B[>0;0;0c",
+                f.drainResponses(),
+            )
         }
 
         @Test

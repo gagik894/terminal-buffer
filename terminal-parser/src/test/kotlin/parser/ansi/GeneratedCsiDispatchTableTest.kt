@@ -33,12 +33,14 @@ class GeneratedCsiDispatchTableTest {
             assertEquals(CsiCommand.SD, lookup('T'))
             assertEquals(CsiCommand.ECH, lookup('X'))
             assertEquals(CsiCommand.CBT, lookup('Z'))
+            assertEquals(CsiCommand.DA_PRIMARY, lookup('c'))
             assertEquals(CsiCommand.VPA, lookup('d'))
             assertEquals(CsiCommand.CUP, lookup('f'))
             assertEquals(CsiCommand.TBC, lookup('g'))
             assertEquals(CsiCommand.SM_ANSI, lookup('h'))
             assertEquals(CsiCommand.RM_ANSI, lookup('l'))
             assertEquals(CsiCommand.SGR, lookup('m'))
+            assertEquals(CsiCommand.DSR, lookup('n'))
             assertEquals(CsiCommand.DECSTBM, lookup('r'))
             assertEquals(CsiCommand.DECSLRM, lookup('s'))
         }
@@ -47,6 +49,17 @@ class GeneratedCsiDispatchTableTest {
         fun `DEC private mode signatures route separately from ANSI modes`() {
             assertEquals(CsiCommand.SM_DEC, lookup('h', privateMarker = '?'.code))
             assertEquals(CsiCommand.RM_DEC, lookup('l', privateMarker = '?'.code))
+        }
+
+        @Test
+        fun `DEC private DSR routes separately from ANSI DSR`() {
+            assertEquals(CsiCommand.DSR_DEC, lookup('n', privateMarker = '?'.code))
+        }
+
+        @Test
+        fun `secondary and tertiary DA route by private marker`() {
+            assertEquals(CsiCommand.DA_SECONDARY, lookup('c', privateMarker = '>'.code))
+            assertEquals(CsiCommand.DA_TERTIARY, lookup('c', privateMarker = '='.code))
         }
 
         @Test

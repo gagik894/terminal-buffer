@@ -26,6 +26,7 @@ internal class TerminalBuffer private constructor(
     TerminalCursor by TerminalCursorImpl(components.state, components.cursorEngine),
     TerminalModeController by TerminalModeControllerImpl(components.state, components.cursorEngine),
     TerminalModeReader by TerminalModeReaderImpl(components.state),
+    TerminalResponseChannel by TerminalResponseChannelImpl(components.state),
     TerminalInspector by TerminalInspectorImpl(components.state) {
 
     private val state: TerminalState
@@ -73,6 +74,7 @@ internal class TerminalBuffer private constructor(
         state.activeBuffer.resetScrollRegion(state.dimensions.height)
         state.primaryBuffer.resetLeftRightMargins(state.dimensions.width)
         state.altBuffer.resetLeftRightMargins(state.dimensions.width)
+        state.hostResponses.clear()
         state.modes.reset()
         state.tabStops.resetToDefault()
     }

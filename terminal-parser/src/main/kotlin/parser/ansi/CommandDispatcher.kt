@@ -97,6 +97,9 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
             CsiCommand.CPL -> sink.cursorPreviousLine(countParam(state, 0))
             CsiCommand.CHT -> sink.cursorForwardTabs(countParam(state, 0))
             CsiCommand.CBT -> sink.cursorBackwardTabs(countParam(state, 0))
+            CsiCommand.DA_PRIMARY -> sink.requestDeviceAttributes(kind = 0, parameter = modeParam(state, 0))
+            CsiCommand.DA_SECONDARY -> sink.requestDeviceAttributes(kind = 1, parameter = modeParam(state, 0))
+            CsiCommand.DA_TERTIARY -> sink.requestDeviceAttributes(kind = 2, parameter = modeParam(state, 0))
             CsiCommand.CHA -> sink.setCursorColumn(oneBasedPositionParam(state, 0))
             CsiCommand.CUP -> sink.setCursorAbsolute(
                 row = oneBasedPositionParam(state, 0),
@@ -115,6 +118,8 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
             CsiCommand.ECH -> sink.eraseCharacters(countParam(state, 0))
             CsiCommand.SU -> sink.scrollUp(countParam(state, 0))
             CsiCommand.SD -> sink.scrollDown(countParam(state, 0))
+            CsiCommand.DSR -> sink.requestDeviceStatusReport(modeParam(state, 0), decPrivate = false)
+            CsiCommand.DSR_DEC -> sink.requestDeviceStatusReport(modeParam(state, 0), decPrivate = true)
             CsiCommand.TBC -> dispatchTabClear(sink, state)
             CsiCommand.DECSTBM -> sink.setScrollRegion(
                 top = scrollRegionTopParam(state, 0),

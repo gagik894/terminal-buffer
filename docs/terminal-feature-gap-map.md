@@ -103,12 +103,16 @@ surface or maintenance cost without meaningful modern terminal value.
   Many modern terminals ignore or gate these to prevent hostile scripts from
   controlling the user's window.
 - `TODO(parser)`: DEC alignment test `DECALN`, `ESC # 8`.
-- `TODO(parser)`: device status/report sequences:
-  - `DSR`
-  - `CPR`
-  - `DA`, `DA2`, `DA3`
-  - DEC-specific status reports
-  These need a terminal-to-host output channel, not just a sink call.
+- `DONE(parser/core/integration)`: terminal-to-host response channel and safe
+  baseline responses for:
+  - `DSR 5`, operating status, responding `CSI 0 n`
+  - `CPR` / `DSR 6`, cursor position reports
+  - primary `DA`, using a conservative VT100-compatible identity
+  - secondary `DA2`, using a generic versionless identity
+  - `DA3` is parsed but intentionally silent to avoid exposing a stable unit id
+    without policy.
+- `TODO(parser/core)`: broader DEC-specific status reports beyond the safe
+  DSR/CPR/DA baseline.
 - `TODO(parser)`: character attribute/protection commands not covered by SGR:
   - `DECSCUSR`, cursor style
   - `DECSACE`
@@ -274,9 +278,11 @@ Missing:
 
 ### Query and Response Channel
 
-- `TODO(core)`: terminal-to-host response/event API for:
+- `DONE(core)`: terminal-to-host response queue and safe response generation for:
   - DSR/CPR
-  - DA/DA2/DA3
+  - primary DA and secondary DA2
+- `TODO(policy)`: DA3 terminal unit id behavior.
+- `TODO(core)`: terminal-to-host response/event API for:
   - XTGETTCAP
   - OSC queries
   - mouse reports
@@ -301,7 +307,8 @@ Missing:
 - `TODO(integration)`: decide whether OSC title/hyperlink state belongs in core,
   integration metadata, or a host callback interface.
 - `TODO(integration)`: add a host callback/event sink for bell, title, hyperlink,
-  palette, device responses, mouse reports, and clipboard policy.
+  palette, mouse reports, and clipboard policy. Device responses currently use
+  the core response queue.
 
 ## Input Module Gaps
 
@@ -328,8 +335,8 @@ Missing:
 - `TODO(input)`: focus in/out reports.
 - `TODO(input)`: bracketed paste wrapping.
 - `TODO(input)`: paste sanitization policy.
-- `TODO(input)`: terminal-to-host response queue shared with parser/core query
-  responses.
+- `TODO(input)`: terminal-to-host response queue integration for keyboard,
+  mouse, focus, and paste reports, shared with parser/core query responses.
 
 ## Rendering and Host Integration Gaps
 
@@ -363,10 +370,5 @@ professional emulator needs explicit contracts for it.
 
 ## Recommended Next Order
 
-1. `TODO(parser/core)`: add terminal-to-host response channel for DSR/CPR/DA.
-2. `TODO(input)`: build the input encoder using core mode snapshots.
-3. `TODO(input)`: add Kitty Keyboard Protocol support.
-4. `TODO(parser/core)`: add xterm title stack and safe window/grid size reports.
-5. `TODO(parser)`: add DCS router with a strict response/security policy.
-6. `TODO(parser)`: choose and implement one modern graphics path, if inline
-    graphics are a product goal.
+3. `TODO(parser/core)`: add xterm title stack and safe window/grid size reports.
+4. `TODO(parser)`: add DCS router with a strict response/security policy.

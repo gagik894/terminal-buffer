@@ -264,6 +264,14 @@ class CoreTerminalCommandSink(
         }
     }
 
+    override fun requestDeviceStatusReport(mode: Int, decPrivate: Boolean) {
+        terminal.requestDeviceStatusReport(mode, decPrivate)
+    }
+
+    override fun requestDeviceAttributes(kind: Int, parameter: Int) {
+        terminal.requestDeviceAttributes(kind, parameter)
+    }
+
     override fun resetAttributes() {
         resetPenMirror()
         terminal.resetPen()

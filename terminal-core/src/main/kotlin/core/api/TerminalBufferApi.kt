@@ -18,6 +18,7 @@ interface TerminalBufferApi :
     TerminalCursor,
     TerminalModeController,
     TerminalModeReader,
+    TerminalResponseChannel,
     TerminalReader,
     TerminalInspector {
 

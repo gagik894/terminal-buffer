@@ -287,6 +287,14 @@ class ActionEngineTest {
             sinkCalls += "setDecMode:$mode:$enable"
         }
 
+        override fun requestDeviceStatusReport(mode: Int, decPrivate: Boolean) {
+            sinkCalls += "requestDeviceStatusReport:$mode:$decPrivate"
+        }
+
+        override fun requestDeviceAttributes(kind: Int, parameter: Int) {
+            sinkCalls += "requestDeviceAttributes:$kind:$parameter"
+        }
+
         override fun resetAttributes() {
             sinkCalls += "resetAttributes"
         }
