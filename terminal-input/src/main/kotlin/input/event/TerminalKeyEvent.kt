@@ -35,6 +35,9 @@ data class TerminalKeyEvent(
             require(codepoint in 0..0x10ffff && codepoint !in 0xd800..0xdfff) {
                 "invalid Unicode scalar: $codepoint"
             }
+            require(codepoint !in 0x00..0x1f && codepoint != 0x7f) {
+                "control codepoints must use TerminalKey events"
+            }
         }
     }
 

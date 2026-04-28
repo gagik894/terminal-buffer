@@ -73,4 +73,32 @@ class TerminalKeyEventTest {
             TerminalKeyEvent.codepoint(0x110000)
         }
     }
+
+    @Test
+    fun `rejects C0 control codepoint`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            TerminalKeyEvent.codepoint(0x001b)
+        }
+    }
+
+    @Test
+    fun `rejects DEL codepoint`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            TerminalKeyEvent.codepoint(0x007f)
+        }
+    }
+
+    @Test
+    fun `accepts ASCII printable codepoint`() {
+        val event = TerminalKeyEvent.codepoint('~'.code)
+
+        assertEquals('~'.code, event.codepoint)
+    }
+
+    @Test
+    fun `accepts emoji scalar codepoint`() {
+        val event = TerminalKeyEvent.codepoint(0x1f600)
+
+        assertEquals(0x1f600, event.codepoint)
+    }
 }

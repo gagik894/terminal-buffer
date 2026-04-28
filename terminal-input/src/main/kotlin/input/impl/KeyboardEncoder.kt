@@ -4,12 +4,17 @@ import com.gagik.core.api.TerminalInputState
 import com.gagik.terminal.input.event.TerminalKey
 import com.gagik.terminal.input.event.TerminalKeyEvent
 import com.gagik.terminal.input.event.TerminalModifiers
+import com.gagik.terminal.input.policy.BackspacePolicy
+import com.gagik.terminal.input.policy.MetaKeyPolicy
+import com.gagik.terminal.input.policy.TerminalInputPolicy
+import com.gagik.terminal.input.policy.UnsupportedModifiedKeyPolicy
 import com.gagik.terminal.protocol.ControlCode
 import com.gagik.terminal.protocol.host.TerminalHostOutput
 
 internal class KeyboardEncoder(
     private val output: TerminalHostOutput,
     private val scratch: InputScratchBuffer,
+    private val policy: TerminalInputPolicy = TerminalInputPolicy(),
 ) {
     fun encode(event: TerminalKeyEvent, modeBits: Long) {
         val key = event.key
@@ -28,13 +33,27 @@ internal class KeyboardEncoder(
     }
 
     private fun encodeCodepoint(codepoint: Int, modifiers: Int) {
-        val ctrlCode = if (TerminalModifiers.hasCtrl(modifiers)) {
-            controlCodeFor(codepoint)
-        } else {
-            -1
+        if (shouldSuppressForMeta(modifiers)) {
+            return
         }
 
-        if (TerminalModifiers.hasAlt(modifiers)) {
+        val ctrlRequested = TerminalModifiers.hasCtrl(modifiers)
+        val ctrlCode = if (ctrlRequested) controlCodeFor(codepoint) else -1
+
+        if (ctrlRequested && ctrlCode < 0) {
+            when (policy.unsupportedModifiedKeyPolicy) {
+                UnsupportedModifiedKeyPolicy.SUPPRESS -> return
+                UnsupportedModifiedKeyPolicy.EMIT_UNMODIFIED -> {
+                    if (shouldPrefixEscape(modifiers)) {
+                        output.writeByte(ControlCode.ESC)
+                    }
+                    writeUtf8Codepoint(codepoint)
+                    return
+                }
+            }
+        }
+
+        if (shouldPrefixEscape(modifiers)) {
             output.writeByte(ControlCode.ESC)
         }
 
@@ -52,14 +71,14 @@ internal class KeyboardEncoder(
         modeBits: Long,
     ) {
         when (key) {
-            TerminalKey.ENTER -> encodeEnter(modeBits)
-            TerminalKey.NUMPAD_ENTER -> encodeKeypad(key, modeBits)
+            TerminalKey.ENTER -> encodeEnter(modifiers, modeBits)
+            TerminalKey.NUMPAD_ENTER -> encodeKeypad(key, modifiers, modeBits)
 
             TerminalKey.TAB -> encodeTab(modifiers)
 
-            TerminalKey.BACKSPACE -> output.writeByte(ControlCode.DEL)
+            TerminalKey.BACKSPACE -> encodeBackspace(modifiers)
 
-            TerminalKey.ESCAPE -> output.writeByte(ControlCode.ESC)
+            TerminalKey.ESCAPE -> encodeEscape(modifiers)
 
             TerminalKey.UP -> encodeArrow(
                 modifiers = modifiers,
@@ -136,17 +155,75 @@ internal class KeyboardEncoder(
             TerminalKey.NUMPAD_6,
             TerminalKey.NUMPAD_7,
             TerminalKey.NUMPAD_8,
-            TerminalKey.NUMPAD_9 -> encodeKeypad(key, modeBits)
+            TerminalKey.NUMPAD_9 -> encodeKeypad(key, modifiers, modeBits)
         }
     }
 
-    private fun encodeEnter(modeBits: Long) {
+    private fun encodeBackspace(modifiers: Int) {
+        val unsupportedModifier =
+            TerminalModifiers.hasShift(modifiers) || TerminalModifiers.hasCtrl(modifiers)
+
+        if (unsupportedModifier) {
+            when (policy.unsupportedModifiedKeyPolicy) {
+                UnsupportedModifiedKeyPolicy.SUPPRESS -> return
+                UnsupportedModifiedKeyPolicy.EMIT_UNMODIFIED -> {
+                    // Continue as the unmodified key except for Alt/Meta prefix policy.
+                }
+            }
+        }
+
+        if (!writeModifierPrefixOrSuppress(modifiers)) {
+            return
+        }
+
+        val byte = when (policy.backspacePolicy) {
+            BackspacePolicy.DELETE -> ControlCode.DEL
+            BackspacePolicy.BACKSPACE -> BS
+        }
+        output.writeByte(byte)
+    }
+
+    private fun encodeEnter(modifiers: Int, modeBits: Long) {
+        val unsupportedModifier =
+            TerminalModifiers.hasShift(modifiers) || TerminalModifiers.hasCtrl(modifiers)
+
+        if (unsupportedModifier) {
+            when (policy.unsupportedModifiedKeyPolicy) {
+                UnsupportedModifiedKeyPolicy.SUPPRESS -> return
+                UnsupportedModifiedKeyPolicy.EMIT_UNMODIFIED -> {
+                    // Continue as the unmodified key except for Alt/Meta prefix policy.
+                }
+            }
+        }
+
+        if (!writeModifierPrefixOrSuppress(modifiers)) {
+            return
+        }
+
         if (TerminalInputState.isNewLineMode(modeBits)) {
             output.writeByte(ControlCode.CR)
             output.writeByte(ControlCode.LF)
         } else {
             output.writeByte(ControlCode.CR)
         }
+    }
+
+    private fun encodeEscape(modifiers: Int) {
+        val unsupportedModifier =
+            TerminalModifiers.hasShift(modifiers) || TerminalModifiers.hasCtrl(modifiers)
+
+        if (
+            unsupportedModifier &&
+            policy.unsupportedModifiedKeyPolicy == UnsupportedModifiedKeyPolicy.SUPPRESS
+        ) {
+            return
+        }
+
+        if (!writeModifierPrefixOrSuppress(modifiers)) {
+            return
+        }
+
+        output.writeByte(ControlCode.ESC)
     }
 
     private fun encodeTab(modifiers: Int) {
@@ -183,9 +260,9 @@ internal class KeyboardEncoder(
         }
 
         if (TerminalInputState.isApplicationCursorKeys(modeBits)) {
-            writeSs3(applicationFinal)
+            writeStatic(applicationCursorSequence(applicationFinal))
         } else {
-            writeCsiFinal(normalFinal)
+            writeStatic(cursorSequence(normalFinal))
         }
     }
 
@@ -205,9 +282,9 @@ internal class KeyboardEncoder(
         }
 
         if (TerminalInputState.isApplicationCursorKeys(modeBits)) {
-            writeSs3(applicationFinal)
+            writeStatic(homeEndSequence(applicationFinal, application = true))
         } else {
-            writeCsiFinal(normalFinal)
+            writeStatic(homeEndSequence(normalFinal, application = false))
         }
     }
 
@@ -216,7 +293,7 @@ internal class KeyboardEncoder(
         modifiers: Int,
     ) {
         if (modifiers == TerminalModifiers.NONE) {
-            writeSs3(unmodifiedFinal)
+            writeStatic(functionSs3Sequence(unmodifiedFinal))
             return
         }
 
@@ -228,6 +305,11 @@ internal class KeyboardEncoder(
     }
 
     private fun encodeTildeKey(number: Int, modifiers: Int) {
+        if (modifiers == TerminalModifiers.NONE) {
+            writeStatic(tildeSequence(number))
+            return
+        }
+
         scratch.clear()
         scratch.appendByte(ControlCode.ESC)
         scratch.appendByte('['.code)
@@ -257,7 +339,25 @@ internal class KeyboardEncoder(
         scratch.writeTo(output)
     }
 
-    private fun encodeKeypad(key: TerminalKey, modeBits: Long) {
+    private fun encodeKeypad(key: TerminalKey, modifiers: Int, modeBits: Long) {
+        if (modifiers != TerminalModifiers.NONE) {
+            val unsupportedModifier =
+                TerminalModifiers.hasShift(modifiers) || TerminalModifiers.hasCtrl(modifiers)
+
+            if (unsupportedModifier) {
+                when (policy.unsupportedModifiedKeyPolicy) {
+                    UnsupportedModifiedKeyPolicy.SUPPRESS -> return
+                    UnsupportedModifiedKeyPolicy.EMIT_UNMODIFIED -> {
+                        // Continue as the unmodified keypad key except for Alt/Meta prefix policy.
+                    }
+                }
+            }
+
+            if (!writeModifierPrefixOrSuppress(modifiers)) {
+                return
+            }
+        }
+
         if (TerminalInputState.isApplicationKeypad(modeBits)) {
             val final = applicationKeypadFinal(key)
             if (final >= 0) {
@@ -267,7 +367,7 @@ internal class KeyboardEncoder(
         }
 
         if (key == TerminalKey.NUMPAD_ENTER) {
-            encodeEnter(modeBits)
+            encodeEnter(TerminalModifiers.NONE, modeBits)
             return
         }
 
@@ -275,6 +375,38 @@ internal class KeyboardEncoder(
         if (ascii >= 0) {
             output.writeByte(ascii)
         }
+    }
+
+    private fun shouldSuppressForMeta(modifiers: Int): Boolean {
+        return TerminalModifiers.hasMeta(modifiers) &&
+            !TerminalModifiers.hasAlt(modifiers) &&
+            policy.metaKeyPolicy == MetaKeyPolicy.SUPPRESS_EVENT
+    }
+
+    private fun shouldPrefixEscape(modifiers: Int): Boolean {
+        if (policy.altSendsEscapePrefix && TerminalModifiers.hasAlt(modifiers)) {
+            return true
+        }
+
+        if (TerminalModifiers.hasMeta(modifiers)) {
+            return when (policy.metaKeyPolicy) {
+                MetaKeyPolicy.ESC_PREFIX -> true
+                MetaKeyPolicy.IGNORE_META -> false
+                MetaKeyPolicy.SUPPRESS_EVENT -> false
+            }
+        }
+
+        return false
+    }
+
+    private fun writeModifierPrefixOrSuppress(modifiers: Int): Boolean {
+        if (shouldSuppressForMeta(modifiers)) {
+            return false
+        }
+        if (shouldPrefixEscape(modifiers)) {
+            output.writeByte(ControlCode.ESC)
+        }
+        return true
     }
 
     private fun applicationKeypadFinal(key: TerminalKey): Int {
@@ -339,12 +471,60 @@ internal class KeyboardEncoder(
         }
     }
 
-    private fun writeCsiFinal(finalByte: Int) {
-        scratch.clear()
-        scratch.appendByte(ControlCode.ESC)
-        scratch.appendByte('['.code)
-        scratch.appendByte(finalByte)
-        scratch.writeTo(output)
+    private fun cursorSequence(finalByte: Int): ByteArray {
+        return when (finalByte) {
+            'A'.code -> TerminalSequences.CURSOR_UP_NORMAL
+            'B'.code -> TerminalSequences.CURSOR_DOWN_NORMAL
+            'C'.code -> TerminalSequences.CURSOR_RIGHT_NORMAL
+            'D'.code -> TerminalSequences.CURSOR_LEFT_NORMAL
+            else -> error("unsupported cursor final: $finalByte")
+        }
+    }
+
+    private fun applicationCursorSequence(finalByte: Int): ByteArray {
+        return when (finalByte) {
+            'A'.code -> TerminalSequences.CURSOR_UP_APPLICATION
+            'B'.code -> TerminalSequences.CURSOR_DOWN_APPLICATION
+            'C'.code -> TerminalSequences.CURSOR_RIGHT_APPLICATION
+            'D'.code -> TerminalSequences.CURSOR_LEFT_APPLICATION
+            else -> error("unsupported cursor final: $finalByte")
+        }
+    }
+
+    private fun homeEndSequence(finalByte: Int, application: Boolean): ByteArray {
+        return when (finalByte) {
+            'H'.code -> if (application) TerminalSequences.HOME_APPLICATION else TerminalSequences.HOME_NORMAL
+            'F'.code -> if (application) TerminalSequences.END_APPLICATION else TerminalSequences.END_NORMAL
+            else -> error("unsupported home/end final: $finalByte")
+        }
+    }
+
+    private fun functionSs3Sequence(finalByte: Int): ByteArray {
+        return when (finalByte) {
+            'P'.code -> TerminalSequences.F1
+            'Q'.code -> TerminalSequences.F2
+            'R'.code -> TerminalSequences.F3
+            'S'.code -> TerminalSequences.F4
+            else -> error("unsupported function final: $finalByte")
+        }
+    }
+
+    private fun tildeSequence(number: Int): ByteArray {
+        return when (number) {
+            2 -> TerminalSequences.INSERT
+            3 -> TerminalSequences.DELETE
+            5 -> TerminalSequences.PAGE_UP
+            6 -> TerminalSequences.PAGE_DOWN
+            15 -> TerminalSequences.F5
+            17 -> TerminalSequences.F6
+            18 -> TerminalSequences.F7
+            19 -> TerminalSequences.F8
+            20 -> TerminalSequences.F9
+            21 -> TerminalSequences.F10
+            23 -> TerminalSequences.F11
+            24 -> TerminalSequences.F12
+            else -> error("unsupported tilde key number: $number")
+        }
     }
 
     private fun writeSs3(finalByte: Int) {
@@ -387,5 +567,9 @@ internal class KeyboardEncoder(
 
     private fun writeStatic(bytes: ByteArray) {
         output.writeBytes(bytes, 0, bytes.size)
+    }
+
+    private companion object {
+        private const val BS: Int = 0x08
     }
 }

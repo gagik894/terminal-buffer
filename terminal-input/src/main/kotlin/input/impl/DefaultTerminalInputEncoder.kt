@@ -5,6 +5,7 @@ import com.gagik.terminal.input.api.TerminalInputEncoder
 import com.gagik.terminal.input.event.TerminalFocusEvent
 import com.gagik.terminal.input.event.TerminalKeyEvent
 import com.gagik.terminal.input.event.TerminalPasteEvent
+import com.gagik.terminal.input.policy.TerminalInputPolicy
 import com.gagik.terminal.protocol.host.TerminalHostOutput
 
 /**
@@ -15,13 +16,15 @@ import com.gagik.terminal.protocol.host.TerminalHostOutput
  *
  * @param inputState read-only core mode state used for input decisions.
  * @param output host-bound byte sink.
+ * @param policy policy for ambiguous or unsupported keyboard encodings.
  */
 class DefaultTerminalInputEncoder(
     private val inputState: TerminalInputState,
     output: TerminalHostOutput,
+    policy: TerminalInputPolicy = TerminalInputPolicy(),
 ) : TerminalInputEncoder {
     private val scratch = InputScratchBuffer()
-    private val keyboard = KeyboardEncoder(output, scratch)
+    private val keyboard = KeyboardEncoder(output, scratch, policy)
     private val paste = PasteEncoder(output)
     private val focus = FocusEncoder(output)
 

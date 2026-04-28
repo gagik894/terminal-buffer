@@ -4,8 +4,13 @@ import com.gagik.core.api.TerminalModeBits
 import com.gagik.terminal.input.event.TerminalKey
 import com.gagik.terminal.input.event.TerminalKeyEvent
 import com.gagik.terminal.input.event.TerminalModifiers
+import com.gagik.terminal.input.policy.BackspacePolicy
+import com.gagik.terminal.input.policy.MetaKeyPolicy
+import com.gagik.terminal.input.policy.TerminalInputPolicy
+import com.gagik.terminal.input.policy.UnsupportedModifiedKeyPolicy
 import com.gagik.terminal.protocol.host.TerminalHostOutput
 import org.junit.jupiter.api.Assertions.assertArrayEquals
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Test
 
 class KeyboardEncoderTest {
@@ -18,8 +23,7 @@ class KeyboardEncoderTest {
     }
 
     @Test
-    fun `encodes UTF-8 boundary codepoints`() {
-        assertBytes(bytes(0x7f), TerminalKeyEvent.codepoint(0x007f))
+    fun `encodes UTF-8 boundary printable codepoints`() {
         assertBytes(bytes(0xc2, 0x80), TerminalKeyEvent.codepoint(0x0080))
         assertBytes(bytes(0xdf, 0xbf), TerminalKeyEvent.codepoint(0x07ff))
         assertBytes(bytes(0xe0, 0xa0, 0x80), TerminalKeyEvent.codepoint(0x0800))
@@ -29,8 +33,33 @@ class KeyboardEncoderTest {
     }
 
     @Test
-    fun `encodes Alt and Ctrl printable combinations`() {
-        assertBytes(bytes(0x1b, 0x61), TerminalKeyEvent.codepoint('a'.code, TerminalModifiers.ALT))
+    fun `encodes Meta printable input by policy`() {
+        assertBytes(bytes(0x1b, 0x61), TerminalKeyEvent.codepoint('a'.code, TerminalModifiers.META))
+        assertBytes(
+            expected = bytes(0x61),
+            event = TerminalKeyEvent.codepoint('a'.code, TerminalModifiers.META),
+            policy = TerminalInputPolicy(metaKeyPolicy = MetaKeyPolicy.IGNORE_META),
+        )
+        assertBytes(
+            expected = bytes(),
+            event = TerminalKeyEvent.codepoint('a'.code, TerminalModifiers.META),
+            policy = TerminalInputPolicy(metaKeyPolicy = MetaKeyPolicy.SUPPRESS_EVENT),
+        )
+        assertBytes(
+            expected = bytes(0x1b, 0x61),
+            event = TerminalKeyEvent.codepoint('a'.code, TerminalModifiers.ALT),
+        )
+        assertBytes(
+            expected = bytes(0x1b, 0x61),
+            event = TerminalKeyEvent.codepoint(
+                'a'.code,
+                TerminalModifiers.ALT or TerminalModifiers.META,
+            ),
+        )
+    }
+
+    @Test
+    fun `encodes Ctrl printable combinations only when mappable`() {
         assertBytes(bytes(0x01), TerminalKeyEvent.codepoint('a'.code, TerminalModifiers.CTRL))
         assertBytes(bytes(0x1a), TerminalKeyEvent.codepoint('z'.code, TerminalModifiers.CTRL))
         assertBytes(bytes(0x00), TerminalKeyEvent.codepoint('@'.code, TerminalModifiers.CTRL))
@@ -41,23 +70,93 @@ class KeyboardEncoderTest {
         assertBytes(bytes(0x1e), TerminalKeyEvent.codepoint('^'.code, TerminalModifiers.CTRL))
         assertBytes(bytes(0x1f), TerminalKeyEvent.codepoint('_'.code, TerminalModifiers.CTRL))
         assertBytes(bytes(0x7f), TerminalKeyEvent.codepoint('?'.code, TerminalModifiers.CTRL))
-        assertBytes(bytes(0x1b, 0x01), TerminalKeyEvent.codepoint('a'.code, TerminalModifiers.CTRL or TerminalModifiers.ALT))
+        assertBytes(
+            bytes(0x1b, 0x01),
+            TerminalKeyEvent.codepoint('a'.code, TerminalModifiers.CTRL or TerminalModifiers.ALT),
+        )
     }
 
     @Test
-    fun `Ctrl on unmappable printable input falls back to UTF-8`() {
-        assertBytes(bytes(0xc3, 0xa9), TerminalKeyEvent.codepoint(0x00e9, TerminalModifiers.CTRL))
-        assertBytes(bytes(0x1b, 0xc3, 0xa9), TerminalKeyEvent.codepoint(0x00e9, TerminalModifiers.CTRL or TerminalModifiers.ALT))
+    fun `applies unsupported modified printable policy`() {
+        assertBytes(bytes(), TerminalKeyEvent.codepoint(0x00e9, TerminalModifiers.CTRL))
+        assertBytes(
+            expected = bytes(0xc3, 0xa9),
+            event = TerminalKeyEvent.codepoint(0x00e9, TerminalModifiers.CTRL),
+            policy = TerminalInputPolicy(
+                unsupportedModifiedKeyPolicy = UnsupportedModifiedKeyPolicy.EMIT_UNMODIFIED,
+            ),
+        )
+        assertBytes(
+            expected = bytes(0x1b, 0xc3, 0xa9),
+            event = TerminalKeyEvent.codepoint(
+                0x00e9,
+                TerminalModifiers.CTRL or TerminalModifiers.ALT,
+            ),
+            policy = TerminalInputPolicy(
+                unsupportedModifiedKeyPolicy = UnsupportedModifiedKeyPolicy.EMIT_UNMODIFIED,
+            ),
+        )
     }
 
     @Test
-    fun `encodes unmodified special keys`() {
+    fun `encodes Backspace by policy`() {
+        assertBytes(bytes(0x7f), TerminalKeyEvent.key(TerminalKey.BACKSPACE))
+        assertBytes(
+            expected = bytes(0x08),
+            event = TerminalKeyEvent.key(TerminalKey.BACKSPACE),
+            policy = TerminalInputPolicy(backspacePolicy = BackspacePolicy.BACKSPACE),
+        )
+        assertBytes(bytes(0x1b, 0x7f), TerminalKeyEvent.key(TerminalKey.BACKSPACE, TerminalModifiers.ALT))
+        assertBytes(bytes(), TerminalKeyEvent.key(TerminalKey.BACKSPACE, TerminalModifiers.CTRL))
+        assertBytes(
+            expected = bytes(0x7f),
+            event = TerminalKeyEvent.key(TerminalKey.BACKSPACE, TerminalModifiers.CTRL),
+            policy = TerminalInputPolicy(
+                unsupportedModifiedKeyPolicy = UnsupportedModifiedKeyPolicy.EMIT_UNMODIFIED,
+            ),
+        )
+        assertBytes(
+            expected = bytes(),
+            event = TerminalKeyEvent.key(TerminalKey.BACKSPACE, TerminalModifiers.META),
+            policy = TerminalInputPolicy(metaKeyPolicy = MetaKeyPolicy.SUPPRESS_EVENT),
+        )
+    }
+
+    @Test
+    fun `encodes Enter by mode and modifier policy`() {
         assertBytes(bytes(0x0d), TerminalKeyEvent.key(TerminalKey.ENTER))
         assertBytes(bytes(0x0d, 0x0a), TerminalKeyEvent.key(TerminalKey.ENTER), TerminalModeBits.NEW_LINE_MODE)
+        assertBytes(bytes(0x1b, 0x0d), TerminalKeyEvent.key(TerminalKey.ENTER, TerminalModifiers.ALT))
+        assertBytes(bytes(), TerminalKeyEvent.key(TerminalKey.ENTER, TerminalModifiers.CTRL))
+        assertBytes(
+            expected = bytes(0x0d),
+            event = TerminalKeyEvent.key(TerminalKey.ENTER, TerminalModifiers.CTRL),
+            policy = TerminalInputPolicy(
+                unsupportedModifiedKeyPolicy = UnsupportedModifiedKeyPolicy.EMIT_UNMODIFIED,
+            ),
+        )
+    }
+
+    @Test
+    fun `encodes Escape by modifier policy`() {
+        assertBytes(bytes(0x1b), TerminalKeyEvent.key(TerminalKey.ESCAPE))
+        assertBytes(bytes(0x1b, 0x1b), TerminalKeyEvent.key(TerminalKey.ESCAPE, TerminalModifiers.ALT))
+        assertBytes(bytes(), TerminalKeyEvent.key(TerminalKey.ESCAPE, TerminalModifiers.SHIFT))
+        assertBytes(
+            expected = bytes(0x1b),
+            event = TerminalKeyEvent.key(TerminalKey.ESCAPE, TerminalModifiers.SHIFT),
+            policy = TerminalInputPolicy(
+                unsupportedModifiedKeyPolicy = UnsupportedModifiedKeyPolicy.EMIT_UNMODIFIED,
+            ),
+        )
+    }
+
+    @Test
+    fun `encodes Tab variants explicitly`() {
         assertBytes(bytes(0x09), TerminalKeyEvent.key(TerminalKey.TAB))
         assertBytes(esc("[Z"), TerminalKeyEvent.key(TerminalKey.TAB, TerminalModifiers.SHIFT))
-        assertBytes(bytes(0x7f), TerminalKeyEvent.key(TerminalKey.BACKSPACE))
-        assertBytes(bytes(0x1b), TerminalKeyEvent.key(TerminalKey.ESCAPE))
+        assertBytes(esc("[1;5Z"), TerminalKeyEvent.key(TerminalKey.TAB, TerminalModifiers.CTRL))
+        assertBytes(esc("[1;9Z"), TerminalKeyEvent.key(TerminalKey.TAB, TerminalModifiers.META))
     }
 
     @Test
@@ -112,16 +211,16 @@ class KeyboardEncoderTest {
         assertBytes(esc("OR"), TerminalKeyEvent.key(TerminalKey.F3))
         assertBytes(esc("OS"), TerminalKeyEvent.key(TerminalKey.F4))
         assertBytes(esc("[15~"), TerminalKeyEvent.key(TerminalKey.F5))
+        assertBytes(esc("[17~"), TerminalKeyEvent.key(TerminalKey.F6))
+        assertBytes(esc("[18~"), TerminalKeyEvent.key(TerminalKey.F7))
+        assertBytes(esc("[19~"), TerminalKeyEvent.key(TerminalKey.F8))
+        assertBytes(esc("[20~"), TerminalKeyEvent.key(TerminalKey.F9))
+        assertBytes(esc("[21~"), TerminalKeyEvent.key(TerminalKey.F10))
+        assertBytes(esc("[23~"), TerminalKeyEvent.key(TerminalKey.F11))
         assertBytes(esc("[24~"), TerminalKeyEvent.key(TerminalKey.F12))
         assertBytes(esc("[1;5P"), TerminalKeyEvent.key(TerminalKey.F1, TerminalModifiers.CTRL))
         assertBytes(esc("[15;5~"), TerminalKeyEvent.key(TerminalKey.F5, TerminalModifiers.CTRL))
         assertBytes(esc("[24;9~"), TerminalKeyEvent.key(TerminalKey.F12, TerminalModifiers.META))
-    }
-
-    @Test
-    fun `encodes modified tab variants`() {
-        assertBytes(esc("[1;5Z"), TerminalKeyEvent.key(TerminalKey.TAB, TerminalModifiers.CTRL))
-        assertBytes(esc("[1;9Z"), TerminalKeyEvent.key(TerminalKey.TAB, TerminalModifiers.META))
     }
 
     @Test
@@ -167,13 +266,49 @@ class KeyboardEncoderTest {
         assertBytes(esc("OM"), TerminalKeyEvent.key(TerminalKey.NUMPAD_ENTER), bits)
     }
 
+    @Test
+    fun `applies keypad modifier policy without silent modifier loss`() {
+        assertBytes(bytes(0x1b, 0x31), TerminalKeyEvent.key(TerminalKey.NUMPAD_1, TerminalModifiers.ALT))
+        assertBytes(bytes(), TerminalKeyEvent.key(TerminalKey.NUMPAD_1, TerminalModifiers.CTRL))
+        assertBytes(
+            expected = ascii("1"),
+            event = TerminalKeyEvent.key(TerminalKey.NUMPAD_1, TerminalModifiers.CTRL),
+            policy = TerminalInputPolicy(
+                unsupportedModifiedKeyPolicy = UnsupportedModifiedKeyPolicy.EMIT_UNMODIFIED,
+            ),
+        )
+        assertBytes(
+            expected = bytes(),
+            event = TerminalKeyEvent.key(TerminalKey.NUMPAD_1, TerminalModifiers.META),
+            policy = TerminalInputPolicy(metaKeyPolicy = MetaKeyPolicy.SUPPRESS_EVENT),
+        )
+        assertBytes(
+            expected = esc("\u001bOq"),
+            event = TerminalKeyEvent.key(TerminalKey.NUMPAD_1, TerminalModifiers.ALT),
+            modeBits = TerminalModeBits.APPLICATION_KEYPAD,
+        )
+    }
+
+    @Test
+    fun `unmodified special keys write static sequence arrays`() {
+        val output = ReferenceRecordingHostOutput()
+        val encoder = KeyboardEncoder(output, InputScratchBuffer())
+
+        encoder.encode(TerminalKeyEvent.key(TerminalKey.UP), 0L)
+        encoder.encode(TerminalKeyEvent.key(TerminalKey.F5), 0L)
+
+        assertSame(TerminalSequences.CURSOR_UP_NORMAL, output.writeBytesCalls[0])
+        assertSame(TerminalSequences.F5, output.writeBytesCalls[1])
+    }
+
     private fun assertBytes(
         expected: ByteArray,
         event: TerminalKeyEvent,
         modeBits: Long = 0L,
+        policy: TerminalInputPolicy = TerminalInputPolicy(),
     ) {
         val output = RecordingHostOutput()
-        val encoder = KeyboardEncoder(output, InputScratchBuffer())
+        val encoder = KeyboardEncoder(output, InputScratchBuffer(), policy)
 
         encoder.encode(event, modeBits)
 
@@ -204,7 +339,7 @@ class KeyboardEncoderTest {
         return bytes
     }
 
-    private class RecordingHostOutput : TerminalHostOutput {
+    private open class RecordingHostOutput : TerminalHostOutput {
         var bytes: ByteArray = ByteArray(0)
             private set
 
@@ -226,6 +361,15 @@ class KeyboardEncoderTest {
 
         override fun writeUtf8(text: String) {
             bytes += text.encodeToByteArray()
+        }
+    }
+
+    private class ReferenceRecordingHostOutput : RecordingHostOutput() {
+        val writeBytesCalls: MutableList<ByteArray> = mutableListOf()
+
+        override fun writeBytes(bytes: ByteArray, offset: Int, length: Int) {
+            writeBytesCalls += bytes
+            super.writeBytes(bytes, offset, length)
         }
     }
 }

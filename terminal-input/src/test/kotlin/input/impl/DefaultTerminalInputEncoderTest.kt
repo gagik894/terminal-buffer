@@ -2,10 +2,9 @@ package com.gagik.terminal.input.impl
 
 import com.gagik.core.api.TerminalInputState
 import com.gagik.core.api.TerminalModeBits
-import com.gagik.terminal.input.event.TerminalFocusEvent
-import com.gagik.terminal.input.event.TerminalKey
-import com.gagik.terminal.input.event.TerminalKeyEvent
-import com.gagik.terminal.input.event.TerminalPasteEvent
+import com.gagik.terminal.input.event.*
+import com.gagik.terminal.input.policy.TerminalInputPolicy
+import com.gagik.terminal.input.policy.UnsupportedModifiedKeyPolicy
 import com.gagik.terminal.protocol.host.TerminalHostOutput
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -53,6 +52,24 @@ class DefaultTerminalInputEncoderTest {
 
         assertEquals(1, inputState.reads)
         assertArrayEquals(esc("[I"), output.bytes)
+    }
+
+    @Test
+    fun `encodeKey applies injected keyboard policy`() {
+        val inputState = RecordingInputState(0L)
+        val output = RecordingHostOutput()
+        val encoder = DefaultTerminalInputEncoder(
+            inputState = inputState,
+            output = output,
+            policy = TerminalInputPolicy(
+                unsupportedModifiedKeyPolicy = UnsupportedModifiedKeyPolicy.EMIT_UNMODIFIED,
+            ),
+        )
+
+        encoder.encodeKey(TerminalKeyEvent.codepoint(0x00e9, TerminalModifiers.CTRL))
+
+        assertEquals(1, inputState.reads)
+        assertArrayEquals(byteArrayOf(0xc3.toByte(), 0xa9.toByte()), output.bytes)
     }
 
     private fun esc(textAfterEsc: String): ByteArray {
