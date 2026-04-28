@@ -2,6 +2,7 @@ package com.gagik.core.buffer.impl
 
 import com.gagik.core.api.TerminalResponseChannel
 import com.gagik.core.state.TerminalState
+import com.gagik.terminal.protocol.ControlCode
 
 internal class TerminalResponseChannelImpl(
     private val state: TerminalState,
@@ -23,7 +24,7 @@ internal class TerminalResponseChannelImpl(
 
     override fun requestDeviceStatusReport(mode: Int, decPrivate: Boolean) {
         when {
-            !decPrivate && mode == 5 -> state.hostResponses.enqueueAscii("\u001B[0n")
+            !decPrivate && mode == 5 -> enqueueOperatingStatusReport()
             mode == 6 -> enqueueCursorPositionReport(decPrivate)
         }
     }
@@ -34,11 +35,11 @@ internal class TerminalResponseChannelImpl(
         when (kind) {
             TerminalResponseChannel.DEVICE_ATTRIBUTES_PRIMARY -> {
                 // Conservative VT100-with-advanced-video identity. Avoid overclaiming xterm.
-                state.hostResponses.enqueueAscii("\u001B[?1;2c")
+                enqueuePrimaryDeviceAttributes()
             }
             TerminalResponseChannel.DEVICE_ATTRIBUTES_SECONDARY -> {
                 // Generic versionless secondary DA. Avoid leaking product/version identity.
-                state.hostResponses.enqueueAscii("\u001B[>0;0;0c")
+                enqueueSecondaryDeviceAttributes()
             }
             TerminalResponseChannel.DEVICE_ATTRIBUTES_TERTIARY -> {
                 // DA3 can expose a stable terminal unit id. Keep it silent until policy exists.
@@ -76,9 +77,34 @@ internal class TerminalResponseChannelImpl(
         }
     }
 
+    private fun enqueueOperatingStatusReport() {
+        enqueueCsiPrefix()
+        state.hostResponses.enqueueByte('0'.code)
+        state.hostResponses.enqueueByte('n'.code)
+    }
+
+    private fun enqueuePrimaryDeviceAttributes() {
+        enqueueCsiPrefix()
+        state.hostResponses.enqueueByte('?'.code)
+        state.hostResponses.enqueueByte('1'.code)
+        state.hostResponses.enqueueByte(';'.code)
+        state.hostResponses.enqueueByte('2'.code)
+        state.hostResponses.enqueueByte('c'.code)
+    }
+
+    private fun enqueueSecondaryDeviceAttributes() {
+        enqueueCsiPrefix()
+        state.hostResponses.enqueueByte('>'.code)
+        state.hostResponses.enqueueByte('0'.code)
+        state.hostResponses.enqueueByte(';'.code)
+        state.hostResponses.enqueueByte('0'.code)
+        state.hostResponses.enqueueByte(';'.code)
+        state.hostResponses.enqueueByte('0'.code)
+        state.hostResponses.enqueueByte('c'.code)
+    }
+
     private fun enqueueCursorPositionReport(decPrivate: Boolean) {
-        state.hostResponses.enqueueByte(0x1B)
-        state.hostResponses.enqueueByte('['.code)
+        enqueueCsiPrefix()
         if (decPrivate) {
             state.hostResponses.enqueueByte('?'.code)
         }
@@ -93,13 +119,17 @@ internal class TerminalResponseChannelImpl(
         height: Int,
         width: Int,
     ) {
-        state.hostResponses.enqueueByte(0x1B)
-        state.hostResponses.enqueueByte('['.code)
+        enqueueCsiPrefix()
         state.hostResponses.enqueuePositiveDecimal(reportType)
         state.hostResponses.enqueueByte(';'.code)
         state.hostResponses.enqueuePositiveDecimal(height)
         state.hostResponses.enqueueByte(';'.code)
         state.hostResponses.enqueuePositiveDecimal(width)
         state.hostResponses.enqueueByte('t'.code)
+    }
+
+    private fun enqueueCsiPrefix() {
+        state.hostResponses.enqueueByte(ControlCode.ESC)
+        state.hostResponses.enqueueByte('['.code)
     }
 }

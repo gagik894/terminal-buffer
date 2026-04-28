@@ -11,6 +11,7 @@
             <option value="$PROJECT_DIR$/terminal-core" />
             <option value="$PROJECT_DIR$/terminal-integration" />
             <option value="$PROJECT_DIR$/terminal-parser" />
+            <option value="$PROJECT_DIR$/terminal-protocol" />
           </set>
         </option>
       </GradleProjectSettings>

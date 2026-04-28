@@ -7,6 +7,27 @@ import org.junit.jupiter.api.Test
 class TerminalProtocolModesTest {
 
     @Test
+    fun `control codes expose ANSI wire byte values`() {
+        assertAll(
+            { assertEquals(0x00, ControlCode.NUL) },
+            { assertEquals(0x07, ControlCode.BEL) },
+            { assertEquals(0x08, ControlCode.BS) },
+            { assertEquals(0x09, ControlCode.HT) },
+            { assertEquals(0x0A, ControlCode.LF) },
+            { assertEquals(0x0B, ControlCode.VT) },
+            { assertEquals(0x0C, ControlCode.FF) },
+            { assertEquals(0x0D, ControlCode.CR) },
+            { assertEquals(0x18, ControlCode.CAN) },
+            { assertEquals(0x1A, ControlCode.SUB) },
+            { assertEquals(0x1B, ControlCode.ESC) },
+            { assertEquals(0x7F, ControlCode.DEL) },
+            { assertEquals(0x99, ControlCode.SGCI) },
+            { assertEquals(0x9B, ControlCode.CSI) },
+            { assertEquals(0x9D, ControlCode.OSC) },
+        )
+    }
+
+    @Test
     fun `ANSI mode ids match CSI SM and RM protocol values`() {
         assertAll(
             { assertEquals(4, AnsiMode.INSERT) },

@@ -3,6 +3,7 @@ package com.gagik.parser.ansi
 import com.gagik.parser.ansi.osc.OscDispatcher
 import com.gagik.parser.runtime.ParserState
 import com.gagik.parser.spi.TerminalCommandSink
+import com.gagik.terminal.protocol.ControlCode
 
 /**
  * Executes parser-internal FSM actions against [ParserState].
@@ -155,7 +156,7 @@ internal class ActionEngine(
             }
 
             FsmAction.OSC_EXECUTE_CONTROL -> {
-                if (byteValue == 0x07) {
+                if (byteValue == ControlCode.BEL) {
                     OscDispatcher.dispatch(
                         sink = sink,
                         payload = state.payloadBuffer,

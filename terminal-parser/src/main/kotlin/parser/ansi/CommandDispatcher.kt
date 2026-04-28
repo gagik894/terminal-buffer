@@ -4,6 +4,7 @@ import com.gagik.parser.ansi.sgr.SgrDispatcher
 import com.gagik.parser.charset.CharsetMapper
 import com.gagik.parser.runtime.ParserState
 import com.gagik.parser.spi.TerminalCommandSink
+import com.gagik.terminal.protocol.ControlCode
 
 /**
  * Semantic dispatcher boundary used by ActionEngine.
@@ -38,13 +39,13 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
         controlByte: Int,
     ) {
         when (controlByte) {
-            0x07 -> sink.bell()
-            0x08 -> sink.backspace()
-            0x09 -> sink.tab()
-            0x0A, 0x0B, 0x0C -> sink.lineFeed()
-            0x0D -> sink.carriageReturn()
-            0x0e -> CharsetMapper.lockingShiftG1(state) // SO
-            0x0f -> CharsetMapper.lockingShiftG0(state) // SI
+            ControlCode.BEL -> sink.bell()
+            ControlCode.BS -> sink.backspace()
+            ControlCode.HT -> sink.tab()
+            ControlCode.LF, ControlCode.VT, ControlCode.FF -> sink.lineFeed()
+            ControlCode.CR -> sink.carriageReturn()
+            ControlCode.SO -> CharsetMapper.lockingShiftG1(state)
+            ControlCode.SI -> CharsetMapper.lockingShiftG0(state)
         }
     }
 

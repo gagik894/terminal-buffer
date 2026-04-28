@@ -315,9 +315,9 @@ Missing:
 
 There is no production `:terminal-input` module yet.
 Shared protocol vocabulary for the future input encoder lives in
-`:terminal-protocol`, including ANSI/DEC mode ids and mouse mode enums. Input
-should depend on `:terminal-protocol` and core mode snapshots, not parser
-internals.
+`:terminal-protocol`, including control-code constants, ANSI/DEC mode ids, and
+mouse mode enums. Input should depend on `:terminal-protocol` and core mode
+snapshots, not parser internals.
 
 Missing:
 
@@ -372,11 +372,3 @@ professional emulator needs explicit contracts for it.
 - `TODO(policy)`: window manipulation allow/deny behavior for xterm window ops.
 - `TODO(policy)`: desktop notification allow/deny behavior for OSC 777 and
   related notification protocols.
-
-## Recommended Next Order
-
-1. `TODO(input)`: build the input encoder using core mode snapshots.
-2. `TODO(input)`: add Kitty Keyboard Protocol support.
-3. `TODO(parser)`: add DCS router with a strict response/security policy.
-4. `TODO(parser)`: choose and implement one modern graphics path, if inline
-   graphics are a product goal.

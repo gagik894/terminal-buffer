@@ -1,7 +1,7 @@
 package com.gagik.parser.ansi
 
 import com.gagik.parser.ansi.ByteClass.UTF8_PAYLOAD
-
+import com.gagik.terminal.protocol.ControlCode
 
 /**
  * Byte-domain ownership rules for the parser.
@@ -56,14 +56,14 @@ internal object ByteClass {
      */
     val ASCII_MAP: ByteArray = ByteArray(128).also { map ->
         // --- C0 controls ----------------------------------------------------
-        for (b in 0x00..0x17) {
+        for (b in ControlCode.NUL..ControlCode.ETB) {
             map[b] = EXECUTE.toByte()
         }
-        map[0x18] = CAN_SUB.toByte()
-        map[0x19] = EXECUTE.toByte()
-        map[0x1A] = CAN_SUB.toByte()
-        map[0x1B] = ESC.toByte()
-        for (b in 0x1C..0x1F) {
+        map[ControlCode.CAN] = CAN_SUB.toByte()
+        map[ControlCode.EM] = EXECUTE.toByte()
+        map[ControlCode.SUB] = CAN_SUB.toByte()
+        map[ControlCode.ESC] = ESC.toByte()
+        for (b in ControlCode.FS..ControlCode.US) {
             map[b] = EXECUTE.toByte()
         }
 
@@ -82,7 +82,7 @@ internal object ByteClass {
         for (b in 0x40..0x7E) {
             map[b] = FINAL_BYTE.toByte()
         }
-        map[0x7F] = DEL.toByte()
+        map[ControlCode.DEL] = DEL.toByte()
 
         // --- Structural introducer overrides -------------------------------
         map['P'.code] = DCS_INTRO.toByte()

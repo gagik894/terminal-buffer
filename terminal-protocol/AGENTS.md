@@ -5,8 +5,8 @@ parser, core, integration, and future input modules.
 
 ## Boundary
 
-Protocol owns small, stable identifiers and enums such as ANSI/DEC mode ids and
-mouse reporting vocabulary.
+Protocol owns small, stable identifiers and enums such as control-code byte
+values, ANSI/DEC mode ids, and mouse reporting vocabulary.
 
 Protocol must not:
 

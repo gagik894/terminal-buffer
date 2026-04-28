@@ -7,8 +7,9 @@ storage.
 
 ## Architecture
 
-- **terminal-protocol** holds dependency-free ANSI/DEC mode ids and shared mode
-  vocabulary used by parser, core, integration, and future input code.
+- **terminal-protocol** holds dependency-free control-code constants, ANSI/DEC
+  mode ids, and shared mode vocabulary used by parser, core, integration, and
+  future input code.
 - **TerminalBuffer** is the facade that coordinates the state, mutation, cursor,
   mode, and reader/inspector surfaces.
 - **ScreenBuffer** owns one complete screen arena: `HistoryRing`, `ClusterStore`,
