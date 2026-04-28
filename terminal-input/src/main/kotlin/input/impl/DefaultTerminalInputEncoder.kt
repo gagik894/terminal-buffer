@@ -11,8 +11,7 @@ import com.gagik.terminal.protocol.host.TerminalHostOutput
  * Default terminal input encoder facade.
  *
  * The facade reads a coherent packed mode snapshot once per event and passes
- * that stable value to the specialized encoder for the event family. Paste and
- * focus behavior are intentionally deferred to later implementation phases.
+ * that stable value to the specialized encoder for the event family.
  *
  * @param inputState read-only core mode state used for input decisions.
  * @param output host-bound byte sink.
@@ -23,6 +22,8 @@ class DefaultTerminalInputEncoder(
 ) : TerminalInputEncoder {
     private val scratch = InputScratchBuffer()
     private val keyboard = KeyboardEncoder(output, scratch)
+    private val paste = PasteEncoder(output)
+    private val focus = FocusEncoder(output)
 
     /**
      * Encodes one keyboard event using one packed mode read.
@@ -35,22 +36,22 @@ class DefaultTerminalInputEncoder(
     }
 
     /**
-     * Paste encoding is deferred to the paste encoder phase.
+     * Encodes one paste event using one packed mode read.
      *
      * @param event pasted text event.
-     * @throws UnsupportedOperationException until the paste phase is implemented.
      */
     override fun encodePaste(event: TerminalPasteEvent) {
-        throw UnsupportedOperationException("paste encoding is not implemented yet")
+        val modeBits = inputState.getInputModeBits()
+        paste.encode(event, modeBits)
     }
 
     /**
-     * Focus encoding is deferred to the focus encoder phase.
+     * Encodes one focus transition event using one packed mode read.
      *
      * @param event terminal focus transition.
-     * @throws UnsupportedOperationException until the focus phase is implemented.
      */
     override fun encodeFocus(event: TerminalFocusEvent) {
-        throw UnsupportedOperationException("focus encoding is not implemented yet")
+        val modeBits = inputState.getInputModeBits()
+        focus.encode(event, modeBits)
     }
 }

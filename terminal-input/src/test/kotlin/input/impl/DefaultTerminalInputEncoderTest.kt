@@ -7,7 +7,8 @@ import com.gagik.terminal.input.event.TerminalKey
 import com.gagik.terminal.input.event.TerminalKeyEvent
 import com.gagik.terminal.input.event.TerminalPasteEvent
 import com.gagik.terminal.protocol.host.TerminalHostOutput
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertArrayEquals
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
 class DefaultTerminalInputEncoderTest {
@@ -25,18 +26,37 @@ class DefaultTerminalInputEncoderTest {
     }
 
     @Test
-    fun `paste and focus are explicitly deferred`() {
+    fun `encodePaste reads mode bits once per event`() {
+        val inputState = RecordingInputState(TerminalModeBits.BRACKETED_PASTE)
+        val output = RecordingHostOutput()
         val encoder = DefaultTerminalInputEncoder(
-            inputState = RecordingInputState(0L),
-            output = RecordingHostOutput(),
+            inputState = inputState,
+            output = output,
         )
 
-        assertThrows(UnsupportedOperationException::class.java) {
-            encoder.encodePaste(TerminalPasteEvent("text"))
-        }
-        assertThrows(UnsupportedOperationException::class.java) {
-            encoder.encodeFocus(TerminalFocusEvent(focused = true))
-        }
+        encoder.encodePaste(TerminalPasteEvent("text"))
+
+        assertEquals(1, inputState.reads)
+        assertArrayEquals(esc("[200~") + "text".encodeToByteArray() + esc("[201~"), output.bytes)
+    }
+
+    @Test
+    fun `encodeFocus reads mode bits once per event`() {
+        val inputState = RecordingInputState(TerminalModeBits.FOCUS_REPORTING)
+        val output = RecordingHostOutput()
+        val encoder = DefaultTerminalInputEncoder(
+            inputState = inputState,
+            output = output,
+        )
+
+        encoder.encodeFocus(TerminalFocusEvent(focused = true))
+
+        assertEquals(1, inputState.reads)
+        assertArrayEquals(esc("[I"), output.bytes)
+    }
+
+    private fun esc(textAfterEsc: String): ByteArray {
+        return byteArrayOf(0x1b) + textAfterEsc.encodeToByteArray()
     }
 
     private class RecordingInputState(
