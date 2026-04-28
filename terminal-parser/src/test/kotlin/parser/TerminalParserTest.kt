@@ -574,17 +574,20 @@ class TerminalParserTest {
             val indexedBackground = TerminalParserFixture()
             val rgbForeground = TerminalParserFixture()
             val underline = TerminalParserFixture()
+            val underlineColor = TerminalParserFixture()
 
             indexedForeground.acceptAscii("\u001B[38:5:196m")
             indexedBackground.acceptAscii("\u001B[48:5:17m")
             rgbForeground.acceptAscii("\u001B[38:2:10:20:30m")
-            underline.acceptAscii("\u001B[4:2m")
+            underline.acceptAscii("\u001B[4:5m")
+            underlineColor.acceptAscii("\u001B[58:2:10:20:30m")
 
             assertAll(
                 { assertEquals(listOf("setForegroundIndexed:196"), indexedForeground.sink.events) },
                 { assertEquals(listOf("setBackgroundIndexed:17"), indexedBackground.sink.events) },
                 { assertEquals(listOf("setForegroundRgb:10:20:30"), rgbForeground.sink.events) },
-                { assertEquals(listOf("setUnderlineStyle:2"), underline.sink.events) }
+                { assertEquals(listOf("setUnderlineStyle:5"), underline.sink.events) },
+                { assertEquals(listOf("setUnderlineColorRgb:10:20:30"), underlineColor.sink.events) }
             )
         }
 

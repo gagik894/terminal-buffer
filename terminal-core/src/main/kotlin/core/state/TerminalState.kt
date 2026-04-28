@@ -30,11 +30,11 @@ internal class TerminalState(
     // Physical screens.
 
     val primaryBuffer = ScreenBuffer(initialWidth, initialHeight, maxHistory)
-        .apply { clearGrid(pen.currentAttr, initialHeight) }
+        .apply { clearGrid(pen.currentAttr, pen.currentExtendedAttr, initialHeight) }
 
     /** Alternate buffer always has zero scrollback. */
     val altBuffer = ScreenBuffer(initialWidth, initialHeight, maxHistory = 0)
-        .apply { clearGrid(pen.currentAttr, initialHeight) }
+        .apply { clearGrid(pen.currentAttr, pen.currentExtendedAttr, initialHeight) }
 
     // Hot-swap pointer.
 
@@ -53,7 +53,7 @@ internal class TerminalState(
      */
     fun enterAltScreen() {
         if (isAltScreenActive) return
-        altBuffer.clearGrid(pen.blankAttr, dimensions.height)
+        altBuffer.clearGrid(pen.blankAttr, pen.blankExtendedAttr, dimensions.height)
         altBuffer.resetScrollRegion(dimensions.height)
         altBuffer.resetLeftRightMargins(dimensions.width)
         altBuffer.cursor.col = 0

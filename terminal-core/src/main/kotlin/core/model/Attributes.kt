@@ -2,16 +2,50 @@ package com.gagik.core.model
 
 /**
  * Public representation of cell attributes for UI/rendering.
+ *
+ * [foreground], [background], and [underlineColor] are renderer-facing color
+ * descriptors. [underlineColor] uses [AttributeColor.DEFAULT] to mean "derive
+ * from the effective foreground color" unless the renderer has a different
+ * product policy.
+ *
+ * [hyperlinkId] is a numeric handle for OSC 8 hyperlinks. `0` means no link;
+ * positive ids are owned by the integration or host layer's URL pool.
+ *
+ * @property foreground Text foreground color.
+ * @property background Text background color.
+ * @property underlineColor Explicit underline color, or default/foreground.
+ * @property bold Bold/intense text weight.
+ * @property faint Faint/dim text intensity.
+ * @property italic Italic text style.
+ * @property underlineStyle Underline shape.
+ * @property strikethrough Strikethrough decoration.
+ * @property overline Overline decoration.
+ * @property blink Blinking text presentation.
+ * @property inverse Reverse-video presentation.
+ * @property conceal Concealed/hidden text presentation.
+ * @property selectiveEraseProtected Whether DEC selective erase skips the cell.
+ * @property hyperlinkId OSC 8 hyperlink handle; `0` means no hyperlink.
  */
 data class Attributes(
-    val foreground: AttributeColor,
-    val background: AttributeColor,
-    val bold: Boolean,
-    val italic: Boolean,
-    val underline: Boolean,
+    val foreground: AttributeColor = AttributeColor.DEFAULT,
+    val background: AttributeColor = AttributeColor.DEFAULT,
+    val underlineColor: AttributeColor = AttributeColor.DEFAULT,
+    val bold: Boolean = false,
+    val faint: Boolean = false,
+    val italic: Boolean = false,
+    val underlineStyle: UnderlineStyle = UnderlineStyle.NONE,
+    val strikethrough: Boolean = false,
+    val overline: Boolean = false,
+    val blink: Boolean = false,
+    val inverse: Boolean = false,
+    val conceal: Boolean = false,
     val selectiveEraseProtected: Boolean = false,
-    val inverse: Boolean = false
-)
+    val hyperlinkId: Int = 0
+) {
+    init {
+        require(hyperlinkId >= 0) { "hyperlinkId must be non-negative, was $hyperlinkId" }
+    }
+}
 
 /**
  * Renderer-facing color descriptor for a cell attribute.
@@ -38,10 +72,25 @@ data class AttributeColor(
     }
 
     companion object {
+        /** Terminal default color descriptor. */
         val DEFAULT = AttributeColor(AttributeColorKind.DEFAULT)
 
+        /**
+         * Creates an indexed palette color.
+         *
+         * @param index Palette index in `0..255`.
+         * @return Indexed color descriptor.
+         */
         fun indexed(index: Int): AttributeColor = AttributeColor(AttributeColorKind.INDEXED, index)
 
+        /**
+         * Creates an RGB color from separate 8-bit channels.
+         *
+         * @param red Red channel in `0..255`.
+         * @param green Green channel in `0..255`.
+         * @param blue Blue channel in `0..255`.
+         * @return RGB color descriptor.
+         */
         fun rgb(red: Int, green: Int, blue: Int): AttributeColor {
             require(red in 0..255) { "red must be in 0..255, was $red" }
             require(green in 0..255) { "green must be in 0..255, was $green" }
@@ -49,12 +98,67 @@ data class AttributeColor(
             return AttributeColor(AttributeColorKind.RGB, (red shl 16) or (green shl 8) or blue)
         }
 
+        /**
+         * Creates an RGB color from a packed `0xRRGGBB` integer.
+         *
+         * @param rgb Packed RGB value in `0x000000..0xFFFFFF`.
+         * @return RGB color descriptor.
+         */
         fun rgb(rgb: Int): AttributeColor = AttributeColor(AttributeColorKind.RGB, rgb)
     }
 }
 
+/** Kind tag for [AttributeColor]. */
 enum class AttributeColorKind {
+    /** Terminal default color. */
     DEFAULT,
+
+    /** Indexed palette color in the range `0..255`. */
     INDEXED,
+
+    /** Direct RGB color stored as `0xRRGGBB`. */
     RGB
+}
+
+/**
+ * SGR underline style stored in the extended cell attribute word.
+ *
+ * [sgrCode] is the value used by colon SGR underline forms such as `CSI 4:3 m`.
+ */
+enum class UnderlineStyle(val sgrCode: Int) {
+    /** No underline. */
+    NONE(0),
+
+    /** Single straight underline. */
+    SINGLE(1),
+
+    /** Double straight underline. */
+    DOUBLE(2),
+
+    /** Curly underline. */
+    CURLY(3),
+
+    /** Dotted underline. */
+    DOTTED(4),
+
+    /** Dashed underline. */
+    DASHED(5);
+
+    companion object {
+        /**
+         * Returns the underline style for an SGR underline-style code.
+         *
+         * @param code SGR underline-style code.
+         * @return Matching style, or `null` when [code] is unsupported.
+         */
+        fun fromSgrCode(code: Int): UnderlineStyle? = when (code) {
+            NONE.sgrCode -> NONE
+            SINGLE.sgrCode -> SINGLE
+            DOUBLE.sgrCode -> DOUBLE
+            CURLY.sgrCode -> CURLY
+            DOTTED.sgrCode -> DOTTED
+            DASHED.sgrCode -> DASHED
+            else -> null
+        }
+    }
 }

@@ -25,11 +25,32 @@ interface TerminalLineApi {
     fun getCodepoint(col: Int): Int
 
     /**
-     * Returns the packed attribute word for the cell at [col].
-     * Decode with [com.gagik.core.codec.AttributeCodec] to access individual fields.
-     * Use this method in production render loops; it is zero-allocation.
+     * Returns the primary packed attribute word for the cell at [col].
+     *
+     * The primary word stores foreground/background colors plus the most common
+     * SGR flags. Renderers should read it together with [getPackedExtendedAttr]
+     * and decode both words with [com.gagik.core.codec.AttributeCodec].
+     *
+     * This method is intended for render loops and performs no allocation.
+     *
+     * @param col Column index (0-based).
+     * @return Primary packed attribute word for the cell.
      */
     fun getPackedAttr(col: Int): Long
+
+    /**
+     * Returns the extended packed attribute word for the cell at [col].
+     *
+     * The extended word stores underline color/style, decoration flags, conceal,
+     * and the numeric hyperlink id. Renderers should read it together with
+     * [getPackedAttr] and decode both words with [com.gagik.core.codec.AttributeCodec].
+     *
+     * This method is intended for render loops and performs no allocation.
+     *
+     * @param col Column index (0-based).
+     * @return Extended packed attribute word for the cell.
+     */
+    fun getPackedExtendedAttr(col: Int): Long
 
     /**
      * Returns `true` if the cell at [col] holds a multi-codepoint grapheme cluster

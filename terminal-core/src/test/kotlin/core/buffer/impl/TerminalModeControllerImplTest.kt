@@ -2,9 +2,9 @@ package com.gagik.core.buffer.impl
 
 import com.gagik.core.engine.CursorEngine
 import com.gagik.core.engine.MutationEngine
+import com.gagik.core.state.TerminalState
 import com.gagik.terminal.protocol.MouseEncodingMode
 import com.gagik.terminal.protocol.MouseTrackingMode
-import com.gagik.core.state.TerminalState
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
@@ -149,12 +149,17 @@ class TerminalModeControllerImplTest {
         state.cursor.col = 5
         state.cursor.row = 2
         state.cursor.pendingWrap = true
-        state.pen.setAttributes(3, 7, bold = true, italic = true, underline = false)
+        state.pen.setAttributes(3, 7, bold = true, italic = true)
         val originalAttr = state.pen.currentAttr // Save to verify DECRC later
 
         state.modes.isInsertMode = true
         state.modes.isAutoWrap = false
-        state.primaryBuffer.ring[state.resolveRingIndex(0)].setCell(0, 'P'.code, state.pen.currentAttr)
+        state.primaryBuffer.ring[state.resolveRingIndex(0)].setCell(
+            0,
+            'P'.code,
+            state.pen.currentAttr,
+            state.pen.currentExtendedAttr,
+        )
 
         // 2. Enter Alt Screen
         modeController.enterAltBuffer()

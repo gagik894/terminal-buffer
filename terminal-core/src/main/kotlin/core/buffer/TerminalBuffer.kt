@@ -51,7 +51,7 @@ internal class TerminalBuffer private constructor(
         if (newWidth == oldWidth && newHeight == oldHeight) return
 
         TerminalResizer.resizeBuffer(state.primaryBuffer, oldWidth, oldHeight, newWidth, newHeight)
-        state.altBuffer.replaceStorage(newWidth, newHeight, state.pen.blankAttr)
+        state.altBuffer.replaceStorage(newWidth, newHeight, state.pen.blankAttr, state.pen.blankExtendedAttr)
 
         state.dimensions.width = newWidth
         state.dimensions.height = newHeight
@@ -102,6 +102,7 @@ internal class TerminalBuffer private constructor(
         val col: Int,
         val row: Int,
         val attr: Long,
+        val extendedAttr: Long,
         val pendingWrap: Boolean,
         val isOriginMode: Boolean,
         val isSaved: Boolean
@@ -110,6 +111,7 @@ internal class TerminalBuffer private constructor(
             target.col = col
             target.row = row
             target.attr = attr
+            target.extendedAttr = extendedAttr
             target.pendingWrap = pendingWrap
             target.isOriginMode = isOriginMode
             target.isSaved = isSaved
@@ -121,6 +123,7 @@ internal class TerminalBuffer private constructor(
                     col = source.col,
                     row = source.row,
                     attr = source.attr,
+                    extendedAttr = source.extendedAttr,
                     pendingWrap = source.pendingWrap,
                     isOriginMode = source.isOriginMode,
                     isSaved = source.isSaved

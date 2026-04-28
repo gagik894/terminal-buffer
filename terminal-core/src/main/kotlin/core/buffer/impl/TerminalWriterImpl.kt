@@ -4,6 +4,7 @@ import com.gagik.core.api.TerminalWriter
 import com.gagik.core.engine.CursorEngine
 import com.gagik.core.engine.MutationEngine
 import com.gagik.core.model.AttributeColor
+import com.gagik.core.model.UnderlineStyle
 import com.gagik.core.state.TerminalState
 import com.gagik.core.util.UnicodeWidth
 
@@ -123,7 +124,7 @@ internal class TerminalWriterImpl(
     }
 
     override fun clearAll() {
-        resetPen()
+        state.pen.reset()
         mutationEngine.clearAllHistory()
         cursorEngine.setCursorAbsolute(0, 0)
         state.savedCursor.clear()
@@ -134,22 +135,64 @@ internal class TerminalWriterImpl(
         fg: Int,
         bg: Int,
         bold: Boolean,
+        faint: Boolean,
         italic: Boolean,
-        underline: Boolean,
-        inverse: Boolean
+        underlineStyle: UnderlineStyle,
+        strikethrough: Boolean,
+        overline: Boolean,
+        blink: Boolean,
+        inverse: Boolean,
+        conceal: Boolean,
+        underlineColor: Int
     ) {
-        state.pen.setAttributes(fg, bg, bold, italic, underline, inverse)
+        state.pen.setAttributes(
+            fg = fg,
+            bg = bg,
+            bold = bold,
+            faint = faint,
+            italic = italic,
+            underlineStyle = underlineStyle,
+            strikethrough = strikethrough,
+            overline = overline,
+            blink = blink,
+            inverse = inverse,
+            conceal = conceal,
+            underlineColor = underlineColor,
+        )
     }
 
     override fun setPenColors(
         foreground: AttributeColor,
         background: AttributeColor,
+        underlineColor: AttributeColor,
         bold: Boolean,
+        faint: Boolean,
         italic: Boolean,
-        underline: Boolean,
-        inverse: Boolean
+        underlineStyle: UnderlineStyle,
+        strikethrough: Boolean,
+        overline: Boolean,
+        blink: Boolean,
+        inverse: Boolean,
+        conceal: Boolean
     ) {
-        state.pen.setColors(foreground, background, bold, italic, underline, inverse)
+        state.pen.setColors(
+            foreground = foreground,
+            background = background,
+            underlineColor = underlineColor,
+            bold = bold,
+            faint = faint,
+            italic = italic,
+            underlineStyle = underlineStyle,
+            strikethrough = strikethrough,
+            overline = overline,
+            blink = blink,
+            inverse = inverse,
+            conceal = conceal,
+        )
+    }
+
+    override fun setHyperlinkId(hyperlinkId: Int) {
+        state.pen.setHyperlinkId(hyperlinkId)
     }
 
     override fun setSelectiveEraseProtection(enabled: Boolean) {
@@ -157,6 +200,6 @@ internal class TerminalWriterImpl(
     }
 
     override fun resetPen() {
-        state.pen.reset()
+        state.pen.resetSgr()
     }
 }

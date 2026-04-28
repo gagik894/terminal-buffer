@@ -732,6 +732,20 @@ class CommandDispatcherTest {
         }
 
         @Test
+        fun `CSI colon underline dispatches extended underline styles`() {
+            assertEquals(
+                listOf("setUnderlineStyle:3", "setUnderlineStyle:4", "setUnderlineStyle:5"),
+                listOf(3, 4, 5).flatMap { style ->
+                    dispatchCsi(
+                        finalByte = 'm',
+                        params = listOf(4, style),
+                        subParameterMask = 0b10,
+                    ).events
+                }
+            )
+        }
+
+        @Test
         fun `CSI 7 m and 27 m toggle inverse`() {
             assertEquals(listOf("setInverse:true"), dispatchCsi('m', params = listOf(7)).events)
             assertEquals(listOf("setInverse:false"), dispatchCsi('m', params = listOf(27)).events)
@@ -754,6 +768,12 @@ class CommandDispatcherTest {
         fun `CSI 9 m and 29 m toggle strikethrough`() {
             assertEquals(listOf("setStrikethrough:true"), dispatchCsi('m', params = listOf(9)).events)
             assertEquals(listOf("setStrikethrough:false"), dispatchCsi('m', params = listOf(29)).events)
+        }
+
+        @Test
+        fun `CSI 53 m and 55 m toggle overline`() {
+            assertEquals(listOf("setOverline:true"), dispatchCsi('m', params = listOf(53)).events)
+            assertEquals(listOf("setOverline:false"), dispatchCsi('m', params = listOf(55)).events)
         }
 
         @Test
@@ -847,6 +867,19 @@ class CommandDispatcherTest {
                 listOf("setBackgroundRgb:10:20:30"),
                 dispatchCsi('m', params = listOf(48, 2, 10, 20, 30)).events
             )
+        }
+
+        @Test
+        fun `CSI 58 and 59 dispatch underline color updates`() {
+            assertEquals(
+                listOf("setUnderlineColorIndexed:42"),
+                dispatchCsi('m', params = listOf(58, 5, 42)).events
+            )
+            assertEquals(
+                listOf("setUnderlineColorRgb:10:20:30"),
+                dispatchCsi('m', params = listOf(58, 2, 10, 20, 30)).events
+            )
+            assertEquals(listOf("setUnderlineColorDefault"), dispatchCsi('m', params = listOf(59)).events)
         }
 
         @Test

@@ -46,7 +46,7 @@ internal object TerminalResizer {
         fun flushBuilder() {
             if (builder.size == 0) {
                 val newLine = newRing.push()
-                newLine.clear(0)
+                newLine.clear(0, 0)
                 if (builder.cursorAbsoluteIndex != -1) {
                     newAbsoluteCursorRow = newRing.size - 1
                     newCursorCol = 0
@@ -58,7 +58,7 @@ internal object TerminalResizer {
             var offset = 0
             while (offset < builder.size) {
                 val newLine = newRing.push()
-                newLine.clear(0)
+                newLine.clear(0, 0)
 
                 var chunkLength = minOf(newWidth, builder.size - offset)
                 if (chunkLength == newWidth &&
@@ -75,6 +75,7 @@ internal object TerminalResizer {
                     val srcIndex = offset + i
                     val raw = builder.codepoints[srcIndex]
                     val attr = builder.attrs[srcIndex]
+                    val extendedAttr = builder.extendedAttrs[srcIndex]
 
                     if (raw <= TerminalConstants.CLUSTER_HANDLE_MAX) {
                         val cpLen = buffer.store.length(raw)
@@ -82,9 +83,9 @@ internal object TerminalResizer {
                             clusterBuf = IntArray(cpLen)
                         }
                         buffer.store.readInto(raw, clusterBuf)
-                        newLine.setCluster(i, clusterBuf, cpLen, attr)
+                        newLine.setCluster(i, clusterBuf, cpLen, attr, extendedAttr)
                     } else {
-                        newLine.setRawCell(i, raw, attr)
+                        newLine.setRawCell(i, raw, attr, extendedAttr)
                     }
 
                     if (srcIndex == builder.cursorAbsoluteIndex) {
@@ -111,7 +112,12 @@ internal object TerminalResizer {
 
             for (col in 0 until readLength) {
                 val isCursor = hasCursor && col == buffer.cursor.col
-                builder.append(oldLine.rawCodepoint(col), oldLine.getPackedAttr(col), isCursor)
+                builder.append(
+                    oldLine.rawCodepoint(col),
+                    oldLine.getPackedAttr(col),
+                    oldLine.getPackedExtendedAttr(col),
+                    isCursor,
+                )
             }
 
             if (hasCursor && readLength == 0) {
@@ -129,7 +135,7 @@ internal object TerminalResizer {
         }
 
         while (newRing.size < newHeight) {
-            newRing.push().clear(0)
+            newRing.push().clear(0, 0)
         }
 
         val liveScreenTop = (newRing.size - newHeight).coerceAtLeast(0)
@@ -173,6 +179,7 @@ internal object TerminalResizer {
 private class LogicalLineBuilder(initialCapacity: Int) {
     var codepoints = IntArray(initialCapacity)
     var attrs = LongArray(initialCapacity)
+    var extendedAttrs = LongArray(initialCapacity)
     var size = 0
     var cursorAbsoluteIndex = -1
 
@@ -183,11 +190,12 @@ private class LogicalLineBuilder(initialCapacity: Int) {
      * @param attr The packed cell attribute.
      * @param isCursor `true` if this cell is the current cursor position.
      */
-    fun append(raw: Int, attr: Long, isCursor: Boolean) {
+    fun append(raw: Int, attr: Long, extendedAttr: Long, isCursor: Boolean) {
         if (size == codepoints.size) grow()
         if (isCursor) cursorAbsoluteIndex = size
         codepoints[size] = raw
         attrs[size] = attr
+        extendedAttrs[size] = extendedAttr
         size++
     }
 
@@ -200,5 +208,6 @@ private class LogicalLineBuilder(initialCapacity: Int) {
     private fun grow() {
         codepoints = codepoints.copyOf(size * 2)
         attrs = attrs.copyOf(size * 2)
+        extendedAttrs = extendedAttrs.copyOf(size * 2)
     }
 }

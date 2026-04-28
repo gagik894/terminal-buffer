@@ -343,6 +343,10 @@ class ActionEngineTest {
             sinkCalls += "setStrikethrough:$enabled"
         }
 
+        override fun setOverline(enabled: Boolean) {
+            sinkCalls += "setOverline:$enabled"
+        }
+
         override fun setSelectiveEraseProtection(enabled: Boolean) {
             sinkCalls += "setSelectiveEraseProtection:$enabled"
         }
@@ -355,6 +359,10 @@ class ActionEngineTest {
             sinkCalls += "setBackgroundDefault"
         }
 
+        override fun setUnderlineColorDefault() {
+            sinkCalls += "setUnderlineColorDefault"
+        }
+
         override fun setForegroundIndexed(index: Int) {
             sinkCalls += "setForegroundIndexed:$index"
         }
@@ -363,12 +371,20 @@ class ActionEngineTest {
             sinkCalls += "setBackgroundIndexed:$index"
         }
 
+        override fun setUnderlineColorIndexed(index: Int) {
+            sinkCalls += "setUnderlineColorIndexed:$index"
+        }
+
         override fun setForegroundRgb(red: Int, green: Int, blue: Int) {
             sinkCalls += "setForegroundRgb:$red:$green:$blue"
         }
 
         override fun setBackgroundRgb(red: Int, green: Int, blue: Int) {
             sinkCalls += "setBackgroundRgb:$red:$green:$blue"
+        }
+
+        override fun setUnderlineColorRgb(red: Int, green: Int, blue: Int) {
+            sinkCalls += "setUnderlineColorRgb:$red:$green:$blue"
         }
 
         override fun setWindowTitle(title: String) {

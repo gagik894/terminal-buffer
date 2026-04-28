@@ -198,16 +198,20 @@ interface TerminalCommandSink {
     fun setInverse(enabled: Boolean)
     fun setConceal(enabled: Boolean)
     fun setStrikethrough(enabled: Boolean)
+    fun setOverline(enabled: Boolean)
     fun setSelectiveEraseProtection(enabled: Boolean)
 
     fun setForegroundDefault()
     fun setBackgroundDefault()
+    fun setUnderlineColorDefault()
 
     fun setForegroundIndexed(index: Int)
     fun setBackgroundIndexed(index: Int)
+    fun setUnderlineColorIndexed(index: Int)
 
     fun setForegroundRgb(red: Int, green: Int, blue: Int)
     fun setBackgroundRgb(red: Int, green: Int, blue: Int)
+    fun setUnderlineColorRgb(red: Int, green: Int, blue: Int)
 
     // -------------------------------------------------------------------------
     // OSC

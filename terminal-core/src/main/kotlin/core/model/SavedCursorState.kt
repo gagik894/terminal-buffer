@@ -10,6 +10,7 @@ internal class SavedCursorState {
     var col: Int = 0
     var row: Int = 0
     var attr: Long = 0
+    var extendedAttr: Long = 0
     var pendingWrap: Boolean = false
     var isOriginMode: Boolean = false
     var isSaved: Boolean = false
@@ -18,6 +19,7 @@ internal class SavedCursorState {
         col = 0
         row = 0
         attr = 0
+        extendedAttr = 0
         pendingWrap = false
         isOriginMode = false
         isSaved = false

@@ -1,6 +1,7 @@
 package com.gagik.core.api
 
 import com.gagik.core.model.AttributeColor
+import com.gagik.core.model.UnderlineStyle
 
 /**
  * Write-side contract for the terminal buffer.
@@ -242,30 +243,76 @@ interface TerminalWriter {
      * @param fg Foreground colour code (0 = default, 1..256 = indexed palette colors).
      * @param bg Background colour code (0 = default, 1..256 = indexed palette colors).
      * @param bold `true` to enable bold weight.
+     * @param faint `true` to enable faint/dim intensity.
      * @param italic `true` to enable italic style.
-     * @param underline `true` to enable underline.
+     * @param underlineStyle underline presentation style.
+     * @param strikethrough `true` to enable strikethrough decoration.
+     * @param overline `true` to enable overline decoration.
+     * @param blink `true` to enable blinking text presentation.
      * @param inverse `true` to enable inverse/reverse-video.
+     * @param conceal `true` to mark text as concealed/hidden.
+     * @param underlineColor Underline colour code (0 = default/foreground,
+     * 1..256 = indexed palette colors).
      */
     fun setPenAttributes(
         fg: Int,
         bg: Int,
         bold: Boolean = false,
+        faint: Boolean = false,
         italic: Boolean = false,
-        underline: Boolean = false,
-        inverse: Boolean = false
+        underlineStyle: UnderlineStyle = UnderlineStyle.NONE,
+        strikethrough: Boolean = false,
+        overline: Boolean = false,
+        blink: Boolean = false,
+        inverse: Boolean = false,
+        conceal: Boolean = false,
+        underlineColor: Int = 0
     )
 
     /**
      * Sets the active pen attributes using explicit default, indexed, or RGB colors.
+     *
+     * [underlineColor] uses [AttributeColor.DEFAULT] to mean the renderer should
+     * derive the underline color from the effective foreground color.
+     *
+     * @param foreground Foreground color descriptor.
+     * @param background Background color descriptor.
+     * @param underlineColor Underline color descriptor.
+     * @param bold `true` to enable bold weight.
+     * @param faint `true` to enable faint/dim intensity.
+     * @param italic `true` to enable italic style.
+     * @param underlineStyle underline presentation style.
+     * @param strikethrough `true` to enable strikethrough decoration.
+     * @param overline `true` to enable overline decoration.
+     * @param blink `true` to enable blinking text presentation.
+     * @param inverse `true` to enable inverse/reverse-video.
+     * @param conceal `true` to mark text as concealed/hidden.
      */
     fun setPenColors(
         foreground: AttributeColor,
         background: AttributeColor,
+        underlineColor: AttributeColor = AttributeColor.DEFAULT,
         bold: Boolean = false,
+        faint: Boolean = false,
         italic: Boolean = false,
-        underline: Boolean = false,
-        inverse: Boolean = false
+        underlineStyle: UnderlineStyle = UnderlineStyle.NONE,
+        strikethrough: Boolean = false,
+        overline: Boolean = false,
+        blink: Boolean = false,
+        inverse: Boolean = false,
+        conceal: Boolean = false
     )
+
+    /**
+     * Sets the active OSC 8 hyperlink id stamped onto future printed cells.
+     *
+     * Core stores only the numeric id. The integration or host layer owns the
+     * id-to-URI pool and decides how ids are allocated and retained.
+     *
+     * @param hyperlinkId `0` for no active hyperlink, or a positive id owned by
+     * the integration/host layer.
+     */
+    fun setHyperlinkId(hyperlinkId: Int)
 
     /**
      * Enables or disables selective-erase protection on future printed cells (DECSCA).

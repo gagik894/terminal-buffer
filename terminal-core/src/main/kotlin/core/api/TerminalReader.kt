@@ -38,8 +38,29 @@ interface TerminalReader {
     fun getCodepointAt(col: Int, row: Int): Int
 
     /**
-     * Returns the packed cell attributes, or the active pen attribute if out of bounds.
-     * This mirrors the terminal's current erase/write attribute for off-grid queries.
+     * Returns the primary packed cell attribute word at `[col, row]`.
+     *
+     * Out-of-bounds column probes return the active primary pen word. This
+     * mirrors the terminal's current erase/write attribute for off-grid queries.
+     * Decode this value together with [getPackedExtendedAttrAt] via
+     * [com.gagik.core.codec.AttributeCodec].
+     *
+     * @param col Column index (0-based).
+     * @param row Row index (0-based).
+     * @return Primary packed attribute word for the cell or active pen.
      */
     fun getPackedAttrAt(col: Int, row: Int): Long
+
+    /**
+     * Returns the extended packed cell attribute word at `[col, row]`.
+     *
+     * Out-of-bounds column probes return the active extended pen word. Decode
+     * this value together with [getPackedAttrAt] via
+     * [com.gagik.core.codec.AttributeCodec].
+     *
+     * @param col Column index (0-based).
+     * @param row Row index (0-based).
+     * @return Extended packed attribute word for the cell or active pen.
+     */
+    fun getPackedExtendedAttrAt(col: Int, row: Int): Long
 }
