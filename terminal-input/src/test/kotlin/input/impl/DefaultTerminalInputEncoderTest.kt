@@ -6,6 +6,8 @@ import com.gagik.terminal.input.event.*
 import com.gagik.terminal.input.policy.TerminalInputPolicy
 import com.gagik.terminal.input.policy.UnsupportedModifiedKeyPolicy
 import com.gagik.terminal.protocol.host.TerminalHostOutput
+import com.gagik.terminal.protocol.mouse.MouseEncodingMode
+import com.gagik.terminal.protocol.mouse.MouseTrackingMode
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -72,8 +74,97 @@ class DefaultTerminalInputEncoderTest {
         assertArrayEquals(byteArrayOf(0xc3.toByte(), 0xa9.toByte()), output.bytes)
     }
 
+    @Test
+    fun `encodeMouse reads mode bits once per event and emits SGR`() {
+        val inputState = RecordingInputState(mouseBits(MouseTrackingMode.NORMAL, MouseEncodingMode.SGR))
+        val output = RecordingHostOutput()
+        val encoder = DefaultTerminalInputEncoder(
+            inputState = inputState,
+            output = output,
+        )
+
+        encoder.encodeMouse(
+            TerminalMouseEvent(
+                column = 0,
+                row = 0,
+                button = TerminalMouseButton.LEFT,
+                type = TerminalMouseEventType.PRESS,
+            ),
+        )
+
+        assertEquals(1, inputState.reads)
+        assertArrayEquals(esc("[<0;1;1M"), output.bytes)
+    }
+
+    @Test
+    fun `encodeMouse emits nothing when tracking is disabled`() {
+        val inputState = RecordingInputState(mouseBits(MouseTrackingMode.NONE, MouseEncodingMode.SGR))
+        val output = RecordingHostOutput()
+        val encoder = DefaultTerminalInputEncoder(
+            inputState = inputState,
+            output = output,
+        )
+
+        encoder.encodeMouse(
+            TerminalMouseEvent(
+                column = 0,
+                row = 0,
+                button = TerminalMouseButton.LEFT,
+                type = TerminalMouseEventType.PRESS,
+            ),
+        )
+
+        assertEquals(1, inputState.reads)
+        assertArrayEquals(byteArrayOf(), output.bytes)
+    }
+
+    @Test
+    fun `encodeMouse reuses shared scratch across consecutive events`() {
+        val inputState = RecordingInputState(mouseBits(MouseTrackingMode.ANY_EVENT, MouseEncodingMode.SGR))
+        val output = RecordingHostOutput()
+        val encoder = DefaultTerminalInputEncoder(
+            inputState = inputState,
+            output = output,
+        )
+
+        encoder.encodeMouse(
+            TerminalMouseEvent(
+                column = 0,
+                row = 0,
+                button = TerminalMouseButton.LEFT,
+                type = TerminalMouseEventType.PRESS,
+            ),
+        )
+        encoder.encodeMouse(
+            TerminalMouseEvent(
+                column = 1,
+                row = 2,
+                button = TerminalMouseButton.NONE,
+                type = TerminalMouseEventType.MOTION,
+            ),
+        )
+
+        assertEquals(2, inputState.reads)
+        assertArrayEquals(esc("[<0;1;1M") + esc("[<35;2;3M"), output.bytes)
+    }
+
     private fun esc(textAfterEsc: String): ByteArray {
         return byteArrayOf(0x1b) + textAfterEsc.encodeToByteArray()
+    }
+
+    private fun mouseBits(tracking: Int, encoding: Int): Long {
+        val withTracking = TerminalModeBits.withPackedValue(
+            bits = 0L,
+            mask = TerminalModeBits.MOUSE_TRACKING_MASK,
+            shift = TerminalModeBits.MOUSE_TRACKING_SHIFT,
+            value = tracking,
+        )
+        return TerminalModeBits.withPackedValue(
+            bits = withTracking,
+            mask = TerminalModeBits.MOUSE_ENCODING_MASK,
+            shift = TerminalModeBits.MOUSE_ENCODING_SHIFT,
+            value = encoding,
+        )
     }
 
     private class RecordingInputState(

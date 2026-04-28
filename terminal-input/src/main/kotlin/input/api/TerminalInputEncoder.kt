@@ -2,6 +2,7 @@ package com.gagik.terminal.input.api
 
 import com.gagik.terminal.input.event.TerminalFocusEvent
 import com.gagik.terminal.input.event.TerminalKeyEvent
+import com.gagik.terminal.input.event.TerminalMouseEvent
 import com.gagik.terminal.input.event.TerminalPasteEvent
 
 /**
@@ -9,8 +10,7 @@ import com.gagik.terminal.input.event.TerminalPasteEvent
  *
  * Implementations are responsible for reading the current input-facing mode
  * state at the appropriate event boundary and writing the resulting bytes to a
- * host output sink. Mouse encoding is intentionally excluded from this first
- * API milestone.
+ * host output sink.
  */
 interface TerminalInputEncoder {
     /**
@@ -33,4 +33,11 @@ interface TerminalInputEncoder {
      * @param event terminal focus transition.
      */
     fun encodeFocus(event: TerminalFocusEvent)
+
+    /**
+     * Encodes one mouse event.
+     *
+     * @param event zero-based cell-coordinate mouse event.
+     */
+    fun encodeMouse(event: TerminalMouseEvent)
 }

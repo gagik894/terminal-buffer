@@ -1,0 +1,206 @@
+package com.gagik.terminal.input.impl
+
+import com.gagik.core.api.TerminalInputState
+import com.gagik.terminal.input.event.TerminalModifiers
+import com.gagik.terminal.input.event.TerminalMouseButton
+import com.gagik.terminal.input.event.TerminalMouseEvent
+import com.gagik.terminal.input.event.TerminalMouseEventType
+import com.gagik.terminal.input.policy.LegacyMouseEncodingPolicy
+import com.gagik.terminal.input.policy.MouseCoordinateLimitPolicy
+import com.gagik.terminal.input.policy.TerminalInputPolicy
+import com.gagik.terminal.protocol.host.TerminalHostOutput
+import com.gagik.terminal.protocol.mouse.MouseEncodingMode
+import com.gagik.terminal.protocol.mouse.MouseTrackingMode
+
+internal class MouseEncoder(
+    private val output: TerminalHostOutput,
+    private val scratch: InputScratchBuffer,
+    private val policy: TerminalInputPolicy,
+) {
+    fun encode(event: TerminalMouseEvent, modeBits: Long) {
+        val trackingMode = TerminalInputState.mouseTrackingMode(modeBits)
+        if (!shouldReport(event, trackingMode)) {
+            return
+        }
+
+        when (TerminalInputState.mouseEncodingMode(modeBits)) {
+            MouseEncodingMode.SGR -> encodeSgr(event)
+
+            MouseEncodingMode.DEFAULT -> encodeLegacyDefault(event)
+
+            MouseEncodingMode.UTF8,
+            MouseEncodingMode.URXVT -> {
+                if (
+                    policy.legacyMouseEncodingPolicy ==
+                    LegacyMouseEncodingPolicy.EMIT_X10_COMPATIBLE
+                ) {
+                    encodeLegacyDefault(event)
+                }
+            }
+        }
+    }
+
+    private fun shouldReport(event: TerminalMouseEvent, trackingMode: Int): Boolean {
+        return when (trackingMode) {
+            MouseTrackingMode.NONE -> false
+
+            MouseTrackingMode.X10 ->
+                event.type == TerminalMouseEventType.PRESS
+
+            MouseTrackingMode.NORMAL ->
+                event.type == TerminalMouseEventType.PRESS ||
+                    event.type == TerminalMouseEventType.RELEASE ||
+                    event.type == TerminalMouseEventType.WHEEL
+
+            MouseTrackingMode.BUTTON_EVENT ->
+                event.type == TerminalMouseEventType.PRESS ||
+                    event.type == TerminalMouseEventType.RELEASE ||
+                    event.type == TerminalMouseEventType.WHEEL ||
+                    (event.type == TerminalMouseEventType.MOTION &&
+                        event.button != TerminalMouseButton.NONE)
+
+            MouseTrackingMode.ANY_EVENT ->
+                event.type == TerminalMouseEventType.PRESS ||
+                    event.type == TerminalMouseEventType.RELEASE ||
+                    event.type == TerminalMouseEventType.WHEEL ||
+                    event.type == TerminalMouseEventType.MOTION
+
+            else -> false
+        }
+    }
+
+    private fun encodeSgr(event: TerminalMouseEvent) {
+        val x = oneBasedCoordinate(event.column)
+        val y = oneBasedCoordinate(event.row)
+
+        val cb = mouseButtonCode(event, legacyRelease = false)
+        if (cb < 0) {
+            return
+        }
+
+        scratch.clear()
+        scratch.appendByte(ESC)
+        scratch.appendByte('['.code)
+        scratch.appendByte('<'.code)
+        scratch.appendDecimal(cb)
+        scratch.appendByte(';'.code)
+        scratch.appendDecimal(x)
+        scratch.appendByte(';'.code)
+        scratch.appendDecimal(y)
+        scratch.appendByte(
+            if (event.type == TerminalMouseEventType.RELEASE) 'm'.code else 'M'.code,
+        )
+        scratch.writeTo(output)
+    }
+
+    private fun encodeLegacyDefault(event: TerminalMouseEvent) {
+        val x = oneBasedCoordinate(event.column)
+        val y = oneBasedCoordinate(event.row)
+
+        val boundedX = boundedLegacyCoordinate(x) ?: return
+        val boundedY = boundedLegacyCoordinate(y) ?: return
+
+        val cb = mouseButtonCode(event, legacyRelease = true)
+        if (cb < 0) {
+            return
+        }
+
+        val encodedButton = 32 + cb
+        val encodedX = 32 + boundedX
+        val encodedY = 32 + boundedY
+
+        if (encodedButton !in 0..255 || encodedX !in 0..255 || encodedY !in 0..255) {
+            return
+        }
+
+        scratch.clear()
+        scratch.appendByte(ESC)
+        scratch.appendByte('['.code)
+        scratch.appendByte('M'.code)
+        scratch.appendByte(encodedButton)
+        scratch.appendByte(encodedX)
+        scratch.appendByte(encodedY)
+        scratch.writeTo(output)
+    }
+
+    private fun oneBasedCoordinate(zeroBased: Int): Int {
+        return zeroBased + 1
+    }
+
+    private fun boundedLegacyCoordinate(oneBased: Int): Int? {
+        if (oneBased <= LEGACY_MAX_COORDINATE) {
+            return oneBased
+        }
+
+        return when (policy.mouseCoordinateLimitPolicy) {
+            MouseCoordinateLimitPolicy.SUPPRESS_OUT_OF_RANGE -> null
+            MouseCoordinateLimitPolicy.CLAMP_TO_MAX -> LEGACY_MAX_COORDINATE
+        }
+    }
+
+    private fun mouseButtonCode(
+        event: TerminalMouseEvent,
+        legacyRelease: Boolean,
+    ): Int {
+        var code = when (event.type) {
+            TerminalMouseEventType.RELEASE -> {
+                if (legacyRelease) {
+                    3
+                } else {
+                    baseButtonCode(event.button)
+                }
+            }
+
+            TerminalMouseEventType.WHEEL -> {
+                when (event.button) {
+                    TerminalMouseButton.WHEEL_UP -> 64
+                    TerminalMouseButton.WHEEL_DOWN -> 65
+                    TerminalMouseButton.WHEEL_LEFT -> 66
+                    TerminalMouseButton.WHEEL_RIGHT -> 67
+                    else -> return -1
+                }
+            }
+
+            TerminalMouseEventType.PRESS,
+            TerminalMouseEventType.MOTION -> {
+                if (event.button == TerminalMouseButton.NONE) {
+                    if (event.type == TerminalMouseEventType.MOTION) {
+                        3
+                    } else {
+                        return -1
+                    }
+                } else {
+                    baseButtonCode(event.button)
+                }
+            }
+        }
+
+        if (code < 0) {
+            return -1
+        }
+
+        if (event.type == TerminalMouseEventType.MOTION) {
+            code += 32
+        }
+
+        if (TerminalModifiers.hasShift(event.modifiers)) code += 4
+        if (TerminalModifiers.hasAlt(event.modifiers)) code += 8
+        if (TerminalModifiers.hasCtrl(event.modifiers)) code += 16
+
+        return code
+    }
+
+    private fun baseButtonCode(button: TerminalMouseButton): Int {
+        return when (button) {
+            TerminalMouseButton.LEFT -> 0
+            TerminalMouseButton.MIDDLE -> 1
+            TerminalMouseButton.RIGHT -> 2
+            else -> -1
+        }
+    }
+
+    private companion object {
+        private const val ESC: Int = 0x1b
+        private const val LEGACY_MAX_COORDINATE: Int = 223
+    }
+}

@@ -4,6 +4,7 @@ import com.gagik.core.api.TerminalInputState
 import com.gagik.terminal.input.api.TerminalInputEncoder
 import com.gagik.terminal.input.event.TerminalFocusEvent
 import com.gagik.terminal.input.event.TerminalKeyEvent
+import com.gagik.terminal.input.event.TerminalMouseEvent
 import com.gagik.terminal.input.event.TerminalPasteEvent
 import com.gagik.terminal.input.policy.TerminalInputPolicy
 import com.gagik.terminal.protocol.host.TerminalHostOutput
@@ -32,6 +33,7 @@ class DefaultTerminalInputEncoder(
     private val keyboard = KeyboardEncoder(output, scratch, policy)
     private val paste = PasteEncoder(output)
     private val focus = FocusEncoder(output)
+    private val mouse = MouseEncoder(output, scratch, policy)
 
     /**
      * Encodes one keyboard event using one packed mode read.
@@ -61,5 +63,15 @@ class DefaultTerminalInputEncoder(
     override fun encodeFocus(event: TerminalFocusEvent) {
         val modeBits = inputState.getInputModeBits()
         focus.encode(event, modeBits)
+    }
+
+    /**
+     * Encodes one mouse event using one packed mode read.
+     *
+     * @param event zero-based cell-coordinate mouse event.
+     */
+    override fun encodeMouse(event: TerminalMouseEvent) {
+        val modeBits = inputState.getInputModeBits()
+        mouse.encode(event, modeBits)
     }
 }

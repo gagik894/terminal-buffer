@@ -1,10 +1,9 @@
 package com.gagik.terminal.input.impl
 
 import com.gagik.core.TerminalBuffers
-import com.gagik.terminal.input.event.TerminalFocusEvent
-import com.gagik.terminal.input.event.TerminalKey
-import com.gagik.terminal.input.event.TerminalKeyEvent
-import com.gagik.terminal.input.event.TerminalPasteEvent
+import com.gagik.terminal.input.event.*
+import com.gagik.terminal.protocol.MouseEncodingMode
+import com.gagik.terminal.protocol.MouseTrackingMode
 import com.gagik.terminal.protocol.host.TerminalHostOutput
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Test
@@ -78,6 +77,32 @@ class DefaultTerminalInputEncoderCoreStateTest {
     }
 
     @Test
+    fun `uses real core mouse tracking and encoding modes for mouse encoding`() {
+        val terminal = TerminalBuffers.create(width = 4, height = 2)
+        val output = RecordingHostOutput()
+        val encoder = DefaultTerminalInputEncoder(terminal, output)
+
+        encoder.encodeMouse(mousePress())
+        terminal.setMouseTrackingMode(MouseTrackingMode.NORMAL)
+        terminal.setMouseEncodingMode(MouseEncodingMode.SGR)
+        encoder.encodeMouse(mousePress())
+
+        assertArrayEquals(esc("[<0;1;1M"), output.bytes)
+    }
+
+    @Test
+    fun `real core disabled mouse tracking suppresses mouse encoding`() {
+        val terminal = TerminalBuffers.create(width = 4, height = 2)
+        val output = RecordingHostOutput()
+        val encoder = DefaultTerminalInputEncoder(terminal, output)
+
+        terminal.setMouseEncodingMode(MouseEncodingMode.SGR)
+        encoder.encodeMouse(mousePress())
+
+        assertArrayEquals(byteArrayOf(), output.bytes)
+    }
+
+    @Test
     fun `uses fresh core mode bits across consecutive mixed events`() {
         val terminal = TerminalBuffers.create(width = 4, height = 2)
         val output = RecordingHostOutput()
@@ -113,6 +138,15 @@ class DefaultTerminalInputEncoderCoreStateTest {
 
     private fun esc(textAfterEsc: String): ByteArray {
         return byteArrayOf(0x1b) + textAfterEsc.encodeToByteArray()
+    }
+
+    private fun mousePress(): TerminalMouseEvent {
+        return TerminalMouseEvent(
+            column = 0,
+            row = 0,
+            button = TerminalMouseButton.LEFT,
+            type = TerminalMouseEventType.PRESS,
+        )
     }
 
     private class RecordingHostOutput : TerminalHostOutput {

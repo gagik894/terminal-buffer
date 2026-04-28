@@ -335,16 +335,11 @@ Missing:
 
 ## Input Module Gaps
 
-There is no production `:terminal-input` implementation yet.
-Shared protocol vocabulary for the future input encoder lives in
-`:terminal-protocol`, including control-code constants, ANSI/DEC mode ids, and
-mouse mode enums. Core now exposes typed and packed durable mode snapshots for
-input-readable state. Input should depend on `:terminal-protocol` and core mode
-snapshots, not parser internals.
-
-The `:terminal-input` module is scaffolded, but encoder behavior is not
-implemented yet. Its staged plan lives in
-`terminal-input/docs/terminal-input-implementation-plan.md`.
+The `:terminal-input` module owns host-bound keyboard, mouse, paste, and focus
+encoding. It depends on `:terminal-protocol` vocabulary and core input-readable
+mode snapshots, not parser internals or core storage details. The default
+encoder reads packed mode bits once per event and serializes output through a
+host-bound byte sink.
 
 Missing:
 
@@ -355,6 +350,12 @@ Missing:
   and emits `CSI 200~` / `CSI 201~` wrappers when enabled.
 - `DONE(input)`: focus in/out reports read core mode bits once per event and
   emit `CSI I` / `CSI O` only when focus reporting is enabled.
+- `DONE(input)`: mouse report encoding baseline:
+  - X10, normal, button-event, and any-event tracking suppression rules
+  - SGR mouse encoding, including button-preserving lowercase-`m` releases
+  - bounded legacy `ESC [ M` encoding with explicit coordinate-limit policy
+  - UTF-8 and URXVT mouse modes are suppressed by default, with an explicit
+    policy fallback to bounded legacy encoding
 - `TODO(input)`: modifier encoding:
   - xterm modifyOtherKeys
   - CSI u
@@ -362,13 +363,8 @@ Missing:
 - `TODO(input)`: Kitty Keyboard Protocol. This is becoming a modern standard for
   disambiguating keys that legacy encodings collapse, such as Shift+Enter versus
   Enter or Ctrl+I versus Tab.
-- `TODO(input)`: mouse report encoding:
-  - X10
-  - normal tracking
-  - button-event tracking
-  - any-event tracking
-  - SGR encoding
-  - UTF-8 and URXVT encodings if supported
+- `TODO(input)`: true UTF-8 and URXVT mouse encodings if compatibility needs
+  them; the current policy-gated fallback intentionally remains legacy-bounded.
 - `TODO(input)`: paste sanitization policy.
 - `TODO(input)`: terminal-to-host response queue integration for keyboard,
   mouse, focus, and paste reports, shared with parser/core query responses.
