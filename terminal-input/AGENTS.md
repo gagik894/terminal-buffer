@@ -4,9 +4,9 @@
 paste, focus, and later mouse events into bytes written to the terminal host
 input stream.
 
-This module is currently scaffolded only. Do not add encoder behavior until the
-implementation plan in `docs/terminal-input-implementation-plan.md` is followed
-with focused tests.
+Keyboard, paste, and focus encoding are implemented. Mouse encoding and richer
+keyboard protocols remain future milestones. Follow the staged plan in
+`docs/terminal-input-implementation-plan.md` when extending behavior.
 
 ## Boundary
 

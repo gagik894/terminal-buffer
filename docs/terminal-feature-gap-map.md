@@ -348,8 +348,13 @@ implemented yet. Its staged plan lives in
 
 Missing:
 
-- `TODO(input)`: keyboard encoding for normal and application cursor-key modes.
-- `TODO(input)`: keypad encoding for numeric and application keypad modes.
+- `DONE(input)`: keyboard encoding baseline for printable Unicode scalars,
+  Ctrl/Alt combinations, normal and application cursor-key modes, navigation
+  keys, function keys, and numeric/application keypad modes.
+- `DONE(input)`: bracketed paste wrapping reads core mode bits once per event
+  and emits `CSI 200~` / `CSI 201~` wrappers when enabled.
+- `DONE(input)`: focus in/out reports read core mode bits once per event and
+  emit `CSI I` / `CSI O` only when focus reporting is enabled.
 - `TODO(input)`: modifier encoding:
   - xterm modifyOtherKeys
   - CSI u
@@ -364,8 +369,6 @@ Missing:
   - any-event tracking
   - SGR encoding
   - UTF-8 and URXVT encodings if supported
-- `TODO(input)`: focus in/out reports.
-- `TODO(input)`: bracketed paste wrapping.
 - `TODO(input)`: paste sanitization policy.
 - `TODO(input)`: terminal-to-host response queue integration for keyboard,
   mouse, focus, and paste reports, shared with parser/core query responses.
