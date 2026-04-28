@@ -298,27 +298,55 @@ class CoreTerminalCommandSinkTest {
         }
 
         @Test
-        fun `alternate screen mode 1049 switches buffers while 47 and 1047 remain explicit TODO gaps`() {
+        fun `alternate screen mode 47 switches buffers without clearing alt content`() {
             val f = Fixture()
 
-            f.acceptAscii("P")
-            f.acceptAscii("\u001B[?1049h")
-            f.acceptAscii("A")
-            f.end()
-
+            f.acceptAscii("P\u001B[?47hA\u001B[?47lQ\u001B[?47h")
             assertEquals("A", f.terminal.getLineAsString(0))
 
-            f.acceptAscii("\u001B[?1049l")
+            f.acceptAscii("B")
+            f.end()
+            assertEquals("AB", f.terminal.getLineAsString(0))
+        }
 
-            assertEquals("P", f.terminal.getLineAsString(0))
+        @Test
+        fun `alternate screen mode 1047 switches buffers and clears alt content on entry`() {
+            val f = Fixture()
 
-            f.acceptAscii("\u001B[?47hX")
+            f.acceptAscii("\u001B[?47hA")
             f.acceptAscii("\u001B[?47l")
-            f.acceptAscii("\u001B[?1047hY")
+            f.acceptAscii("\u001B[?1047h")
+            assertEquals("", f.terminal.getLineAsString(0))
+
+            f.acceptAscii("B")
             f.acceptAscii("\u001B[?1047l")
+            f.acceptAscii("\u001B[?47h")
+            assertEquals("B", f.terminal.getLineAsString(0))
+        }
+
+        @Test
+        fun `alternate screen mode 1048 saves and restores cursor without switching buffers`() {
+            val f = Fixture()
+
+            f.acceptAscii("AB")
+            f.acceptAscii("\u001B[?1048h")
+            f.acceptAscii("\u001B[2;4H")
+            f.acceptAscii("\u001B[?1048l")
+            f.acceptAscii("C")
             f.end()
 
-            assertEquals("PXY", f.terminal.getLineAsString(0))
+            assertEquals("ABC", f.terminal.getLineAsString(0))
+        }
+
+        @Test
+        fun `alternate screen mode 1049 switches buffers and restores the primary cursor`() {
+            val f = Fixture()
+
+            f.acceptAscii("P\u001B[?1049hA\u001B[?1049lQ\u001B[?47h")
+            assertEquals("A", f.terminal.getLineAsString(0))
+
+            f.acceptAscii("\u001B[?47l")
+            assertEquals("PQ", f.terminal.getLineAsString(0))
         }
     }
 

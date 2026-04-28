@@ -156,6 +156,25 @@ class ModeDispatchTest {
                 resetDec(*modes).events,
             )
         }
+
+        @Test
+        fun `alternate screen and cursor save modes dispatch`() {
+            val modes = intArrayOf(
+                DecPrivateMode.ALT_SCREEN,
+                DecPrivateMode.ALT_SCREEN_BUFFER,
+                DecPrivateMode.SAVE_RESTORE_CURSOR,
+                DecPrivateMode.ALT_SCREEN_SAVE_CURSOR,
+            )
+
+            assertEquals(
+                modes.map { decEvent(it, true) },
+                setDec(*modes).events,
+            )
+            assertEquals(
+                modes.map { decEvent(it, false) },
+                resetDec(*modes).events,
+            )
+        }
     }
 
     @Nested
@@ -252,7 +271,8 @@ class ModeDispatchTest {
         fun `DEC private modes route through ByteClass FSM action engine and dispatcher`() {
             val fixture = TerminalParserFixture()
 
-            fixture.acceptAscii("\u001B[?1;6;7;12;25;66;69;1000;1002;1003;1004;1005;1006;1015;2004h")
+            fixture.acceptAscii("\u001B[?1;6;7;12;25;47;66;69;1000;1002;1003;1004;1005;1006;1015h")
+            fixture.acceptAscii("\u001B[?1047;1048;1049;2004h")
 
             assertEquals(
                 listOf(
@@ -261,6 +281,7 @@ class ModeDispatchTest {
                     decEvent(DecPrivateMode.AUTO_WRAP, true),
                     decEvent(DecPrivateMode.CURSOR_BLINK, true),
                     decEvent(DecPrivateMode.CURSOR_VISIBLE, true),
+                    decEvent(DecPrivateMode.ALT_SCREEN, true),
                     decEvent(DecPrivateMode.APPLICATION_KEYPAD, true),
                     decEvent(DecPrivateMode.LEFT_RIGHT_MARGIN, true),
                     decEvent(DecPrivateMode.MOUSE_NORMAL, true),
@@ -270,6 +291,9 @@ class ModeDispatchTest {
                     decEvent(DecPrivateMode.MOUSE_UTF8, true),
                     decEvent(DecPrivateMode.MOUSE_SGR, true),
                     decEvent(DecPrivateMode.MOUSE_URXVT, true),
+                    decEvent(DecPrivateMode.ALT_SCREEN_BUFFER, true),
+                    decEvent(DecPrivateMode.SAVE_RESTORE_CURSOR, true),
+                    decEvent(DecPrivateMode.ALT_SCREEN_SAVE_CURSOR, true),
                     decEvent(DecPrivateMode.BRACKETED_PASTE, true),
                 ),
                 fixture.sink.events,

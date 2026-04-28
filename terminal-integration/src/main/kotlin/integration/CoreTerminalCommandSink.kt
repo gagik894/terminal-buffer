@@ -274,10 +274,22 @@ class CoreTerminalCommandSink(
             DecPrivateMode.MOUSE_URXVT -> terminal.setMouseEncodingMode(
                 if (enable) MouseEncodingMode.URXVT else MouseEncodingMode.DEFAULT
             )
-            DecPrivateMode.ALT_SCREEN,
+            DecPrivateMode.ALT_SCREEN -> {
+                if (enable) {
+                    terminal.enterAltBufferWithoutCursorSave(clearBeforeEnter = false)
+                } else {
+                    terminal.exitAltBufferWithoutCursorRestore()
+                }
+            }
             DecPrivateMode.ALT_SCREEN_BUFFER -> {
-                // TODO(core-gap): Core exposes only 1049-style alt-buffer save/restore semantics.
-                // Do not fake DECSET 47/1047 by mapping them to 1049.
+                if (enable) {
+                    terminal.enterAltBufferWithoutCursorSave(clearBeforeEnter = true)
+                } else {
+                    terminal.exitAltBufferWithoutCursorRestore()
+                }
+            }
+            DecPrivateMode.SAVE_RESTORE_CURSOR -> {
+                if (enable) terminal.saveCursor() else terminal.restoreCursor()
             }
             DecPrivateMode.ALT_SCREEN_SAVE_CURSOR -> {
                 if (enable) terminal.enterAltBuffer() else terminal.exitAltBuffer()

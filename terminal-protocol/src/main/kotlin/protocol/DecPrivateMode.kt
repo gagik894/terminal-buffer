@@ -17,6 +17,7 @@ object DecPrivateMode {
     const val LEFT_RIGHT_MARGIN: Int = 69
     const val ALT_SCREEN: Int = 47
     const val ALT_SCREEN_BUFFER: Int = 1047
+    const val SAVE_RESTORE_CURSOR: Int = 1048
     const val ALT_SCREEN_SAVE_CURSOR: Int = 1049
 
     const val MOUSE_X10: Int = 9

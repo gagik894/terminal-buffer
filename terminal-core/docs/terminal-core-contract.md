@@ -203,8 +203,12 @@ Not guaranteed:
 
 - primary and alternate buffers have separate arenas
 - alternate buffer has no scrollback history
-- entering alt clears alt content, homes the alt cursor, and resets alt margins
-- leaving alt returns to primary as it was left
+- `47` entry switches to the alternate buffer without clearing or cursor save/restore
+- `1047` entry clears the alternate buffer, homes its cursor, and resets its margins
+- `1048` saves/restores cursor state without switching buffers
+- `1049` combines cursor save/restore with a clearing alternate-buffer switch
+- leaving alternate screen returns to primary as it was left unless the selected
+  variant explicitly restores the saved cursor
 - resize reflows primary and wipes alt
 
 ### Resize

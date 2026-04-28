@@ -82,10 +82,34 @@ interface TerminalModeController {
     fun setTreatAmbiguousAsWide(enabled: Boolean)
 
     /**
-     * Switches to the alternate screen buffer (ALTBUF on, `CSI ? 1049 h`).
+     * Switches to the alternate screen buffer without saving the primary
+     * cursor state.
      *
-     * Saves the primary cursor position, pen attributes, and origin mode via
-     * DECSC, clears the alternate grid, resets its scroll margins, and
+     * This supports the older xterm alternate-screen modes:
+     * - `CSI ? 47 h` switches to the alternate buffer without clearing it.
+     * - `CSI ? 1047 h` switches to the alternate buffer and clears it first.
+     *
+     * The alternate buffer has no scrollback history. Re-entering while already
+     * active is a no-op.
+     *
+     * @param clearBeforeEnter whether to clear the alternate grid, reset its
+     * margins, home its cursor, and clear its saved-cursor slot before entry.
+     */
+    fun enterAltBufferWithoutCursorSave(clearBeforeEnter: Boolean)
+
+    /**
+     * Returns to the primary screen buffer without restoring a saved cursor.
+     *
+     * This supports `CSI ? 47 l` and `CSI ? 1047 l`. Alternate buffer content
+     * remains stored and may be reused by a later non-clearing entry.
+     */
+    fun exitAltBufferWithoutCursorRestore()
+
+    /**
+     * Switches to the alternate screen buffer with cursor save (`CSI ? 1049 h`).
+     *
+     * Saves the primary cursor position, pen attributes, and origin mode, clears
+     * the alternate grid, resets its scroll margins, homes its cursor, and
      * activates it. The alternate buffer has no scrollback history.
      *
      * Re-entering the alternate buffer discards any previous alternate content.
@@ -93,12 +117,11 @@ interface TerminalModeController {
     fun enterAltBuffer()
 
     /**
-     * Returns to the primary screen buffer (ALTBUF off, `CSI ? 1049 l`).
+     * Returns to the primary screen buffer with cursor restore (`CSI ? 1049 l`).
      *
      * Restores the primary cursor position, pen attributes, and origin mode
      * saved when [enterAltBuffer] was called. Alternate buffer content is not
-     * visible after the switch and will be wiped on the next alternate-screen
-     * entry or resize. Primary scrollback history is unaffected.
+     * visible after the switch. Primary scrollback history is unaffected.
      */
     fun exitAltBuffer()
 }

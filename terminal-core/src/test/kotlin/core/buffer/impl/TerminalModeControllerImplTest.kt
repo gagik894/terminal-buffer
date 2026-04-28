@@ -141,6 +141,60 @@ class TerminalModeControllerImplTest {
     }
 
     @Test
+    fun `enterAltBufferWithoutCursorSave can reuse existing alt content and cursor`() {
+        val state = TerminalState(6, 4, 2)
+        val modeController = TerminalModeControllerImpl(state, CursorEngine(state))
+
+        state.primaryBuffer.cursor.col = 3
+        state.primaryBuffer.cursor.row = 2
+        state.primaryBuffer.cursor.pendingWrap = true
+        state.altBuffer.cursor.col = 1
+        state.altBuffer.cursor.row = 1
+        state.altBuffer.ring[1].setCell(0, 'A'.code, state.pen.currentAttr)
+
+        modeController.enterAltBufferWithoutCursorSave(clearBeforeEnter = false)
+
+        assertAll(
+            { assertTrue(state.isAltScreenActive) },
+            { assertEquals(1, state.cursor.col) },
+            { assertEquals(1, state.cursor.row) },
+            { assertEquals("A", state.altBuffer.ring[1].toTextTrimmed()) }
+        )
+
+        modeController.exitAltBufferWithoutCursorRestore()
+
+        assertAll(
+            { assertFalse(state.isAltScreenActive) },
+            { assertEquals(3, state.cursor.col) },
+            { assertEquals(2, state.cursor.row) },
+            { assertTrue(state.cursor.pendingWrap) }
+        )
+    }
+
+    @Test
+    fun `enterAltBufferWithoutCursorSave can clear alt state before switching`() {
+        val state = TerminalState(6, 4, 2)
+        val modeController = TerminalModeControllerImpl(state, CursorEngine(state))
+
+        state.altBuffer.cursor.col = 4
+        state.altBuffer.cursor.row = 2
+        state.altBuffer.cursor.pendingWrap = true
+        state.altBuffer.savedCursor.isSaved = true
+        state.altBuffer.ring[0].setCell(0, 'A'.code, state.pen.currentAttr)
+
+        modeController.enterAltBufferWithoutCursorSave(clearBeforeEnter = true)
+
+        assertAll(
+            { assertTrue(state.isAltScreenActive) },
+            { assertEquals(0, state.cursor.col) },
+            { assertEquals(0, state.cursor.row) },
+            { assertFalse(state.cursor.pendingWrap) },
+            { assertFalse(state.savedCursor.isSaved) },
+            { assertEquals("", state.altBuffer.ring[0].toTextTrimmed()) }
+        )
+    }
+
+    @Test
     fun `enterAltBuffer switches to alt screen and exit restores cursor and pen but NOT global modes`() {
         val state = TerminalState(6, 4, 2)
         val modeController = TerminalModeControllerImpl(state, CursorEngine(state))

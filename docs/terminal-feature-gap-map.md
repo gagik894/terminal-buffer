@@ -83,9 +83,14 @@ surface or maintenance cost without meaningful modern terminal value.
 - `DONE(parser/integration)`: `RIS`, `ESC c`, full terminal reset routes to
   `TerminalBufferApi.reset`.
 - `TODO(parser)`: full DEC private mode vocabulary and tests beyond the current common set:
-  - alternate-screen variants `47`, `1047`, `1048`, `1049`
   - synchronized output mode `?2026`
   - focus, paste, mouse, and application-mode behavior beyond durable mode state
+- `DONE(parser/core/integration)`: alternate-screen and cursor-save variants
+  are distinguished:
+  - `47`, switch alternate screen without clearing or cursor save/restore
+  - `1047`, switch alternate screen and clear on entry without cursor save/restore
+  - `1048`, save/restore cursor without switching buffers
+  - `1049`, save/restore cursor around a clearing alternate-screen switch
 - `DONE(parser/integration)`: xterm title stack:
   - `CSI 22 t` push window/icon title
   - `CSI 23 t` pop window/icon title
@@ -240,12 +245,9 @@ Missing:
 
 - `TODO(core)`: DECSTR soft reset API.
   Do not fake this with full `reset`, because DECSTR is less destructive than RIS.
-- `TODO(core)`: distinguish alternate-screen variants:
-  - `47`
-  - `1047`
-  - `1048`
-  - `1049`
-  Current core exposes only 1049-style enter/exit behavior.
+- `DONE(core/integration)`: alternate-screen variants distinguish switch-only,
+  clearing switch-only, cursor save/restore-only, and 1049-style combined
+  behavior.
 - `TODO(core)`: cursor style state for `DECSCUSR`.
 - `TODO(core)`: cursor blink is currently durable mode state; renderer contract
   may need a richer cursor presentation snapshot.
@@ -305,8 +307,8 @@ Missing:
 - `DONE(integration)`: map faint, blink, conceal, strikethrough, overline,
   underline style, and underline color SGR attributes to core pen storage.
 - `TODO(integration)`: map DECSTR only after core exposes a soft-reset API.
-- `TODO(integration)`: map alternate-screen `47` and `1047` only after core
-  exposes their exact semantics.
+- `DONE(integration)`: map alternate-screen `47`, `1047`, `1048`, and `1049`
+  to distinct core semantics.
 - `DONE(integration)`: parser RIS maps to core `reset`.
 - `DONE(integration)`: parser DECSLRM maps to core left/right margins.
 - `DONE(integration)`: parser DECSEL/DECSED/DECSCA map to core selective erase

@@ -2,9 +2,9 @@ package com.gagik.core.buffer.impl
 
 import com.gagik.core.api.TerminalModeController
 import com.gagik.core.engine.CursorEngine
+import com.gagik.core.state.TerminalState
 import com.gagik.terminal.protocol.MouseEncodingMode
 import com.gagik.terminal.protocol.MouseTrackingMode
-import com.gagik.core.state.TerminalState
 
 internal class TerminalModeControllerImpl(
     private val state: TerminalState,
@@ -87,11 +87,23 @@ internal class TerminalModeControllerImpl(
 		mutateMode { state.modes.treatAmbiguousAsWide = enabled }
 	}
 
+	override fun enterAltBufferWithoutCursorSave(clearBeforeEnter: Boolean) {
+		if (state.isAltScreenActive) return
+
+		state.enterAltScreen(clearBeforeEnter)
+	}
+
+	override fun exitAltBufferWithoutCursorRestore() {
+		if (!state.isAltScreenActive) return
+
+		state.exitAltScreen()
+	}
+
 	override fun enterAltBuffer() {
 		if (state.isAltScreenActive) return
 
 		cursorEngine.saveCursor()
-		state.enterAltScreen()
+		state.enterAltScreen(clearBeforeEnter = true)
 	}
 
 	override fun exitAltBuffer() {

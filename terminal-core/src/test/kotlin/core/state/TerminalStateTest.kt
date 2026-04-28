@@ -41,7 +41,7 @@ class TerminalStateTest {
             { assertEquals(4, state.resolveRingIndex(2)) }
         )
 
-        state.enterAltScreen()
+        state.enterAltScreen(clearBeforeEnter = true)
 
         assertAll(
             { assertEquals(0, state.resolveRingIndex(0)) },
@@ -65,7 +65,7 @@ class TerminalStateTest {
         state.altBuffer.setScrollRegion(top = 2, bottom = 4, isOriginMode = false, viewportHeight = 5)
         state.altBuffer.ring[0].setCell(0, 'A'.code, state.pen.currentAttr)
 
-        state.enterAltScreen()
+        state.enterAltScreen(clearBeforeEnter = true)
 
         assertAll(
             { assertTrue(state.isAltScreenActive) },
@@ -87,10 +87,10 @@ class TerminalStateTest {
     @Test
     fun `enterAltScreen is a no-op when already active`() {
         val state = TerminalState(initialWidth = 6, initialHeight = 3, maxHistory = 1)
-        state.enterAltScreen()
+        state.enterAltScreen(clearBeforeEnter = true)
         state.altBuffer.ring[0].setCell(0, 'A'.code, state.pen.currentAttr)
 
-        state.enterAltScreen()
+        state.enterAltScreen(clearBeforeEnter = true)
 
         assertAll(
             { assertTrue(state.isAltScreenActive) },
@@ -107,7 +107,7 @@ class TerminalStateTest {
         state.primaryBuffer.cursor.pendingWrap = true
         state.primaryBuffer.ring[0].setCell(0, 'P'.code, state.pen.currentAttr)
 
-        state.enterAltScreen()
+        state.enterAltScreen(clearBeforeEnter = true)
         state.altBuffer.cursor.col = 4
         state.altBuffer.cursor.row = 3
         state.altBuffer.cursor.pendingWrap = true
@@ -148,7 +148,7 @@ class TerminalStateTest {
         state.primaryBuffer.setScrollRegion(top = 2, bottom = 3, isOriginMode = false, viewportHeight = 4)
         assertFalse(state.isFullViewportScroll)
 
-        state.enterAltScreen()
+        state.enterAltScreen(clearBeforeEnter = true)
         assertTrue(state.isFullViewportScroll)
     }
 
@@ -165,7 +165,7 @@ class TerminalStateTest {
             { assertTrue(state.altBuffer.cursor.pendingWrap) }
         )
 
-        state.enterAltScreen()
+        state.enterAltScreen(clearBeforeEnter = true)
         state.altBuffer.cursor.pendingWrap = true
         state.cancelPendingWrap()
 
@@ -180,7 +180,7 @@ class TerminalStateTest {
         val state = TerminalState(initialWidth = 10, initialHeight = 10, maxHistory = 10)
 
         // 1. Enter Alt Screen and simulate an app saving the cursor
-        state.enterAltScreen()
+        state.enterAltScreen(clearBeforeEnter = true)
         state.altBuffer.savedCursor.isSaved = true
         state.altBuffer.savedCursor.col = 5
         state.altBuffer.savedCursor.row = 5
@@ -189,7 +189,7 @@ class TerminalStateTest {
         state.exitAltScreen()
 
         // 3. Re-enter Alt Screen
-        state.enterAltScreen()
+        state.enterAltScreen(clearBeforeEnter = true)
 
         // Ensure the saved cursor was wiped clean
         assertFalse(

@@ -45,21 +45,26 @@ internal class TerminalState(
         get() = activeBuffer === altBuffer
 
     /**
-     * Switches to the alternate screen (`CSI ? 1049 h`).
+     * Switches to the alternate screen.
      *
-     * Callers must invoke `CursorEngine.saveCursor()` before this call (DECSC).
-     * Re-entering the alternate screen clears any previous alternate content.
+     * When [clearBeforeEnter] is true, the alternate grid, margins, cursor, and
+     * saved-cursor slot are reset before activation. This is used by `1047` and
+     * `1049`. Non-clearing `47` entries reuse the alternate buffer's existing
+     * content and cursor state.
+     *
      * No-op when already in the alternate screen.
      */
-    fun enterAltScreen() {
+    fun enterAltScreen(clearBeforeEnter: Boolean) {
         if (isAltScreenActive) return
-        altBuffer.clearGrid(pen.blankAttr, pen.blankExtendedAttr, dimensions.height)
-        altBuffer.resetScrollRegion(dimensions.height)
-        altBuffer.resetLeftRightMargins(dimensions.width)
-        altBuffer.cursor.col = 0
-        altBuffer.cursor.row = 0
-        altBuffer.cursor.pendingWrap = false
-        altBuffer.savedCursor.clear()
+        if (clearBeforeEnter) {
+            altBuffer.clearGrid(pen.blankAttr, pen.blankExtendedAttr, dimensions.height)
+            altBuffer.resetScrollRegion(dimensions.height)
+            altBuffer.resetLeftRightMargins(dimensions.width)
+            altBuffer.cursor.col = 0
+            altBuffer.cursor.row = 0
+            altBuffer.cursor.pendingWrap = false
+            altBuffer.savedCursor.clear()
+        }
         activeBuffer = altBuffer
     }
 
