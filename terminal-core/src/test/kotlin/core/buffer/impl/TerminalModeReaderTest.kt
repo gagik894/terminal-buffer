@@ -52,10 +52,12 @@ class TerminalModeReaderTest {
         buffer.setCursorBlinking(true)
 
         val afterBits = buffer.getModeBitsSnapshot()
+        val inputBits = buffer.getInputModeBits()
         val after = buffer.getModeSnapshot()
 
         assertAll(
             { assertNotEquals(beforeBits, afterBits) },
+            { assertEquals(afterBits, inputBits) },
             { assertFalse(before.isNewLineMode) },
             { assertFalse(before.isApplicationKeypad) },
             { assertEquals(MouseTrackingMode.OFF, before.mouseTrackingMode) },

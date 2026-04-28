@@ -36,7 +36,7 @@ data class TerminalModeSnapshot(
  * immutable and detached from internal storage, so callers cannot mutate core
  * state accidentally.
  */
-interface TerminalModeReader {
+interface TerminalModeReader : TerminalInputState {
 
     /**
      * Returns one atomic packed snapshot of durable mode state.
@@ -46,6 +46,14 @@ interface TerminalModeReader {
      * prefer [getModeSnapshot].
      */
     fun getModeBitsSnapshot(): Long
+
+    /**
+     * Returns one atomic packed snapshot for input encoders.
+     *
+     * This is the same coherent mode word returned by [getModeBitsSnapshot],
+     * exposed through the narrower [TerminalInputState] contract.
+     */
+    override fun getInputModeBits(): Long = getModeBitsSnapshot()
 
     /** Returns an immutable snapshot of the current durable mode flags. */
     fun getModeSnapshot(): TerminalModeSnapshot

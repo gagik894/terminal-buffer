@@ -101,7 +101,7 @@ class TerminalModesTest {
     }
 
     @Test
-    fun `soft reset applies DECSTR defaults and preserves width policy`() {
+    fun `soft reset applies DECSTR defaults and preserves width policy and mouse encoding`() {
         val modes = TerminalModes()
         modes.isInsertMode = true
         modes.isAutoWrap = false
@@ -137,7 +137,7 @@ class TerminalModesTest {
             { assertFalse(modes.isFocusReportingEnabled) },
             { assertTrue(modes.treatAmbiguousAsWide) },
             { assertEquals(MouseTrackingMode.OFF, modes.mouseTrackingMode) },
-            { assertEquals(MouseEncodingMode.DEFAULT, modes.mouseEncodingMode) },
+            { assertEquals(MouseEncodingMode.URXVT, modes.mouseEncodingMode) },
             { assertEquals(0, modes.modifyOtherKeysMode) }
         )
     }

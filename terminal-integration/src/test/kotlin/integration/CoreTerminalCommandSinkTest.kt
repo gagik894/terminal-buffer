@@ -178,7 +178,7 @@ class CoreTerminalCommandSinkTest {
                 { assertFalse(snapshot.isCursorBlinking) },
                 { assertFalse(snapshot.isFocusReportingEnabled) },
                 { assertFalse(snapshot.isBracketedPasteEnabled) },
-                { assertEquals(MouseEncodingMode.DEFAULT, snapshot.mouseEncodingMode) },
+                { assertEquals(MouseEncodingMode.SGR, snapshot.mouseEncodingMode) },
                 { assertEquals(AttributeColor.DEFAULT, attr?.foreground) },
                 { assertFalse(attr?.bold == true) },
                 { assertFalse(attr?.selectiveEraseProtected == true) },

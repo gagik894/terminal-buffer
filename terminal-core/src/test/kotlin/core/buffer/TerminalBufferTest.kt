@@ -184,7 +184,7 @@ class TerminalBufferTest {
 			{ assertFalse(snapshot.isBracketedPasteEnabled) },
 			{ assertFalse(snapshot.isFocusReportingEnabled) },
 			{ assertEquals(MouseTrackingMode.OFF, snapshot.mouseTrackingMode) },
-			{ assertEquals(MouseEncodingMode.DEFAULT, snapshot.mouseEncodingMode) },
+			{ assertEquals(MouseEncodingMode.SGR, snapshot.mouseEncodingMode) },
 			{ assertEquals(0, snapshot.modifyOtherKeysMode) },
 			{ assertEquals(0, state.primaryBuffer.scrollTop) },
 			{ assertEquals(3, state.primaryBuffer.scrollBottom) },
