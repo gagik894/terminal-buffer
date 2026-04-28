@@ -357,20 +357,38 @@ Missing:
   - UTF-8 extended mouse encoding (`?1005`) up to xterm's coordinate limit
   - URXVT mouse encoding (`?1015`)
 - `TODO(input)`: modifier encoding:
-  - xterm modifyOtherKeys
-  - CSI u
-  - legacy modifier encodings
-- `TODO(input)`: Kitty Keyboard Protocol. This is becoming a modern standard for
-  disambiguating keys that legacy encodings collapse, such as Shift+Enter versus
-  Enter or Ctrl+I versus Tab.
+  - xterm modifyOtherKeys mode 1/2 consumption from core packed mode bits
+  - documented xterm subset for `CSI 27 ; modifier ; codepoint ~`
+  - regression coverage for Ctrl/Shift/Alt/Meta printable input and
+    control-equivalent keys such as Ctrl+I/Tab and Ctrl+M/Enter
+- `TODO(parser/core/input)`: xterm modified-key policy surface for
+  `modifyCursorKeys`, `modifyFunctionKeys`, and `modifyKeypadKeys` if those are
+  added. These need protocol/core mode or policy state before input grows more
+  branches.
+- `TODO(input)`: keypad fidelity:
+  - keypad equals, comma, separator, begin/keypad-5 if UI adapters expose them
+  - explicit PF1-PF4 terminal keys rather than permanently overloading physical
+    F1-F4 when a platform can distinguish keypad PF keys
+- `TODO(input/policy)`: additional xterm-compatible key policies when a real
+  ambiguity exists, such as Delete behavior and optional eight-bit Meta output.
 - `TODO(input)`: SGR-Pixels mouse mode (`?1016`) if renderer/UI integration
   provides pixel-coordinate mouse events.
 - `TODO(parser/core/input)`: xterm highlight mouse tracking (`?1001`) if full
   xterm mouse parity is required; it needs a distinct interaction contract
   rather than simple cell-coordinate event forwarding.
-- `TODO(input)`: paste sanitization policy.
-- `TODO(input)`: terminal-to-host response queue integration for keyboard,
-  mouse, focus, and paste reports, shared with parser/core query responses.
+- `TODO(input/policy)`: paste sanitization policy hook:
+  - raw paste
+  - strip C0 controls except TAB/CR/LF
+  - line-ending normalization
+- `TODO(integration/host)`: terminal-to-host output ordering contract. UI input
+  events and parser/core responses such as DSR/CPR/DA/OSC/DCS replies should be
+  serialized through the same terminal actor and `TerminalHostOutput`.
+- `TODO(input)`: xterm input profile matrix tests covering application
+  cursor/keypad, bracketed paste, focus, mouse tracking/encoding combinations,
+  and modifyOtherKeys off/mode1/mode2.
+- `TODO(input)`: Kitty Keyboard Protocol, after the xterm input profile is
+  locked. Keep it as a separate protocol path rather than mixing it into the
+  xterm legacy/modifyOtherKeys encoder.
 
 ## Rendering and Host Integration Gaps
 

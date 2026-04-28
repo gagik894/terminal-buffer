@@ -56,6 +56,14 @@ class MouseEncoderTest {
     }
 
     @Test
+    fun `tracking suppression is independent of mouse encoding mode`() {
+        assertTrackingMatrix(MouseEncodingMode.DEFAULT, esc("[M") + bytes(32, 33, 33))
+        assertTrackingMatrix(MouseEncodingMode.UTF8, esc("[M") + bytes(32, 33, 33))
+        assertTrackingMatrix(MouseEncodingMode.SGR, esc("[<0;1;1M"))
+        assertTrackingMatrix(MouseEncodingMode.URXVT, esc("[32;1;1M"))
+    }
+
+    @Test
     fun `encodes SGR button press and release with preserved release button identity`() {
         assertMouseBytes(esc("[<0;1;1M"), press(TerminalMouseButton.LEFT, column = 0, row = 0))
         assertMouseBytes(esc("[<0;1;1m"), release(TerminalMouseButton.LEFT, column = 0, row = 0))
@@ -160,6 +168,46 @@ class MouseEncoderTest {
     }
 
     @Test
+    fun `encodes legacy default no-button motion and release without button identity`() {
+        assertMouseBytes(
+            esc("[M") + bytes(67, 33, 33),
+            motion(TerminalMouseButton.NONE),
+            tracking = MouseTrackingMode.ANY_EVENT,
+            encoding = MouseEncodingMode.DEFAULT,
+        )
+        assertMouseBytes(
+            esc("[M") + bytes(35, 33, 33),
+            release(TerminalMouseButton.NONE),
+            tracking = MouseTrackingMode.NORMAL,
+            encoding = MouseEncodingMode.DEFAULT,
+        )
+    }
+
+    @Test
+    fun `encodes legacy default modifiers and ignores Meta`() {
+        assertMouseBytes(
+            esc("[M") + bytes(36, 33, 33),
+            press(modifiers = TerminalModifiers.SHIFT),
+            encoding = MouseEncodingMode.DEFAULT,
+        )
+        assertMouseBytes(
+            esc("[M") + bytes(40, 33, 33),
+            press(modifiers = TerminalModifiers.ALT),
+            encoding = MouseEncodingMode.DEFAULT,
+        )
+        assertMouseBytes(
+            esc("[M") + bytes(48, 33, 33),
+            press(modifiers = TerminalModifiers.CTRL),
+            encoding = MouseEncodingMode.DEFAULT,
+        )
+        assertMouseBytes(
+            esc("[M") + bytes(32, 33, 33),
+            press(modifiers = TerminalModifiers.META),
+            encoding = MouseEncodingMode.DEFAULT,
+        )
+    }
+
+    @Test
     fun `bounds legacy default coordinates by policy`() {
         assertMouseBytes(
             esc("[M") + bytes(32, 255, 255),
@@ -209,6 +257,17 @@ class MouseEncoderTest {
             tracking = MouseTrackingMode.NORMAL,
             encoding = MouseEncodingMode.UTF8,
         )
+        assertMouseBytes(
+            esc("[M") + bytes(67, 33, 33),
+            motion(TerminalMouseButton.NONE),
+            tracking = MouseTrackingMode.ANY_EVENT,
+            encoding = MouseEncodingMode.UTF8,
+        )
+        assertMouseBytes(
+            esc("[M") + bytes(36, 33, 33),
+            press(modifiers = TerminalModifiers.SHIFT),
+            encoding = MouseEncodingMode.UTF8,
+        )
     }
 
     @Test
@@ -230,10 +289,61 @@ class MouseEncoderTest {
             encoding = MouseEncodingMode.URXVT,
         )
         assertMouseBytes(
+            esc("[67;1;1M"),
+            motion(TerminalMouseButton.NONE),
+            tracking = MouseTrackingMode.ANY_EVENT,
+            encoding = MouseEncodingMode.URXVT,
+        )
+        assertMouseBytes(
+            esc("[36;1;1M"),
+            press(modifiers = TerminalModifiers.SHIFT),
+            encoding = MouseEncodingMode.URXVT,
+        )
+        assertMouseBytes(
             esc("[32;5000;6000M"),
             press(column = 4999, row = 5999),
             encoding = MouseEncodingMode.URXVT,
         )
+    }
+
+    private fun assertTrackingMatrix(encoding: Int, encodedPress: ByteArray) {
+        assertMouseBytes(encodedPress, press(), tracking = MouseTrackingMode.X10, encoding = encoding)
+        assertMouseBytes(bytes(), release(), tracking = MouseTrackingMode.X10, encoding = encoding)
+        assertMouseBytes(bytes(), motion(TerminalMouseButton.LEFT), tracking = MouseTrackingMode.X10, encoding = encoding)
+        assertMouseBytes(bytes(), wheel(TerminalMouseButton.WHEEL_UP), tracking = MouseTrackingMode.X10, encoding = encoding)
+
+        assertMouseBytes(encodedPress, press(), tracking = MouseTrackingMode.NORMAL, encoding = encoding)
+        assertMouseBytes(bytes(), motion(TerminalMouseButton.LEFT), tracking = MouseTrackingMode.NORMAL, encoding = encoding)
+
+        assertMouseBytes(
+            bytes(),
+            motion(TerminalMouseButton.NONE),
+            tracking = MouseTrackingMode.BUTTON_EVENT,
+            encoding = encoding,
+        )
+        assertMouseBytes(
+            expectedMotion(TerminalMouseButton.LEFT, encoding),
+            motion(TerminalMouseButton.LEFT),
+            tracking = MouseTrackingMode.BUTTON_EVENT,
+            encoding = encoding,
+        )
+        assertMouseBytes(
+            expectedMotion(TerminalMouseButton.NONE, encoding),
+            motion(TerminalMouseButton.NONE),
+            tracking = MouseTrackingMode.ANY_EVENT,
+            encoding = encoding,
+        )
+    }
+
+    private fun expectedMotion(button: TerminalMouseButton, encoding: Int): ByteArray {
+        val code = if (button == TerminalMouseButton.NONE) 67 else 64
+        return when (encoding) {
+            MouseEncodingMode.DEFAULT,
+            MouseEncodingMode.UTF8 -> esc("[M") + bytes(code, 33, 33)
+            MouseEncodingMode.SGR -> esc("[<${code - 32};1;1M")
+            MouseEncodingMode.URXVT -> esc("[$code;1;1M")
+            else -> bytes()
+        }
     }
 
     private fun assertMouseBytes(

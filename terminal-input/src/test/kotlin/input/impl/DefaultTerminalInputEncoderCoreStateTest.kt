@@ -91,6 +91,67 @@ class DefaultTerminalInputEncoderCoreStateTest {
     }
 
     @Test
+    fun `uses real core mouse encoding selectors`() {
+        val terminal = TerminalBuffers.create(width = 4, height = 2)
+        val output = RecordingHostOutput()
+        val encoder = DefaultTerminalInputEncoder(terminal, output)
+
+        terminal.setMouseTrackingMode(MouseTrackingMode.NORMAL)
+
+        terminal.setMouseEncodingMode(MouseEncodingMode.DEFAULT)
+        encoder.encodeMouse(mousePress())
+
+        terminal.setMouseEncodingMode(MouseEncodingMode.UTF8)
+        encoder.encodeMouse(mousePress())
+
+        terminal.setMouseEncodingMode(MouseEncodingMode.SGR)
+        encoder.encodeMouse(mousePress())
+
+        terminal.setMouseEncodingMode(MouseEncodingMode.URXVT)
+        encoder.encodeMouse(mousePress())
+
+        assertArrayEquals(
+            esc("[M") + byteArrayOf(32, 33, 33) +
+                esc("[M") + byteArrayOf(32, 33, 33) +
+                esc("[<0;1;1M") +
+                esc("[32;1;1M"),
+            output.bytes,
+        )
+    }
+
+    @Test
+    fun `uses real core mouse tracking selectors`() {
+        val terminal = TerminalBuffers.create(width = 4, height = 2)
+        val output = RecordingHostOutput()
+        val encoder = DefaultTerminalInputEncoder(terminal, output)
+
+        terminal.setMouseEncodingMode(MouseEncodingMode.SGR)
+
+        terminal.setMouseTrackingMode(MouseTrackingMode.X10)
+        encoder.encodeMouse(mousePress())
+        encoder.encodeMouse(mouseRelease())
+
+        terminal.setMouseTrackingMode(MouseTrackingMode.NORMAL)
+        encoder.encodeMouse(mouseRelease())
+        encoder.encodeMouse(mouseMotion(TerminalMouseButton.LEFT))
+
+        terminal.setMouseTrackingMode(MouseTrackingMode.BUTTON_EVENT)
+        encoder.encodeMouse(mouseMotion(TerminalMouseButton.LEFT))
+        encoder.encodeMouse(mouseMotion(TerminalMouseButton.NONE))
+
+        terminal.setMouseTrackingMode(MouseTrackingMode.ANY_EVENT)
+        encoder.encodeMouse(mouseMotion(TerminalMouseButton.NONE))
+
+        assertArrayEquals(
+            esc("[<0;1;1M") +
+                esc("[<0;1;1m") +
+                esc("[<32;1;1M") +
+                esc("[<35;1;1M"),
+            output.bytes,
+        )
+    }
+
+    @Test
     fun `real core disabled mouse tracking suppresses mouse encoding`() {
         val terminal = TerminalBuffers.create(width = 4, height = 2)
         val output = RecordingHostOutput()
@@ -146,6 +207,24 @@ class DefaultTerminalInputEncoderCoreStateTest {
             row = 0,
             button = TerminalMouseButton.LEFT,
             type = TerminalMouseEventType.PRESS,
+        )
+    }
+
+    private fun mouseRelease(): TerminalMouseEvent {
+        return TerminalMouseEvent(
+            column = 0,
+            row = 0,
+            button = TerminalMouseButton.LEFT,
+            type = TerminalMouseEventType.RELEASE,
+        )
+    }
+
+    private fun mouseMotion(button: TerminalMouseButton): TerminalMouseEvent {
+        return TerminalMouseEvent(
+            column = 0,
+            row = 0,
+            button = button,
+            type = TerminalMouseEventType.MOTION,
         )
     }
 
