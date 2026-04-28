@@ -18,6 +18,8 @@ The project is split into strict layers:
   scrollback, width policy, and storage.
 - `terminal-integration`: adapters that map parser semantic commands to core
   APIs.
+- `terminal-input`: host-bound input encoding for keyboard, paste, focus, and
+  future mouse reports.
 
 Keep these boundaries intact:
 
@@ -29,6 +31,8 @@ Keep these boundaries intact:
   scrollback, pen attributes, width calculation, and mode state.
 - Integration maps. It must not parse protocols and must not reach into core
   internals.
+- Input encodes. It reads stable input-facing mode state and writes host-bound
+  bytes without parsing terminal output or touching grid/cursor internals.
 
 Width calculation belongs in core. The parser may assemble grapheme clusters,
 but it must not decide how many grid cells a cluster occupies because width

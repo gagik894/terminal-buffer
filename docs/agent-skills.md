@@ -11,6 +11,7 @@ Available skills:
 - `.agents/skills/terminal-parser-fsm/SKILL.md`
 - `.agents/skills/terminal-core-grid-physics/SKILL.md`
 - `.agents/skills/terminal-integration-adapter/SKILL.md`
+- `.agents/skills/terminal-input-encoder/SKILL.md`
 - `.agents/skills/terminal-unicode-text/SKILL.md`
 - `.agents/skills/terminal-test-suite/SKILL.md`
 - `.agents/skills/terminal-gap-map/SKILL.md`
