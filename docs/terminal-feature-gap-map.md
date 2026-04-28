@@ -314,6 +314,10 @@ Missing:
 ## Input Module Gaps
 
 There is no production `:terminal-input` module yet.
+Shared protocol vocabulary for the future input encoder lives in
+`:terminal-protocol`, including ANSI/DEC mode ids and mouse mode enums. Input
+should depend on `:terminal-protocol` and core mode snapshots, not parser
+internals.
 
 Missing:
 

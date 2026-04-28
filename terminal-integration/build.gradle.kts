@@ -10,6 +10,7 @@ repositories {
 }
 
 dependencies {
+    implementation(project(":terminal-protocol"))
     implementation(project(":terminal-core"))
     implementation(project(":terminal-parser"))
 

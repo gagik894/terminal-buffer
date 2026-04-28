@@ -3,8 +3,8 @@ package com.gagik.integration
 import com.gagik.core.TerminalBuffers
 import com.gagik.core.api.TerminalBufferApi
 import com.gagik.core.model.AttributeColor
-import com.gagik.core.model.MouseEncodingMode
-import com.gagik.core.model.MouseTrackingMode
+import com.gagik.terminal.protocol.MouseEncodingMode
+import com.gagik.terminal.protocol.MouseTrackingMode
 import com.gagik.parser.api.TerminalOutputParser
 import com.gagik.parser.api.TerminalParsers
 import org.junit.jupiter.api.Assertions.*

@@ -1,4 +1,4 @@
-package com.gagik.core.model
+package com.gagik.terminal.protocol
 
 /** Mouse tracking selection toggled by DECSET private modes. */
 enum class MouseTrackingMode {

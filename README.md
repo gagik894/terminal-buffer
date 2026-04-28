@@ -7,6 +7,8 @@ storage.
 
 ## Architecture
 
+- **terminal-protocol** holds dependency-free ANSI/DEC mode ids and shared mode
+  vocabulary used by parser, core, integration, and future input code.
 - **TerminalBuffer** is the facade that coordinates the state, mutation, cursor,
   mode, and reader/inspector surfaces.
 - **ScreenBuffer** owns one complete screen arena: `HistoryRing`, `ClusterStore`,
@@ -43,6 +45,8 @@ playbooks in [`docs/agent-skills.md`](docs/agent-skills.md).
 - Parser-facing durable mode control lives on `TerminalModeController`.
 - Input/UI-facing durable mode reads live on `TerminalModeReader` via immutable
   `TerminalModeSnapshot` values.
+- Shared protocol vocabulary lives in `:terminal-protocol`; input code should
+  consume that module and core snapshots, not parser internals.
 - The core stores host-controlled input and presentation flags, but it does not
   encode input events or render frames.
 

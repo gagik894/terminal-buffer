@@ -4,6 +4,8 @@ import com.gagik.parser.ansi.AnsiCommandDispatcher
 import com.gagik.parser.ansi.RecordingTerminalCommandSink
 import com.gagik.parser.fixture.TerminalParserFixture
 import com.gagik.parser.runtime.ParserState
+import com.gagik.terminal.protocol.AnsiMode
+import com.gagik.terminal.protocol.DecPrivateMode
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName

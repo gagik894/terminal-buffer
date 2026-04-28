@@ -1,7 +1,7 @@
 package com.gagik.core.api
 
-import com.gagik.core.model.MouseEncodingMode
-import com.gagik.core.model.MouseTrackingMode
+import com.gagik.terminal.protocol.MouseEncodingMode
+import com.gagik.terminal.protocol.MouseTrackingMode
 
 /**
  * Immutable snapshot of the terminal's durable mode state.

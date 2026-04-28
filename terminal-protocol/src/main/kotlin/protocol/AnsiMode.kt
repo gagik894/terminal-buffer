@@ -1,4 +1,4 @@
-package com.gagik.parser.ansi.mode
+package com.gagik.terminal.protocol
 
 /**
  * Standard ANSI modes used in terminal emulation.

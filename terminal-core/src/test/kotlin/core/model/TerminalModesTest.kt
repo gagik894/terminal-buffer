@@ -1,5 +1,7 @@
 package com.gagik.core.model
 
+import com.gagik.terminal.protocol.MouseEncodingMode
+import com.gagik.terminal.protocol.MouseTrackingMode
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 

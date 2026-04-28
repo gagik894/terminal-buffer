@@ -2,11 +2,11 @@ package com.gagik.integration
 
 import com.gagik.core.api.TerminalBufferApi
 import com.gagik.core.model.AttributeColor
-import com.gagik.core.model.MouseEncodingMode
-import com.gagik.core.model.MouseTrackingMode
-import com.gagik.parser.ansi.mode.AnsiMode
-import com.gagik.parser.ansi.mode.DecPrivateMode
 import com.gagik.parser.spi.TerminalCommandSink
+import com.gagik.terminal.protocol.AnsiMode
+import com.gagik.terminal.protocol.DecPrivateMode
+import com.gagik.terminal.protocol.MouseEncodingMode
+import com.gagik.terminal.protocol.MouseTrackingMode
 
 /**
  * Production bridge from parser semantic commands to the terminal core.

@@ -2,8 +2,8 @@ package com.gagik.core.buffer.impl
 
 import com.gagik.core.engine.CursorEngine
 import com.gagik.core.engine.MutationEngine
-import com.gagik.core.model.MouseEncodingMode
-import com.gagik.core.model.MouseTrackingMode
+import com.gagik.terminal.protocol.MouseEncodingMode
+import com.gagik.terminal.protocol.MouseTrackingMode
 import com.gagik.core.state.TerminalState
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test

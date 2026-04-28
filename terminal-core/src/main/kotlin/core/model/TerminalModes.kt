@@ -1,5 +1,8 @@
 package com.gagik.core.model
 
+import com.gagik.terminal.protocol.MouseEncodingMode
+import com.gagik.terminal.protocol.MouseTrackingMode
+
 /**
  * Encapsulates all terminal behavioral mode flags.
  *

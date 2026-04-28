@@ -1,5 +1,4 @@
 plugins {
-    id("java-library")
     kotlin("jvm") version "2.2.21"
 }
 
@@ -11,8 +10,6 @@ repositories {
 }
 
 dependencies {
-    api(project(":terminal-protocol"))
-
     testImplementation(kotlin("test"))
     testImplementation("org.junit.jupiter:junit-jupiter:6.0.0")
 }

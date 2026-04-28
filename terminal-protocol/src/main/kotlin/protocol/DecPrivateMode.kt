@@ -1,4 +1,4 @@
-package com.gagik.parser.ansi.mode
+package com.gagik.terminal.protocol
 
 /**
  * Common DEC private modes used in terminal emulation.

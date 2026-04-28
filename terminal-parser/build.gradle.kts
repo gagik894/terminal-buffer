@@ -10,6 +10,8 @@ repositories {
 }
 
 dependencies {
+    implementation(project(":terminal-protocol"))
+
     testImplementation(kotlin("test"))
     testImplementation("org.junit.jupiter:junit-jupiter:6.0.0")
 }

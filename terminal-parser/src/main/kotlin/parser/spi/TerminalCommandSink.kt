@@ -1,5 +1,8 @@
 package com.gagik.parser.spi
 
+import com.gagik.terminal.protocol.AnsiMode
+import com.gagik.terminal.protocol.DecPrivateMode
+
 /**
  * Parser-facing terminal command sink.
  *
@@ -134,14 +137,14 @@ interface TerminalCommandSink {
     /**
      * ANSI mode set/reset.
      *
-     * Example: CSI 4 h/l insert mode.
+     * Mode ids use the shared [AnsiMode] vocabulary.
      */
     fun setAnsiMode(mode: Int, enable: Boolean)
 
     /**
      * DEC private mode set/reset.
      *
-     * Example: CSI ? 25 h/l cursor visibility.
+     * Mode ids use the shared [DecPrivateMode] vocabulary.
      */
     fun setDecMode(mode: Int, enable: Boolean)
 

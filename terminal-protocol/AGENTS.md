@@ -1,0 +1,19 @@
+# Terminal Protocol Agent Guide
+
+`terminal-protocol` holds dependency-free terminal protocol vocabulary shared by
+parser, core, integration, and future input modules.
+
+## Boundary
+
+Protocol owns small, stable identifiers and enums such as ANSI/DEC mode ids and
+mouse reporting vocabulary.
+
+Protocol must not:
+
+- parse bytes or escape sequences.
+- mutate terminal state.
+- encode keyboard, mouse, focus, or paste reports.
+- depend on parser, core, integration, rendering, or host modules.
+
+Keep additions narrow and semantic. If a feature needs behavior, implement that
+behavior in the owning layer and expose only the shared vocabulary here.

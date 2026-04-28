@@ -11,6 +11,8 @@ for the module you touch.
 
 The project is split into strict layers:
 
+- `terminal-protocol`: shared protocol constants and small vocabulary types with
+  no dependency on parser, core, integration, or input.
 - `terminal-parser`: byte stream to semantic terminal commands.
 - `terminal-core`: headless terminal state, grid physics, modes, attributes,
   scrollback, width policy, and storage.
@@ -19,6 +21,8 @@ The project is split into strict layers:
 
 Keep these boundaries intact:
 
+- Protocol owns shared terminal vocabulary such as ANSI/DEC mode ids and mouse
+  mode enums. It must stay dependency-free.
 - Parser parses. It owns UTF-8 decoding, ANSI state machines, CSI/OSC/DCS
   recognition, charset shifts, grapheme segmentation, and semantic dispatch.
 - Core mutates and stores. It owns cursor physics, margins, wrapping, tab stops,

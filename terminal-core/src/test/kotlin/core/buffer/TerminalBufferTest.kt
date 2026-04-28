@@ -4,8 +4,8 @@ import com.gagik.core.TerminalBuffers
 import com.gagik.core.api.TerminalBufferApi
 import com.gagik.core.model.AttributeColor
 import com.gagik.core.model.Attributes
-import com.gagik.core.model.MouseEncodingMode
-import com.gagik.core.model.MouseTrackingMode
+import com.gagik.terminal.protocol.MouseEncodingMode
+import com.gagik.terminal.protocol.MouseTrackingMode
 import com.gagik.core.state.TerminalState
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
