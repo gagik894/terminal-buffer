@@ -117,7 +117,7 @@ internal object SgrDispatcher {
                     sink = sink,
                     state = state,
                     startIndex = i,
-                    foreground = true,
+                    target = ColorTarget.FOREGROUND,
                 )
 
                 param == 39 -> {
@@ -134,11 +134,33 @@ internal object SgrDispatcher {
                     sink = sink,
                     state = state,
                     startIndex = i,
-                    foreground = false,
+                    target = ColorTarget.BACKGROUND,
                 )
 
                 param == 49 -> {
                     sink.setBackgroundDefault()
+                    i + 1
+                }
+
+                param == 53 -> {
+                    sink.setOverline(true)
+                    i + 1
+                }
+
+                param == 55 -> {
+                    sink.setOverline(false)
+                    i + 1
+                }
+
+                param == 58 -> dispatchExtendedColor(
+                    sink = sink,
+                    state = state,
+                    startIndex = i,
+                    target = ColorTarget.UNDERLINE,
+                )
+
+                param == 59 -> {
+                    sink.setUnderlineColorDefault()
                     i + 1
                 }
 
@@ -161,7 +183,7 @@ internal object SgrDispatcher {
         sink: TerminalCommandSink,
         state: ParserState,
         startIndex: Int,
-        foreground: Boolean,
+        target: ColorTarget,
     ): Int {
         val modeIndex = startIndex + 1
         val mode = paramOrMissing(state, modeIndex)
@@ -174,14 +196,14 @@ internal object SgrDispatcher {
                 sink = sink,
                 state = state,
                 startIndex = startIndex,
-                foreground = foreground,
+                target = target,
             )
 
             2 -> dispatchRgbColor(
                 sink = sink,
                 state = state,
                 startIndex = startIndex,
-                foreground = foreground,
+                target = target,
             )
 
             else -> startIndex + 2
@@ -203,6 +225,9 @@ internal object SgrDispatcher {
             0 -> sink.setUnderlineStyle(SgrUnderlineStyle.NONE)
             1 -> sink.setUnderlineStyle(SgrUnderlineStyle.SINGLE)
             2 -> sink.setUnderlineStyle(SgrUnderlineStyle.DOUBLE)
+            3 -> sink.setUnderlineStyle(SgrUnderlineStyle.CURLY)
+            4 -> sink.setUnderlineStyle(SgrUnderlineStyle.DOTTED)
+            5 -> sink.setUnderlineStyle(SgrUnderlineStyle.DASHED)
         }
 
         return styleIndex + 1
@@ -212,7 +237,7 @@ internal object SgrDispatcher {
         sink: TerminalCommandSink,
         state: ParserState,
         startIndex: Int,
-        foreground: Boolean,
+        target: ColorTarget,
     ): Int {
         val colorIndex = startIndex + 2
         val color = paramOrMissing(state, colorIndex)
@@ -220,10 +245,10 @@ internal object SgrDispatcher {
             return colorIndex + 1
         }
 
-        if (foreground) {
-            sink.setForegroundIndexed(color)
-        } else {
-            sink.setBackgroundIndexed(color)
+        when (target) {
+            ColorTarget.FOREGROUND -> sink.setForegroundIndexed(color)
+            ColorTarget.BACKGROUND -> sink.setBackgroundIndexed(color)
+            ColorTarget.UNDERLINE -> sink.setUnderlineColorIndexed(color)
         }
 
         return colorIndex + 1
@@ -233,7 +258,7 @@ internal object SgrDispatcher {
         sink: TerminalCommandSink,
         state: ParserState,
         startIndex: Int,
-        foreground: Boolean,
+        target: ColorTarget,
     ): Int {
         var redIndex = startIndex + 2
 
@@ -253,10 +278,10 @@ internal object SgrDispatcher {
             return redIndex + 3
         }
 
-        if (foreground) {
-            sink.setForegroundRgb(red, green, blue)
-        } else {
-            sink.setBackgroundRgb(red, green, blue)
+        when (target) {
+            ColorTarget.FOREGROUND -> sink.setForegroundRgb(red, green, blue)
+            ColorTarget.BACKGROUND -> sink.setBackgroundRgb(red, green, blue)
+            ColorTarget.UNDERLINE -> sink.setUnderlineColorRgb(red, green, blue)
         }
 
         return redIndex + 3
@@ -272,5 +297,11 @@ internal object SgrDispatcher {
 
     private fun isColonOpened(state: ParserState, index: Int): Boolean {
         return index in 0..31 && ((state.subParameterMask ushr index) and 1) != 0
+    }
+
+    private enum class ColorTarget {
+        FOREGROUND,
+        BACKGROUND,
+        UNDERLINE
     }
 }

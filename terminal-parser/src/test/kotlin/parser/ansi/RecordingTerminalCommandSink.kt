@@ -221,6 +221,10 @@ internal class RecordingTerminalCommandSink : TerminalCommandSink {
         events += "setStrikethrough:$enabled"
     }
 
+    override fun setOverline(enabled: Boolean) {
+        events += "setOverline:$enabled"
+    }
+
     override fun setSelectiveEraseProtection(enabled: Boolean) {
         events += "setSelectiveEraseProtection:$enabled"
     }
@@ -233,6 +237,10 @@ internal class RecordingTerminalCommandSink : TerminalCommandSink {
         events += "setBackgroundDefault"
     }
 
+    override fun setUnderlineColorDefault() {
+        events += "setUnderlineColorDefault"
+    }
+
     override fun setForegroundIndexed(index: Int) {
         events += "setForegroundIndexed:$index"
     }
@@ -241,12 +249,20 @@ internal class RecordingTerminalCommandSink : TerminalCommandSink {
         events += "setBackgroundIndexed:$index"
     }
 
+    override fun setUnderlineColorIndexed(index: Int) {
+        events += "setUnderlineColorIndexed:$index"
+    }
+
     override fun setForegroundRgb(red: Int, green: Int, blue: Int) {
         events += "setForegroundRgb:$red:$green:$blue"
     }
 
     override fun setBackgroundRgb(red: Int, green: Int, blue: Int) {
         events += "setBackgroundRgb:$red:$green:$blue"
+    }
+
+    override fun setUnderlineColorRgb(red: Int, green: Int, blue: Int) {
+        events += "setUnderlineColorRgb:$red:$green:$blue"
     }
 
     override fun setWindowTitle(title: String) {
