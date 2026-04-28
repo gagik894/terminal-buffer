@@ -128,6 +128,7 @@ class ModeDispatchTest {
                 DecPrivateMode.MOUSE_UTF8,
                 DecPrivateMode.MOUSE_SGR,
                 DecPrivateMode.MOUSE_URXVT,
+                DecPrivateMode.SYNCHRONIZED_OUTPUT,
             )
 
             assertEquals(
@@ -271,14 +272,18 @@ class ModeDispatchTest {
         fun `DEC private modes route through ByteClass FSM action engine and dispatcher`() {
             val fixture = TerminalParserFixture()
 
-            fixture.acceptAscii("\u001B[?1;6;7;12;25;47;66;69;1000;1002;1003;1004;1005;1006;1015h")
-            fixture.acceptAscii("\u001B[?1047;1048;1049;2004h")
+            fixture.acceptAscii("\u001B[?1;3;5;6;7;9;12;25;47;66;69h")
+            fixture.acceptAscii("\u001B[?1000;1002;1003;1004;1005;1006;1015h")
+            fixture.acceptAscii("\u001B[?1047;1048;1049;2004;2026h")
 
             assertEquals(
                 listOf(
                     decEvent(DecPrivateMode.APPLICATION_CURSOR_KEYS, true),
+                    decEvent(DecPrivateMode.DECCOLM, true),
+                    decEvent(DecPrivateMode.REVERSE_VIDEO, true),
                     decEvent(DecPrivateMode.ORIGIN, true),
                     decEvent(DecPrivateMode.AUTO_WRAP, true),
+                    decEvent(DecPrivateMode.MOUSE_X10, true),
                     decEvent(DecPrivateMode.CURSOR_BLINK, true),
                     decEvent(DecPrivateMode.CURSOR_VISIBLE, true),
                     decEvent(DecPrivateMode.ALT_SCREEN, true),
@@ -295,6 +300,7 @@ class ModeDispatchTest {
                     decEvent(DecPrivateMode.SAVE_RESTORE_CURSOR, true),
                     decEvent(DecPrivateMode.ALT_SCREEN_SAVE_CURSOR, true),
                     decEvent(DecPrivateMode.BRACKETED_PASTE, true),
+                    decEvent(DecPrivateMode.SYNCHRONIZED_OUTPUT, true),
                 ),
                 fixture.sink.events,
             )

@@ -82,9 +82,14 @@ surface or maintenance cost without meaningful modern terminal value.
   core protected-cell pen state.
 - `DONE(parser/integration)`: `RIS`, `ESC c`, full terminal reset routes to
   `TerminalBufferApi.reset`.
-- `TODO(parser)`: full DEC private mode vocabulary and tests beyond the current common set:
-  - synchronized output mode `?2026`
-  - focus, paste, mouse, and application-mode behavior beyond durable mode state
+- `DONE(parser/integration)`: modern/common DEC private mode vocabulary is
+  named, parsed, tested, and either routed to durable core state or explicitly
+  ignored:
+  - application cursor/keypad modes, cursor blink/visibility, reverse video,
+    origin, auto-wrap, left/right margin mode, and alternate-screen variants
+  - mouse tracking and encoding selectors, focus reporting, and bracketed paste
+  - synchronized output mode `?2026` is recognized and intentionally ignored by
+    integration until core/renderer batching state exists
 - `DONE(parser/core/integration)`: alternate-screen and cursor-save variants
   are distinguished:
   - `47`, switch alternate screen without clearing or cursor save/restore

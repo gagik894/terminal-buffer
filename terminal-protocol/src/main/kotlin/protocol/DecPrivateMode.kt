@@ -30,4 +30,7 @@ object DecPrivateMode {
     const val MOUSE_URXVT: Int = 1015
 
     const val BRACKETED_PASTE: Int = 2004
+
+    /** Synchronized output mode, DECSET/DECRST `?2026`. */
+    const val SYNCHRONIZED_OUTPUT: Int = 2026
 }

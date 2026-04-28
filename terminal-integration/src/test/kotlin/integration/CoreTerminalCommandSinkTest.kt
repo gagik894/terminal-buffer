@@ -276,6 +276,17 @@ class CoreTerminalCommandSinkTest {
         }
 
         @Test
+        fun `synchronized output mode is parsed and explicitly ignored until renderer batching exists`() {
+            val f = Fixture()
+
+            val before = f.terminal.getModeSnapshot()
+            f.acceptAscii("\u001B[?2026h")
+            f.acceptAscii("\u001B[?2026l")
+
+            assertEquals(before, f.terminal.getModeSnapshot())
+        }
+
+        @Test
         fun `DECCOLM set and reset resize the core width`() {
             val f = Fixture(terminal = TerminalBuffers.create(width = 80, height = 3))
 

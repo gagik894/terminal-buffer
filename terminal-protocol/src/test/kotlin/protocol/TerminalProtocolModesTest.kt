@@ -39,21 +39,28 @@ class TerminalProtocolModesTest {
     fun `DEC private mode ids match common terminal protocol values`() {
         assertAll(
             { assertEquals(1, DecPrivateMode.APPLICATION_CURSOR_KEYS) },
+            { assertEquals(3, DecPrivateMode.DECCOLM) },
+            { assertEquals(5, DecPrivateMode.REVERSE_VIDEO) },
             { assertEquals(6, DecPrivateMode.ORIGIN) },
             { assertEquals(7, DecPrivateMode.AUTO_WRAP) },
             { assertEquals(12, DecPrivateMode.CURSOR_BLINK) },
             { assertEquals(25, DecPrivateMode.CURSOR_VISIBLE) },
+            { assertEquals(66, DecPrivateMode.APPLICATION_KEYPAD) },
+            { assertEquals(69, DecPrivateMode.LEFT_RIGHT_MARGIN) },
             { assertEquals(47, DecPrivateMode.ALT_SCREEN) },
             { assertEquals(1047, DecPrivateMode.ALT_SCREEN_BUFFER) },
             { assertEquals(1048, DecPrivateMode.SAVE_RESTORE_CURSOR) },
             { assertEquals(1049, DecPrivateMode.ALT_SCREEN_SAVE_CURSOR) },
+            { assertEquals(9, DecPrivateMode.MOUSE_X10) },
             { assertEquals(1000, DecPrivateMode.MOUSE_NORMAL) },
             { assertEquals(1002, DecPrivateMode.MOUSE_BUTTON_EVENT) },
             { assertEquals(1003, DecPrivateMode.MOUSE_ANY_EVENT) },
+            { assertEquals(1004, DecPrivateMode.FOCUS_REPORTING) },
             { assertEquals(1005, DecPrivateMode.MOUSE_UTF8) },
             { assertEquals(1006, DecPrivateMode.MOUSE_SGR) },
             { assertEquals(1015, DecPrivateMode.MOUSE_URXVT) },
             { assertEquals(2004, DecPrivateMode.BRACKETED_PASTE) },
+            { assertEquals(2026, DecPrivateMode.SYNCHRONIZED_OUTPUT) },
         )
     }
 
