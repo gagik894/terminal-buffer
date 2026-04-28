@@ -35,7 +35,10 @@ enum class BackspacePolicy {
 }
 
 /**
- * Meta key handling for encodings that use legacy printable/control bytes.
+ * Meta key handling for legacy printable/control encodings.
+ *
+ * Special keys with xterm CSI modifier encodings may still encode Meta as
+ * modifier parameter 9.
  */
 enum class MetaKeyPolicy {
     /** Prefix the encoded key with ESC. */

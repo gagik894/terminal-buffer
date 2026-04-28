@@ -14,6 +14,11 @@ import com.gagik.terminal.protocol.host.TerminalHostOutput
  * The facade reads a coherent packed mode snapshot once per event and passes
  * that stable value to the specialized encoder for the event family.
  *
+ * Not thread-safe. Calls must be serialized by the terminal event loop.
+ *
+ * This is intentional: terminal-to-host byte ordering must be deterministic,
+ * and the encoder reuses one scratch buffer to avoid per-event allocation.
+ *
  * @param inputState read-only core mode state used for input decisions.
  * @param output host-bound byte sink.
  * @param policy policy for ambiguous or unsupported keyboard encodings.
