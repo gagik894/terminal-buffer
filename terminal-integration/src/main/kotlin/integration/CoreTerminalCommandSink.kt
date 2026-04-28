@@ -2,6 +2,7 @@ package com.gagik.integration
 
 import com.gagik.core.api.TerminalBufferApi
 import com.gagik.core.model.AttributeColor
+import com.gagik.core.model.UnderlineStyle
 import com.gagik.parser.spi.TerminalCommandSink
 import com.gagik.terminal.protocol.AnsiMode
 import com.gagik.terminal.protocol.DecPrivateMode
@@ -14,9 +15,6 @@ import com.gagik.terminal.protocol.MouseTrackingMode
  * The parser owns byte/protocol decoding. The core owns grid mutation, mode state,
  * cursor physics, and width policy. This adapter is the narrow place where ANSI/DEC
  * mode ids become concrete core API calls.
- *
- * TODO(core-gap): Core pen attributes do not yet model faint, blink, conceal, or
- * strikethrough. These SGR attributes are intentionally not faked here.
  */
 class CoreTerminalCommandSink(
     private val terminal: TerminalBufferApi,
@@ -35,10 +33,19 @@ class CoreTerminalCommandSink(
 
     private var foreground: AttributeColor = AttributeColor.DEFAULT
     private var background: AttributeColor = AttributeColor.DEFAULT
+    private var underlineColor: AttributeColor = AttributeColor.DEFAULT
     private var bold: Boolean = false
+    private var faint: Boolean = false
     private var italic: Boolean = false
-    private var underline: Boolean = false
+    private var underlineStyle: UnderlineStyle = UnderlineStyle.NONE
+    private var strikethrough: Boolean = false
+    private var overline: Boolean = false
+    private var blink: Boolean = false
     private var inverse: Boolean = false
+    private var conceal: Boolean = false
+    private var activeHyperlinkNumericId: Int = 0
+    private var nextHyperlinkNumericId: Int = 1
+    private val hyperlinkIds = HashMap<String, Int>()
 
     override fun writeCodepoint(codepoint: Int) {
         terminal.writeCodepoint(codepoint)
@@ -89,6 +96,11 @@ class CoreTerminalCommandSink(
     override fun resetTerminal() {
         terminal.reset()
         resetPenMirror()
+        activeHyperlinkUri = null
+        activeHyperlinkId = null
+        activeHyperlinkNumericId = 0
+        hyperlinkIds.clear()
+        nextHyperlinkNumericId = 1
     }
 
     override fun saveCursor() {
@@ -309,10 +321,16 @@ class CoreTerminalCommandSink(
     private fun resetPenMirror() {
         foreground = AttributeColor.DEFAULT
         background = AttributeColor.DEFAULT
+        underlineColor = AttributeColor.DEFAULT
         bold = false
+        faint = false
         italic = false
-        underline = false
+        underlineStyle = UnderlineStyle.NONE
+        strikethrough = false
+        overline = false
+        blink = false
         inverse = false
+        conceal = false
     }
 
     override fun setBold(enabled: Boolean) {
@@ -321,7 +339,8 @@ class CoreTerminalCommandSink(
     }
 
     override fun setFaint(enabled: Boolean) {
-        // TODO(core-gap): Add faint/dim intensity to core Attributes/Pen before wiring SGR 2/22.
+        faint = enabled
+        applyPen()
     }
 
     override fun setItalic(enabled: Boolean) {
@@ -330,12 +349,13 @@ class CoreTerminalCommandSink(
     }
 
     override fun setUnderlineStyle(style: Int) {
-        underline = style != 0
+        underlineStyle = UnderlineStyle.fromSgrCode(style) ?: return
         applyPen()
     }
 
     override fun setBlink(enabled: Boolean) {
-        // TODO(core-gap): Add blink presentation state to core Attributes/Pen before wiring SGR 5/6/25.
+        blink = enabled
+        applyPen()
     }
 
     override fun setInverse(enabled: Boolean) {
@@ -344,11 +364,18 @@ class CoreTerminalCommandSink(
     }
 
     override fun setConceal(enabled: Boolean) {
-        // TODO(core-gap): Add conceal/hidden cell attribute before wiring SGR 8/28.
+        conceal = enabled
+        applyPen()
     }
 
     override fun setStrikethrough(enabled: Boolean) {
-        // TODO(core-gap): Add strikethrough cell attribute before wiring SGR 9/29.
+        strikethrough = enabled
+        applyPen()
+    }
+
+    override fun setOverline(enabled: Boolean) {
+        overline = enabled
+        applyPen()
     }
 
     override fun setSelectiveEraseProtection(enabled: Boolean) {
@@ -365,6 +392,11 @@ class CoreTerminalCommandSink(
         applyPen()
     }
 
+    override fun setUnderlineColorDefault() {
+        underlineColor = AttributeColor.DEFAULT
+        applyPen()
+    }
+
     override fun setForegroundIndexed(index: Int) {
         if (index !in 0..255) return
         foreground = AttributeColor.indexed(index)
@@ -377,6 +409,12 @@ class CoreTerminalCommandSink(
         applyPen()
     }
 
+    override fun setUnderlineColorIndexed(index: Int) {
+        if (index !in 0..255) return
+        underlineColor = AttributeColor.indexed(index)
+        applyPen()
+    }
+
     override fun setForegroundRgb(red: Int, green: Int, blue: Int) {
         foreground = AttributeColor.rgb(red, green, blue)
         applyPen()
@@ -384,6 +422,11 @@ class CoreTerminalCommandSink(
 
     override fun setBackgroundRgb(red: Int, green: Int, blue: Int) {
         background = AttributeColor.rgb(red, green, blue)
+        applyPen()
+    }
+
+    override fun setUnderlineColorRgb(red: Int, green: Int, blue: Int) {
+        underlineColor = AttributeColor.rgb(red, green, blue)
         applyPen()
     }
 
@@ -403,11 +446,15 @@ class CoreTerminalCommandSink(
     override fun startHyperlink(uri: String, id: String?) {
         activeHyperlinkUri = uri
         activeHyperlinkId = id
+        activeHyperlinkNumericId = hyperlinkIdFor(uri, id)
+        terminal.setHyperlinkId(activeHyperlinkNumericId)
     }
 
     override fun endHyperlink() {
         activeHyperlinkUri = null
         activeHyperlinkId = null
+        activeHyperlinkNumericId = 0
+        terminal.setHyperlinkId(0)
     }
 
     private fun setMouseTrackingMode(
@@ -428,14 +475,25 @@ class CoreTerminalCommandSink(
         return if (stack.isEmpty()) null else stack.removeLast()
     }
 
+    private fun hyperlinkIdFor(uri: String, id: String?): Int {
+        val key = "${id ?: ""}\u0000$uri"
+        return hyperlinkIds.getOrPut(key) { nextHyperlinkNumericId++ }
+    }
+
     private fun applyPen() {
         terminal.setPenColors(
             foreground = foreground,
             background = background,
+            underlineColor = underlineColor,
             bold = bold,
+            faint = faint,
             italic = italic,
-            underline = underline,
+            underlineStyle = underlineStyle,
+            strikethrough = strikethrough,
+            overline = overline,
+            blink = blink,
             inverse = inverse,
+            conceal = conceal,
         )
     }
 

@@ -205,27 +205,31 @@ Missing:
 
 ### Pen and Attributes
 
-Current core attributes store default/indexed/RGB foreground/background, bold,
-italic, underline, inverse/reverse-video, and selective-erase protection.
+Current core attributes store default/indexed/RGB foreground/background,
+default/indexed/RGB underline color, bold, faint, italic, underline style,
+strikethrough, overline, blink, inverse/reverse-video, conceal, OSC 8
+hyperlink id, and selective-erase protection.
 
 Missing:
 
 - `DONE(core)`: 256-color indexed foreground/background storage.
 - `DONE(core)`: RGB/truecolor foreground/background storage.
 - `DONE(core)`: inverse/reverse-video cell attribute.
-- `TODO(core)`: faint/dim intensity.
-- `TODO(core)`: blink attribute.
-- `TODO(core)`: conceal/hidden attribute.
-- `TODO(core)`: strikethrough attribute.
-- `TODO(core)`: underline style beyond boolean underline:
+- `DONE(core/integration)`: faint/dim intensity.
+- `DONE(core/integration)`: blink attribute.
+- `DONE(core/integration)`: conceal/hidden attribute.
+- `DONE(core/integration)`: strikethrough attribute.
+- `DONE(core/integration)`: underline style beyond boolean underline:
   - none
   - single
   - double
   - curly
   - dotted
   - dashed
-  - underline color, if supported
-- `TODO(core)`: SGR overline.
+- `DONE(core/integration)`: SGR underline color via SGR 58/59.
+- `DONE(core/integration)`: SGR overline.
+- `DONE(core/integration)`: cell-level OSC 8 hyperlink id storage. Core stores
+  the numeric id; integration owns the URL/id pool for now.
 - `TODO(core)`: palette model for default, ANSI 16, 256-color, and RGB colors.
 - `TODO(core)`: renderer-facing effective color calculation with reverse video,
   bold-as-bright policy, and default color policy.
@@ -296,8 +300,8 @@ Missing:
 
 - `DONE(integration)`: parser SGR inverse, 256-color indexed, and RGB/truecolor
   attributes are mapped to core pen attributes without clamping.
-- `TODO(integration)`: map faint/blink/conceal/strikethrough only after core
-  exposes those attributes.
+- `DONE(integration)`: map faint, blink, conceal, strikethrough, overline,
+  underline style, and underline color SGR attributes to core pen storage.
 - `TODO(integration)`: map DECSTR only after core exposes a soft-reset API.
 - `TODO(integration)`: map alternate-screen `47` and `1047` only after core
   exposes their exact semantics.
@@ -305,7 +309,9 @@ Missing:
 - `DONE(integration)`: parser DECSLRM maps to core left/right margins.
 - `DONE(integration)`: parser DECSEL/DECSED/DECSCA map to core selective erase
   and protection commands.
-- `TODO(integration)`: decide whether OSC title/hyperlink state belongs in core,
+- `DONE(integration)`: OSC 8 active hyperlink metadata maps to core cell
+  hyperlink ids using an integration-owned URL/id pool.
+- `TODO(integration)`: decide whether OSC title state belongs in core,
   integration metadata, or a host callback interface.
 - `TODO(integration)`: add a host callback/event sink for bell, title, hyperlink,
   palette, mouse reports, and clipboard policy. Device responses currently use

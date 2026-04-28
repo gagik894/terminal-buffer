@@ -3,10 +3,11 @@ package com.gagik.integration
 import com.gagik.core.TerminalBuffers
 import com.gagik.core.api.TerminalBufferApi
 import com.gagik.core.model.AttributeColor
-import com.gagik.terminal.protocol.MouseEncodingMode
-import com.gagik.terminal.protocol.MouseTrackingMode
+import com.gagik.core.model.UnderlineStyle
 import com.gagik.parser.api.TerminalOutputParser
 import com.gagik.parser.api.TerminalParsers
+import com.gagik.terminal.protocol.MouseEncodingMode
+import com.gagik.terminal.protocol.MouseTrackingMode
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -313,7 +314,7 @@ class CoreTerminalCommandSinkTest {
         fun `SGR indexed color and styles update core pen attributes`() {
             val f = Fixture()
 
-            f.acceptAscii("\u001B[1;3;4;7;38;5;196;48;5;17mX")
+            f.acceptAscii("\u001B[1;2;3;4:3;5;7;8;9;53;38;5;196;48;5;17mX")
             f.end()
 
             val attr = f.terminal.getAttrAt(0, 0)
@@ -322,9 +323,33 @@ class CoreTerminalCommandSinkTest {
                 { assertEquals(AttributeColor.indexed(196), attr?.foreground) },
                 { assertEquals(AttributeColor.indexed(17), attr?.background) },
                 { assertEquals(true, attr?.bold) },
+                { assertEquals(true, attr?.faint) },
                 { assertEquals(true, attr?.italic) },
-                { assertEquals(true, attr?.underline) },
+                { assertEquals(UnderlineStyle.CURLY, attr?.underlineStyle) },
+                { assertEquals(true, attr?.blink) },
                 { assertEquals(true, attr?.inverse) },
+                { assertEquals(true, attr?.conceal) },
+                { assertEquals(true, attr?.strikethrough) },
+                { assertEquals(true, attr?.overline) },
+            )
+        }
+
+        @Test
+        fun `SGR underline color updates core extended pen attributes`() {
+            val f = Fixture()
+
+            f.acceptAscii("\u001B[58;2;1;2;3;4:5mX")
+            f.acceptAscii("\u001B[59;24mY")
+            f.end()
+
+            val first = f.terminal.getAttrAt(0, 0)
+            val second = f.terminal.getAttrAt(1, 0)
+
+            assertAll(
+                { assertEquals(AttributeColor.rgb(1, 2, 3), first?.underlineColor) },
+                { assertEquals(UnderlineStyle.DASHED, first?.underlineStyle) },
+                { assertEquals(AttributeColor.DEFAULT, second?.underlineColor) },
+                { assertEquals(UnderlineStyle.NONE, second?.underlineStyle) },
             )
         }
 
@@ -432,11 +457,16 @@ class CoreTerminalCommandSinkTest {
                 { assertEquals("abc", f.sink.activeHyperlinkId) },
             )
 
+            f.acceptAscii("L")
             f.acceptAscii("\u001B]8;;\u001B\\")
+            f.acceptAscii("N")
+            f.end()
 
             assertAll(
                 { assertNull(f.sink.activeHyperlinkUri) },
                 { assertNull(f.sink.activeHyperlinkId) },
+                { assertEquals(1, f.terminal.getAttrAt(0, 0)?.hyperlinkId) },
+                { assertEquals(0, f.terminal.getAttrAt(1, 0)?.hyperlinkId) },
             )
         }
 
