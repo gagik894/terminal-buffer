@@ -63,6 +63,18 @@ missing, intentionally deferred, and policy-gated features.
   classification.
 - Avoid broad refactors while adding protocol behavior. Tight changes are
   easier to verify and safer for terminal semantics.
+- Keep comments and KDoc current. All public classes, interfaces, methods,
+  properties, enum values, and public data models should have useful KDoc that
+  explains the contract, parameters, return values, ownership, and important
+  terminal semantics. Internal/private comments are welcome only when they
+  clarify non-obvious invariants, hot-path tradeoffs, protocol rules, or safety
+  constraints.
+- Remove stale, misleading, deprecated, or compatibility-only comments and APIs
+  instead of preserving legacy wording. This is a new product, so do not carry
+  deprecated surfaces or old behavior notes unless the product explicitly needs
+  a migration path.
+- Avoid noise comments that merely restate the code. Prefer no comment over a
+  comment that can become wrong without adding meaning.
 
 ## Testing Doctrine
 
