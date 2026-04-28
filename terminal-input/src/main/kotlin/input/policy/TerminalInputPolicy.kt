@@ -11,13 +11,11 @@ package com.gagik.terminal.input.policy
  * @property metaKeyPolicy handling for Meta-only printable and legacy key
  * encodings.
  * @property unsupportedModifiedKeyPolicy handling for valid key events whose
- * modifier combination has no supported encoding in this baseline protocol.
+ * modifier combination has no supported encoding in the active protocol set.
  * @property altSendsEscapePrefix when true, Alt prefixes applicable legacy
  * encodings with ESC.
  * @property mouseCoordinateLimitPolicy handling for legacy mouse coordinates
  * outside the bounded `ESC [ M` byte range.
- * @property legacyMouseEncodingPolicy handling for UTF-8 and URXVT mouse modes
- * that are not implemented by this baseline encoder.
  */
 data class TerminalInputPolicy(
     val backspacePolicy: BackspacePolicy = BackspacePolicy.DELETE,
@@ -27,8 +25,6 @@ data class TerminalInputPolicy(
     val altSendsEscapePrefix: Boolean = true,
     val mouseCoordinateLimitPolicy: MouseCoordinateLimitPolicy =
         MouseCoordinateLimitPolicy.SUPPRESS_OUT_OF_RANGE,
-    val legacyMouseEncodingPolicy: LegacyMouseEncodingPolicy =
-        LegacyMouseEncodingPolicy.SUPPRESS_UNSUPPORTED,
 )
 
 /**
@@ -79,15 +75,4 @@ enum class MouseCoordinateLimitPolicy {
 
     /** Clamp events whose one-based coordinate is greater than 223 to 223. */
     CLAMP_TO_MAX,
-}
-
-/**
- * Policy for mouse encoding modes not directly implemented by this baseline.
- */
-enum class LegacyMouseEncodingPolicy {
-    /** UTF-8 and URXVT mouse encodings are suppressed until explicitly implemented. */
-    SUPPRESS_UNSUPPORTED,
-
-    /** UTF-8 and URXVT mode fall back to bounded legacy `ESC [ M` encoding. */
-    EMIT_X10_COMPATIBLE,
 }

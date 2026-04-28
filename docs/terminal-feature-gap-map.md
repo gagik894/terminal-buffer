@@ -343,19 +343,19 @@ host-bound byte sink.
 
 Missing:
 
-- `DONE(input)`: keyboard encoding baseline for printable Unicode scalars,
+- `DONE(input)`: keyboard encoding for printable Unicode scalars,
   Ctrl/Alt combinations, normal and application cursor-key modes, navigation
   keys, function keys, and numeric/application keypad modes.
 - `DONE(input)`: bracketed paste wrapping reads core mode bits once per event
   and emits `CSI 200~` / `CSI 201~` wrappers when enabled.
 - `DONE(input)`: focus in/out reports read core mode bits once per event and
   emit `CSI I` / `CSI O` only when focus reporting is enabled.
-- `DONE(input)`: mouse report encoding baseline:
+- `DONE(input)`: mouse report encoding:
   - X10, normal, button-event, and any-event tracking suppression rules
   - SGR mouse encoding, including button-preserving lowercase-`m` releases
   - bounded legacy `ESC [ M` encoding with explicit coordinate-limit policy
-  - UTF-8 and URXVT mouse modes are suppressed by default, with an explicit
-    policy fallback to bounded legacy encoding
+  - UTF-8 extended mouse encoding (`?1005`) up to xterm's coordinate limit
+  - URXVT mouse encoding (`?1015`)
 - `TODO(input)`: modifier encoding:
   - xterm modifyOtherKeys
   - CSI u
@@ -363,8 +363,11 @@ Missing:
 - `TODO(input)`: Kitty Keyboard Protocol. This is becoming a modern standard for
   disambiguating keys that legacy encodings collapse, such as Shift+Enter versus
   Enter or Ctrl+I versus Tab.
-- `TODO(input)`: true UTF-8 and URXVT mouse encodings if compatibility needs
-  them; the current policy-gated fallback intentionally remains legacy-bounded.
+- `TODO(input)`: SGR-Pixels mouse mode (`?1016`) if renderer/UI integration
+  provides pixel-coordinate mouse events.
+- `TODO(parser/core/input)`: xterm highlight mouse tracking (`?1001`) if full
+  xterm mouse parity is required; it needs a distinct interaction contract
+  rather than simple cell-coordinate event forwarding.
 - `TODO(input)`: paste sanitization policy.
 - `TODO(input)`: terminal-to-host response queue integration for keyboard,
   mouse, focus, and paste reports, shared with parser/core query responses.

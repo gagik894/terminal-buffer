@@ -5,7 +5,6 @@ import com.gagik.terminal.input.event.TerminalModifiers
 import com.gagik.terminal.input.event.TerminalMouseButton
 import com.gagik.terminal.input.event.TerminalMouseEvent
 import com.gagik.terminal.input.event.TerminalMouseEventType
-import com.gagik.terminal.input.policy.LegacyMouseEncodingPolicy
 import com.gagik.terminal.input.policy.MouseCoordinateLimitPolicy
 import com.gagik.terminal.input.policy.TerminalInputPolicy
 import com.gagik.terminal.protocol.host.TerminalHostOutput
@@ -28,15 +27,9 @@ internal class MouseEncoder(
 
             MouseEncodingMode.DEFAULT -> encodeLegacyDefault(event)
 
-            MouseEncodingMode.UTF8,
-            MouseEncodingMode.URXVT -> {
-                if (
-                    policy.legacyMouseEncodingPolicy ==
-                    LegacyMouseEncodingPolicy.EMIT_X10_COMPATIBLE
-                ) {
-                    encodeLegacyDefault(event)
-                }
-            }
+            MouseEncodingMode.UTF8 -> encodeUtf8Extended(event)
+
+            MouseEncodingMode.URXVT -> encodeUrxvt(event)
         }
     }
 
@@ -90,6 +83,54 @@ internal class MouseEncoder(
         scratch.appendByte(
             if (event.type == TerminalMouseEventType.RELEASE) 'm'.code else 'M'.code,
         )
+        scratch.writeTo(output)
+    }
+
+    private fun encodeUtf8Extended(event: TerminalMouseEvent) {
+        val x = oneBasedCoordinate(event.column)
+        val y = oneBasedCoordinate(event.row)
+
+        if (x > UTF8_MAX_COORDINATE || y > UTF8_MAX_COORDINATE) {
+            return
+        }
+
+        val cb = mouseButtonCode(event, legacyRelease = true)
+        if (cb < 0) {
+            return
+        }
+
+        val encodedButton = 32 + cb
+        val encodedX = 32 + x
+        val encodedY = 32 + y
+
+        scratch.clear()
+        scratch.appendByte(ESC)
+        scratch.appendByte('['.code)
+        scratch.appendByte('M'.code)
+        appendUtf8Scalar(encodedButton)
+        appendUtf8Scalar(encodedX)
+        appendUtf8Scalar(encodedY)
+        scratch.writeTo(output)
+    }
+
+    private fun encodeUrxvt(event: TerminalMouseEvent) {
+        val x = oneBasedCoordinate(event.column)
+        val y = oneBasedCoordinate(event.row)
+
+        val cb = mouseButtonCode(event, legacyRelease = true)
+        if (cb < 0) {
+            return
+        }
+
+        scratch.clear()
+        scratch.appendByte(ESC)
+        scratch.appendByte('['.code)
+        scratch.appendDecimal(32 + cb)
+        scratch.appendByte(';'.code)
+        scratch.appendDecimal(x)
+        scratch.appendByte(';'.code)
+        scratch.appendDecimal(y)
+        scratch.appendByte('M'.code)
         scratch.writeTo(output)
     }
 
@@ -199,8 +240,33 @@ internal class MouseEncoder(
         }
     }
 
+    private fun appendUtf8Scalar(codepoint: Int) {
+        when {
+            codepoint <= 0x7f -> scratch.appendByte(codepoint)
+
+            codepoint <= 0x7ff -> {
+                scratch.appendByte(0xc0 or (codepoint shr 6))
+                scratch.appendByte(0x80 or (codepoint and 0x3f))
+            }
+
+            codepoint <= 0xffff -> {
+                scratch.appendByte(0xe0 or (codepoint shr 12))
+                scratch.appendByte(0x80 or ((codepoint shr 6) and 0x3f))
+                scratch.appendByte(0x80 or (codepoint and 0x3f))
+            }
+
+            else -> {
+                scratch.appendByte(0xf0 or (codepoint shr 18))
+                scratch.appendByte(0x80 or ((codepoint shr 12) and 0x3f))
+                scratch.appendByte(0x80 or ((codepoint shr 6) and 0x3f))
+                scratch.appendByte(0x80 or (codepoint and 0x3f))
+            }
+        }
+    }
+
     private companion object {
         private const val ESC: Int = 0x1b
         private const val LEGACY_MAX_COORDINATE: Int = 223
+        private const val UTF8_MAX_COORDINATE: Int = 2015
     }
 }

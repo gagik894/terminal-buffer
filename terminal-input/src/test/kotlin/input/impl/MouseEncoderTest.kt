@@ -5,7 +5,6 @@ import com.gagik.terminal.input.event.TerminalModifiers
 import com.gagik.terminal.input.event.TerminalMouseButton
 import com.gagik.terminal.input.event.TerminalMouseEvent
 import com.gagik.terminal.input.event.TerminalMouseEventType
-import com.gagik.terminal.input.policy.LegacyMouseEncodingPolicy
 import com.gagik.terminal.input.policy.MouseCoordinateLimitPolicy
 import com.gagik.terminal.input.policy.TerminalInputPolicy
 import com.gagik.terminal.protocol.host.TerminalHostOutput
@@ -183,28 +182,57 @@ class MouseEncoderTest {
     }
 
     @Test
-    fun `suppresses UTF8 and URXVT modes by default`() {
-        assertMouseBytes(bytes(), press(), encoding = MouseEncodingMode.UTF8)
-        assertMouseBytes(bytes(), press(), encoding = MouseEncodingMode.URXVT)
-    }
-
-    @Test
-    fun `falls back from UTF8 and URXVT modes to legacy only by policy`() {
-        val policy = TerminalInputPolicy(
-            legacyMouseEncodingPolicy = LegacyMouseEncodingPolicy.EMIT_X10_COMPATIBLE,
-        )
-
+    fun `encodes UTF8 extended mouse mode`() {
         assertMouseBytes(
             esc("[M") + bytes(32, 33, 33),
             press(),
             encoding = MouseEncodingMode.UTF8,
-            policy = policy,
         )
         assertMouseBytes(
-            esc("[M") + bytes(32, 33, 33),
+            esc("[M") + utf8Scalars(32, 2047, 2047),
+            press(column = 2014, row = 2014),
+            encoding = MouseEncodingMode.UTF8,
+        )
+        assertMouseBytes(
+            bytes(),
+            press(column = 2015, row = 2015),
+            encoding = MouseEncodingMode.UTF8,
+        )
+        assertMouseBytes(
+            esc("[M") + bytes(35, 33, 33),
+            release(TerminalMouseButton.LEFT),
+            encoding = MouseEncodingMode.UTF8,
+        )
+        assertMouseBytes(
+            esc("[M") + bytes(96, 33, 33),
+            wheel(TerminalMouseButton.WHEEL_UP),
+            tracking = MouseTrackingMode.NORMAL,
+            encoding = MouseEncodingMode.UTF8,
+        )
+    }
+
+    @Test
+    fun `encodes URXVT mouse mode`() {
+        assertMouseBytes(
+            esc("[32;1;1M"),
             press(),
             encoding = MouseEncodingMode.URXVT,
-            policy = policy,
+        )
+        assertMouseBytes(
+            esc("[35;1;1M"),
+            release(TerminalMouseButton.LEFT),
+            encoding = MouseEncodingMode.URXVT,
+        )
+        assertMouseBytes(
+            esc("[96;3;4M"),
+            wheel(TerminalMouseButton.WHEEL_UP, column = 2, row = 3),
+            tracking = MouseTrackingMode.NORMAL,
+            encoding = MouseEncodingMode.URXVT,
+        )
+        assertMouseBytes(
+            esc("[32;5000;6000M"),
+            press(column = 4999, row = 5999),
+            encoding = MouseEncodingMode.URXVT,
         )
     }
 
@@ -283,6 +311,37 @@ class MouseEncoderTest {
             i++
         }
         return bytes
+    }
+
+    private fun utf8Scalars(vararg values: Int): ByteArray {
+        var bytes = ByteArray(0)
+        var i = 0
+        while (i < values.size) {
+            bytes += utf8Scalar(values[i])
+            i++
+        }
+        return bytes
+    }
+
+    private fun utf8Scalar(value: Int): ByteArray {
+        return when {
+            value <= 0x7f -> bytes(value)
+            value <= 0x7ff -> bytes(
+                0xc0 or (value shr 6),
+                0x80 or (value and 0x3f),
+            )
+            value <= 0xffff -> bytes(
+                0xe0 or (value shr 12),
+                0x80 or ((value shr 6) and 0x3f),
+                0x80 or (value and 0x3f),
+            )
+            else -> bytes(
+                0xf0 or (value shr 18),
+                0x80 or ((value shr 12) and 0x3f),
+                0x80 or ((value shr 6) and 0x3f),
+                0x80 or (value and 0x3f),
+            )
+        }
     }
 
     private class RecordingHostOutput : TerminalHostOutput {

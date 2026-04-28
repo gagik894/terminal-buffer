@@ -4,9 +4,9 @@
 paste, focus, and later mouse events into bytes written to the terminal host
 input stream.
 
-Keyboard, paste, and focus encoding are implemented. Mouse encoding and richer
-keyboard protocols remain future milestones. Follow the staged plan in
-`docs/terminal-input-implementation-plan.md` when extending behavior.
+Keyboard, paste, focus, and cell-coordinate mouse encoding are implemented.
+Richer keyboard protocols and pixel-coordinate mouse reporting remain future
+work.
 
 ## Boundary
 
@@ -14,7 +14,7 @@ Input owns:
 
 - keyboard event vocabulary and encoding.
 - paste and focus report encoding.
-- future mouse report encoding.
+- mouse report encoding.
 - allocation-conscious scratch buffers for generated input sequences.
 
 Input must not:
@@ -49,7 +49,8 @@ on `:terminal-core` until that API split exists.
 - Do not decode mode bit positions in `:terminal-input`; use core API helpers.
 - Do not allocate arrays or strings for generated CSI/SS3 sequences on the hot
   path.
-- Keep mouse deferred until keyboard, paste, and focus are implemented and green.
+- Keep new protocol work layered behind explicit event vocabulary, policy, and
+  core mode helpers.
 
 ## Testing
 
