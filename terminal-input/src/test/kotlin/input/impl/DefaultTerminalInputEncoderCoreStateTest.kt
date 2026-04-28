@@ -77,6 +77,40 @@ class DefaultTerminalInputEncoderCoreStateTest {
         assertArrayEquals(esc("[I") + esc("[O"), output.bytes)
     }
 
+    @Test
+    fun `uses fresh core mode bits across consecutive mixed events`() {
+        val terminal = TerminalBuffers.create(width = 4, height = 2)
+        val output = RecordingHostOutput()
+        val encoder = DefaultTerminalInputEncoder(terminal, output)
+
+        encoder.encodeKey(TerminalKeyEvent.key(TerminalKey.UP))
+        terminal.setApplicationCursorKeys(true)
+        encoder.encodeKey(TerminalKeyEvent.key(TerminalKey.UP))
+        encoder.encodePaste(TerminalPasteEvent("a"))
+        terminal.setBracketedPasteEnabled(true)
+        encoder.encodePaste(TerminalPasteEvent("b"))
+        encoder.encodeFocus(TerminalFocusEvent(focused = true))
+        terminal.setFocusReportingEnabled(true)
+        encoder.encodeFocus(TerminalFocusEvent(focused = true))
+        terminal.setApplicationKeypad(true)
+        encoder.encodeKey(TerminalKeyEvent.key(TerminalKey.NUMPAD_1))
+        terminal.setNewLineMode(true)
+        encoder.encodeKey(TerminalKeyEvent.key(TerminalKey.ENTER))
+
+        assertArrayEquals(
+            esc("[A") +
+                esc("OA") +
+                "a".encodeToByteArray() +
+                esc("[200~") +
+                "b".encodeToByteArray() +
+                esc("[201~") +
+                esc("[I") +
+                esc("Oq") +
+                byteArrayOf(0x0d, 0x0a),
+            output.bytes,
+        )
+    }
+
     private fun esc(textAfterEsc: String): ByteArray {
         return byteArrayOf(0x1b) + textAfterEsc.encodeToByteArray()
     }

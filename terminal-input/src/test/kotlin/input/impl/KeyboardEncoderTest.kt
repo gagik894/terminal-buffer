@@ -18,10 +18,23 @@ class KeyboardEncoderTest {
     }
 
     @Test
+    fun `encodes UTF-8 boundary codepoints`() {
+        assertBytes(bytes(0x7f), TerminalKeyEvent.codepoint(0x007f))
+        assertBytes(bytes(0xc2, 0x80), TerminalKeyEvent.codepoint(0x0080))
+        assertBytes(bytes(0xdf, 0xbf), TerminalKeyEvent.codepoint(0x07ff))
+        assertBytes(bytes(0xe0, 0xa0, 0x80), TerminalKeyEvent.codepoint(0x0800))
+        assertBytes(bytes(0xef, 0xbf, 0xbf), TerminalKeyEvent.codepoint(0xffff))
+        assertBytes(bytes(0xf0, 0x90, 0x80, 0x80), TerminalKeyEvent.codepoint(0x10000))
+        assertBytes(bytes(0xf4, 0x8f, 0xbf, 0xbf), TerminalKeyEvent.codepoint(0x10ffff))
+    }
+
+    @Test
     fun `encodes Alt and Ctrl printable combinations`() {
         assertBytes(bytes(0x1b, 0x61), TerminalKeyEvent.codepoint('a'.code, TerminalModifiers.ALT))
         assertBytes(bytes(0x01), TerminalKeyEvent.codepoint('a'.code, TerminalModifiers.CTRL))
         assertBytes(bytes(0x1a), TerminalKeyEvent.codepoint('z'.code, TerminalModifiers.CTRL))
+        assertBytes(bytes(0x00), TerminalKeyEvent.codepoint('@'.code, TerminalModifiers.CTRL))
+        assertBytes(bytes(0x00), TerminalKeyEvent.codepoint(' '.code, TerminalModifiers.CTRL))
         assertBytes(bytes(0x1b), TerminalKeyEvent.codepoint('['.code, TerminalModifiers.CTRL))
         assertBytes(bytes(0x1c), TerminalKeyEvent.codepoint('\\'.code, TerminalModifiers.CTRL))
         assertBytes(bytes(0x1d), TerminalKeyEvent.codepoint(']'.code, TerminalModifiers.CTRL))
@@ -29,6 +42,12 @@ class KeyboardEncoderTest {
         assertBytes(bytes(0x1f), TerminalKeyEvent.codepoint('_'.code, TerminalModifiers.CTRL))
         assertBytes(bytes(0x7f), TerminalKeyEvent.codepoint('?'.code, TerminalModifiers.CTRL))
         assertBytes(bytes(0x1b, 0x01), TerminalKeyEvent.codepoint('a'.code, TerminalModifiers.CTRL or TerminalModifiers.ALT))
+    }
+
+    @Test
+    fun `Ctrl on unmappable printable input falls back to UTF-8`() {
+        assertBytes(bytes(0xc3, 0xa9), TerminalKeyEvent.codepoint(0x00e9, TerminalModifiers.CTRL))
+        assertBytes(bytes(0x1b, 0xc3, 0xa9), TerminalKeyEvent.codepoint(0x00e9, TerminalModifiers.CTRL or TerminalModifiers.ALT))
     }
 
     @Test
@@ -58,6 +77,8 @@ class KeyboardEncoderTest {
     fun `encodes modified cursor keys as CSI modifier finals`() {
         assertBytes(esc("[1;5A"), TerminalKeyEvent.key(TerminalKey.UP, TerminalModifiers.CTRL))
         assertBytes(esc("[1;4A"), TerminalKeyEvent.key(TerminalKey.UP, TerminalModifiers.SHIFT or TerminalModifiers.ALT))
+        assertBytes(esc("[1;9A"), TerminalKeyEvent.key(TerminalKey.UP, TerminalModifiers.META))
+        assertBytes(esc("[1;10A"), TerminalKeyEvent.key(TerminalKey.UP, TerminalModifiers.SHIFT or TerminalModifiers.META))
     }
 
     @Test
@@ -66,6 +87,13 @@ class KeyboardEncoderTest {
         assertBytes(esc("[F"), TerminalKeyEvent.key(TerminalKey.END))
         assertBytes(esc("OH"), TerminalKeyEvent.key(TerminalKey.HOME), TerminalModeBits.APPLICATION_CURSOR_KEYS)
         assertBytes(esc("OF"), TerminalKeyEvent.key(TerminalKey.END), TerminalModeBits.APPLICATION_CURSOR_KEYS)
+    }
+
+    @Test
+    fun `encodes modified home and end keys as CSI modifier finals`() {
+        assertBytes(esc("[1;5H"), TerminalKeyEvent.key(TerminalKey.HOME, TerminalModifiers.CTRL))
+        assertBytes(esc("[1;4F"), TerminalKeyEvent.key(TerminalKey.END, TerminalModifiers.SHIFT or TerminalModifiers.ALT))
+        assertBytes(esc("[1;9H"), TerminalKeyEvent.key(TerminalKey.HOME, TerminalModifiers.META))
     }
 
     @Test
@@ -86,6 +114,14 @@ class KeyboardEncoderTest {
         assertBytes(esc("[15~"), TerminalKeyEvent.key(TerminalKey.F5))
         assertBytes(esc("[24~"), TerminalKeyEvent.key(TerminalKey.F12))
         assertBytes(esc("[1;5P"), TerminalKeyEvent.key(TerminalKey.F1, TerminalModifiers.CTRL))
+        assertBytes(esc("[15;5~"), TerminalKeyEvent.key(TerminalKey.F5, TerminalModifiers.CTRL))
+        assertBytes(esc("[24;9~"), TerminalKeyEvent.key(TerminalKey.F12, TerminalModifiers.META))
+    }
+
+    @Test
+    fun `encodes modified tab variants`() {
+        assertBytes(esc("[1;5Z"), TerminalKeyEvent.key(TerminalKey.TAB, TerminalModifiers.CTRL))
+        assertBytes(esc("[1;9Z"), TerminalKeyEvent.key(TerminalKey.TAB, TerminalModifiers.META))
     }
 
     @Test
@@ -105,6 +141,8 @@ class KeyboardEncoderTest {
         assertBytes(ascii("*"), TerminalKeyEvent.key(TerminalKey.NUMPAD_MULTIPLY))
         assertBytes(ascii("-"), TerminalKeyEvent.key(TerminalKey.NUMPAD_SUBTRACT))
         assertBytes(ascii("+"), TerminalKeyEvent.key(TerminalKey.NUMPAD_ADD))
+        assertBytes(bytes(0x0d), TerminalKeyEvent.key(TerminalKey.NUMPAD_ENTER))
+        assertBytes(bytes(0x0d, 0x0a), TerminalKeyEvent.key(TerminalKey.NUMPAD_ENTER), TerminalModeBits.NEW_LINE_MODE)
     }
 
     @Test
