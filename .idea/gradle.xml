@@ -9,6 +9,7 @@
           <set>
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/terminal-core" />
+            <option value="$PROJECT_DIR$/terminal-input" />
             <option value="$PROJECT_DIR$/terminal-integration" />
             <option value="$PROJECT_DIR$/terminal-parser" />
             <option value="$PROJECT_DIR$/terminal-protocol" />

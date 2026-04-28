@@ -335,12 +335,16 @@ Missing:
 
 ## Input Module Gaps
 
-There is no production `:terminal-input` module yet.
+There is no production `:terminal-input` implementation yet.
 Shared protocol vocabulary for the future input encoder lives in
 `:terminal-protocol`, including control-code constants, ANSI/DEC mode ids, and
 mouse mode enums. Core now exposes typed and packed durable mode snapshots for
 input-readable state. Input should depend on `:terminal-protocol` and core mode
 snapshots, not parser internals.
+
+The `:terminal-input` module is scaffolded, but encoder behavior is not
+implemented yet. Its staged plan lives in
+`terminal-input/docs/terminal-input-implementation-plan.md`.
 
 Missing:
 
