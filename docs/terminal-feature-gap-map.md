@@ -248,6 +248,10 @@ Missing:
 
 ### Reset and Mode Semantics
 
+- `DONE(core)`: durable mode flags used by input/render decisions are stored in
+  a single atomic packed word. Core exposes both a typed mode snapshot and an
+  opaque packed snapshot without making grid, cursor, or history state
+  multi-reader.
 - `DONE(core/integration)`: DECSTR soft reset API. `CSI ! p` now routes to a
   core soft reset that preserves visible content, scrollback, tab stops,
   dimensions, and active screen selection while resetting soft mode/write state,
@@ -334,7 +338,8 @@ Missing:
 There is no production `:terminal-input` module yet.
 Shared protocol vocabulary for the future input encoder lives in
 `:terminal-protocol`, including control-code constants, ANSI/DEC mode ids, and
-mouse mode enums. Input should depend on `:terminal-protocol` and core mode
+mouse mode enums. Core now exposes typed and packed durable mode snapshots for
+input-readable state. Input should depend on `:terminal-protocol` and core mode
 snapshots, not parser internals.
 
 Missing:

@@ -83,16 +83,7 @@ internal class TerminalBuffer private constructor(
     override fun softReset() {
         state.pen.reset()
 
-        val modes = state.modes
-        modes.isInsertMode = false
-        modes.isApplicationCursorKeys = false
-        modes.isApplicationKeypad = false
-        modes.isOriginMode = false
-        modes.isAutoWrap = true
-        modes.isLeftRightMarginMode = false
-        modes.isCursorVisible = true
-        modes.isCursorBlinking = false
-        modes.modifyOtherKeysMode = 0
+        state.modes.softReset()
 
         state.primaryBuffer.resetScrollRegion(state.dimensions.height)
         state.altBuffer.resetScrollRegion(state.dimensions.height)

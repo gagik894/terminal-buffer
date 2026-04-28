@@ -37,6 +37,7 @@ class TerminalModeReaderTest {
     @Test
     fun `reflects changes without leaking mutability`() {
         val buffer = TerminalBuffers.create(width = 4, height = 3, maxHistory = 2)
+        val beforeBits = buffer.getModeBitsSnapshot()
         val before = buffer.getModeSnapshot()
 
         buffer.setNewLineMode(true)
@@ -50,9 +51,11 @@ class TerminalModeReaderTest {
         buffer.setCursorVisible(false)
         buffer.setCursorBlinking(true)
 
+        val afterBits = buffer.getModeBitsSnapshot()
         val after = buffer.getModeSnapshot()
 
         assertAll(
+            { assertNotEquals(beforeBits, afterBits) },
             { assertFalse(before.isNewLineMode) },
             { assertFalse(before.isApplicationKeypad) },
             { assertEquals(MouseTrackingMode.OFF, before.mouseTrackingMode) },

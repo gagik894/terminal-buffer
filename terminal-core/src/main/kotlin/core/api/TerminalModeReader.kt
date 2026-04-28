@@ -38,6 +38,15 @@ data class TerminalModeSnapshot(
  */
 interface TerminalModeReader {
 
+    /**
+     * Returns one atomic packed snapshot of durable mode state.
+     *
+     * The current bit layout is owned by core and should be treated as opaque
+     * outside optimized input/render handoff code. General callers should
+     * prefer [getModeSnapshot].
+     */
+    fun getModeBitsSnapshot(): Long
+
     /** Returns an immutable snapshot of the current durable mode flags. */
     fun getModeSnapshot(): TerminalModeSnapshot
 }
