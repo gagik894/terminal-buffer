@@ -471,6 +471,27 @@ class CoreTerminalCommandSinkTest {
         }
 
         @Test
+        fun `OSC hyperlink ids are bounded and do not overflow`() {
+            val f = Fixture(terminal = TerminalBuffers.create(width = 3, height = 1))
+
+            repeat(4096) { index ->
+                f.sink.startHyperlink(uri = "https://example.com/$index", id = null)
+            }
+
+            f.sink.writeCodepoint('A'.code)
+            f.sink.startHyperlink(uri = "https://example.com/overflow", id = null)
+            f.sink.writeCodepoint('B'.code)
+            f.sink.startHyperlink(uri = "https://example.com/0", id = null)
+            f.sink.writeCodepoint('C'.code)
+
+            assertAll(
+                { assertEquals(4096, f.terminal.getAttrAt(0, 0)?.hyperlinkId) },
+                { assertEquals(0, f.terminal.getAttrAt(1, 0)?.hyperlinkId) },
+                { assertEquals(1, f.terminal.getAttrAt(2, 0)?.hyperlinkId) },
+            )
+        }
+
+        @Test
         fun `xterm title stack push and pop restores icon and window titles`() {
             val f = Fixture()
 

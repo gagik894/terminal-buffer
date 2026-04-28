@@ -477,7 +477,13 @@ class CoreTerminalCommandSink(
 
     private fun hyperlinkIdFor(uri: String, id: String?): Int {
         val key = "${id ?: ""}\u0000$uri"
-        return hyperlinkIds.getOrPut(key) { nextHyperlinkNumericId++ }
+        hyperlinkIds[key]?.let { return it }
+        if (hyperlinkIds.size == MAX_HYPERLINK_IDS) return NO_HYPERLINK_ID
+
+        val numericId = nextHyperlinkNumericId
+        hyperlinkIds[key] = numericId
+        nextHyperlinkNumericId++
+        return numericId
     }
 
     private fun applyPen() {
@@ -498,6 +504,8 @@ class CoreTerminalCommandSink(
     }
 
     private companion object {
+        const val NO_HYPERLINK_ID: Int = 0
+        const val MAX_HYPERLINK_IDS: Int = 4096
         const val MAX_TITLE_STACK_DEPTH: Int = 16
     }
 }
