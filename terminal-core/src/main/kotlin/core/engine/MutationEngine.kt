@@ -35,6 +35,7 @@ internal class MutationEngine(
     private val leftMargin: Int get() = state.effectiveLeftMargin
     private val rightMargin: Int get() = state.effectiveRightMargin
     private val blankAttr: Long get() = state.pen.blankAttr
+    private val blankExtendedAttr: Long get() = state.pen.blankExtendedAttr
     private var clusterScratch = IntArray(16)
 
     /**
@@ -70,14 +71,14 @@ internal class MutationEngine(
 
         if (state.isFullViewportScroll) {
             repeat(n) {
-                state.ring.push().clear(blankAttr)
+                state.ring.push().clear(blankAttr, blankExtendedAttr)
             }
         } else {
             val absTop = state.resolveRingIndex(top)
             val absBottom = state.resolveRingIndex(bottom)
             repeat(n) {
                 state.ring.rotateUp(absTop, absBottom)
-                state.ring[absBottom].clear(blankAttr)
+                state.ring[absBottom].clear(blankAttr, blankExtendedAttr)
             }
         }
     }
@@ -98,7 +99,7 @@ internal class MutationEngine(
         val absBottom = state.resolveRingIndex(bottom)
         repeat(n) {
             state.ring.rotateDown(absTop, absBottom)
-            state.ring[absTop].clear(blankAttr)
+            state.ring[absTop].clear(blankAttr, blankExtendedAttr)
         }
     }
 
@@ -163,19 +164,20 @@ internal class MutationEngine(
         val start = findClusterStart(line, col)
         val raw = line.rawCodepoint(start)
         val attr = blankAttr
+        val extendedAttr = blankExtendedAttr
 
         if (raw == TerminalConstants.WIDE_CHAR_SPACER) {
-            line.setCell(start, TerminalConstants.EMPTY, attr)
+            line.setCell(start, TerminalConstants.EMPTY, attr, extendedAttr)
             return
         }
 
         if (start + 1 < width && line.rawCodepoint(start + 1) == TerminalConstants.WIDE_CHAR_SPACER) {
-            line.setCell(start, TerminalConstants.EMPTY, attr)
-            line.setCell(start + 1, TerminalConstants.EMPTY, attr)
+            line.setCell(start, TerminalConstants.EMPTY, attr, extendedAttr)
+            line.setCell(start + 1, TerminalConstants.EMPTY, attr, extendedAttr)
             return
         }
 
-        line.setCell(start, TerminalConstants.EMPTY, attr)
+        line.setCell(start, TerminalConstants.EMPTY, attr, extendedAttr)
     }
 
     /**
@@ -189,15 +191,16 @@ internal class MutationEngine(
         for (col in left..right) {
             val raw = src.rawCodepoint(col)
             val attr = src.getPackedAttr(col)
+            val extendedAttr = src.getPackedExtendedAttr(col)
             if (raw <= TerminalConstants.CLUSTER_HANDLE_MAX) {
                 val cpLen = src.store.length(raw)
                 if (clusterScratch.size < cpLen) {
                     clusterScratch = IntArray(cpLen)
                 }
                 src.store.readInto(raw, clusterScratch, 0)
-                dest.setCluster(col, clusterScratch, cpLen, attr)
+                dest.setCluster(col, clusterScratch, cpLen, attr, extendedAttr)
             } else {
-                dest.setCell(col, raw, attr)
+                dest.setCell(col, raw, attr, extendedAttr)
             }
         }
     }
@@ -239,7 +242,7 @@ internal class MutationEngine(
             val start = findClusterStart(line, col).coerceIn(0, width - 1)
             val next = occupantEndExclusive(line, start)
             if (!isProtectedOccupant(line, start)) {
-                line.clearRange(start, minOf(next, width), blankAttr)
+                line.clearRange(start, minOf(next, width), blankAttr, blankExtendedAttr)
             }
             col = maxOf(col + 1, next)
         }
@@ -264,7 +267,7 @@ internal class MutationEngine(
         while (col < to) {
             val start = findClusterStart(line, col).coerceIn(0, width - 1)
             val next = occupantEndExclusive(line, start)
-            line.clearRange(start, minOf(next, width), blankAttr)
+            line.clearRange(start, minOf(next, width), blankAttr, blankExtendedAttr)
             col = maxOf(col + 1, next)
         }
     }
@@ -310,7 +313,7 @@ internal class MutationEngine(
             if (line.rawCodepoint(cCol) == TerminalConstants.WIDE_CHAR_SPACER) {
                 annihilateAt(cRow, cCol)
             }
-            line.insertCellsInRange(cCol, widthInCells, rightMargin, blankAttr)
+            line.insertCellsInRange(cCol, widthInCells, rightMargin, blankAttr, blankExtendedAttr)
         }
 
         annihilateAt(cRow, cCol)
@@ -322,7 +325,12 @@ internal class MutationEngine(
         cCol += 1
 
         if (widthInCells == 2 && cCol < width) {
-            line.setCell(cCol, TerminalConstants.WIDE_CHAR_SPACER, state.pen.currentAttr)
+            line.setCell(
+                cCol,
+                TerminalConstants.WIDE_CHAR_SPACER,
+                state.pen.currentAttr,
+                state.pen.currentExtendedAttr,
+            )
             cCol += 1
         }
 
@@ -346,6 +354,7 @@ internal class MutationEngine(
      */
     fun printCodepoint(codepoint: Int, charWidth: Int) {
         val attr = state.pen.currentAttr
+        val extendedAttr = state.pen.currentExtendedAttr
         val cCol = state.cursor.col
         val cRow = state.cursor.row
 
@@ -357,7 +366,7 @@ internal class MutationEngine(
         ) {
             val line = getLine(cRow)
             if (line.rawCodepoint(cCol) == TerminalConstants.EMPTY) {
-                line.setCell(cCol, codepoint, attr)
+                line.setCell(cCol, codepoint, attr, extendedAttr)
                 if (cCol == rightMargin) {
                     if (state.modes.isAutoWrap) {
                         state.cursor.pendingWrap = true
@@ -374,7 +383,7 @@ internal class MutationEngine(
         }
 
         writeToGrid(charWidth) { line, col ->
-            line.setCell(col, codepoint, attr)
+            line.setCell(col, codepoint, attr, extendedAttr)
         }
     }
 
@@ -390,8 +399,9 @@ internal class MutationEngine(
             return
         }
         val attr = state.pen.currentAttr
+        val extendedAttr = state.pen.currentExtendedAttr
         writeToGrid(charWidth) { line, col ->
-            line.setCluster(col, cps, cpLen, attr)
+            line.setCluster(col, cps, cpLen, attr, extendedAttr)
         }
     }
 
@@ -427,7 +437,7 @@ internal class MutationEngine(
                 if (!state.modes.isLeftRightMarginMode) {
                     repeat(times) {
                         state.ring.rotateDown(absCursorRow, absBottom)
-                        state.ring[absCursorRow].clear(blankAttr)
+                        state.ring[absCursorRow].clear(blankAttr, blankExtendedAttr)
                     }
                     return@mutateLines
                 }
@@ -440,7 +450,7 @@ internal class MutationEngine(
                 }
                 for (row in topRow until topRow + times) {
                     val line = getLine(row)
-                    line.clearRange(leftMargin, rightMargin + 1, blankAttr)
+                    line.clearRange(leftMargin, rightMargin + 1, blankAttr, blankExtendedAttr)
                     line.wrapped = false
                 }
             }
@@ -456,7 +466,7 @@ internal class MutationEngine(
                 if (!state.modes.isLeftRightMarginMode) {
                     repeat(times) {
                         state.ring.rotateUp(absCursorRow, absBottom)
-                        state.ring[absBottom].clear(blankAttr)
+                        state.ring[absBottom].clear(blankAttr, blankExtendedAttr)
                     }
                     return@mutateLines
                 }
@@ -469,7 +479,7 @@ internal class MutationEngine(
                 }
                 for (row in bottomRow - times + 1..bottomRow) {
                     val line = getLine(row)
-                    line.clearRange(leftMargin, rightMargin + 1, blankAttr)
+                    line.clearRange(leftMargin, rightMargin + 1, blankAttr, blankExtendedAttr)
                     line.wrapped = false
                 }
             }
@@ -504,7 +514,7 @@ internal class MutationEngine(
                 annihilateAt(cRow, edgeCol)
             }
 
-            line.insertCellsInRange(cCol, safeCount, rightMargin, blankAttr)
+            line.insertCellsInRange(cCol, safeCount, rightMargin, blankAttr, blankExtendedAttr)
         }
     }
 
@@ -534,7 +544,7 @@ internal class MutationEngine(
                 }
             }
 
-            getLine(cRow).deleteCellsInRange(cCol, safeCount, rightMargin, blankAttr)
+            getLine(cRow).deleteCellsInRange(cCol, safeCount, rightMargin, blankAttr, blankExtendedAttr)
         }
     }
 
@@ -576,11 +586,11 @@ internal class MutationEngine(
             val start = maxOf(cCol, leftMargin)
             if (start <= rightMargin) {
                 annihilateAt(cRow, start)
-                line.clearRange(start, rightMargin + 1, blankAttr)
+                line.clearRange(start, rightMargin + 1, blankAttr, blankExtendedAttr)
             }
         } else {
             annihilateAt(cRow, cCol)
-            line.clearFromColumn(cCol, blankAttr)
+            line.clearFromColumn(cCol, blankAttr, blankExtendedAttr)
         }
         line.wrapped = false
     }
@@ -600,11 +610,11 @@ internal class MutationEngine(
             val end = minOf(cCol, rightMargin)
             if (end >= leftMargin) {
                 annihilateAt(cRow, end)
-                line.clearRange(leftMargin, end + 1, blankAttr)
+                line.clearRange(leftMargin, end + 1, blankAttr, blankExtendedAttr)
             }
         } else {
             annihilateAt(cRow, cCol)
-            line.clearToColumn(cCol, blankAttr)
+            line.clearToColumn(cCol, blankAttr, blankExtendedAttr)
         }
     }
 
@@ -622,9 +632,9 @@ internal class MutationEngine(
         if (cRow !in 0 until height) return@structuralMutation
         val line = getLine(cRow)
         if (state.modes.isLeftRightMarginMode) {
-            line.clearRange(leftMargin, rightMargin + 1, blankAttr)
+            line.clearRange(leftMargin, rightMargin + 1, blankAttr, blankExtendedAttr)
         } else {
-            line.clear(blankAttr)
+            line.clear(blankAttr, blankExtendedAttr)
         }
         line.wrapped = false
     }
@@ -682,7 +692,7 @@ internal class MutationEngine(
         }
 
         for (row in cRow + 1 until height) {
-            getLine(row).clear(blankAttr)
+            getLine(row).clear(blankAttr, blankExtendedAttr)
         }
     }
 
@@ -692,7 +702,7 @@ internal class MutationEngine(
         if (cRow !in 0 until height) return@structuralMutation
 
         for (row in 0 until cRow) {
-            getLine(row).clear(blankAttr)
+            getLine(row).clear(blankAttr, blankExtendedAttr)
         }
 
         val cCol = state.cursor.col.coerceAtMost(width - 1)
@@ -772,15 +782,16 @@ internal class MutationEngine(
             for (col in 0 until width) {
                 val raw = srcLine.rawCodepoint(col)
                 val attr = srcLine.getPackedAttr(col)
+                val extendedAttr = srcLine.getPackedExtendedAttr(col)
                 if (raw <= TerminalConstants.CLUSTER_HANDLE_MAX) {
                     val cpLen = sourceStore.length(raw)
                     if (clusterBuf.size < cpLen) {
                         clusterBuf = IntArray(cpLen)
                     }
                     sourceStore.readInto(raw, clusterBuf, 0)
-                    destLine.setCluster(col, clusterBuf, cpLen, attr)
+                    destLine.setCluster(col, clusterBuf, cpLen, attr, extendedAttr)
                 } else {
-                    destLine.setRawCell(col, raw, attr)
+                    destLine.setRawCell(col, raw, attr, extendedAttr)
                 }
             }
             destLine.wrapped = srcLine.wrapped
@@ -792,7 +803,7 @@ internal class MutationEngine(
 
     private fun clearViewportInternal() {
         for (row in 0 until height.coerceAtMost(state.ring.size)) {
-            getLine(row).clear(blankAttr)
+            getLine(row).clear(blankAttr, blankExtendedAttr)
         }
     }
 
@@ -803,7 +814,7 @@ internal class MutationEngine(
 
     /** Clears both the viewport and retained history on the active buffer. */
     private fun clearAllHistoryInternal() {
-        state.activeBuffer.clearGrid(blankAttr, height)
+        state.activeBuffer.clearGrid(blankAttr, blankExtendedAttr, height)
     }
 
     /** Clears the active buffer's viewport and scrollback history. */

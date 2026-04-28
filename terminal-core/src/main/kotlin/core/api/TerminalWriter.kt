@@ -1,6 +1,7 @@
 package com.gagik.core.api
 
 import com.gagik.core.model.AttributeColor
+import com.gagik.core.model.UnderlineStyle
 
 /**
  * Write-side contract for the terminal buffer.
@@ -243,16 +244,22 @@ interface TerminalWriter {
      * @param bg Background colour code (0 = default, 1..256 = indexed palette colors).
      * @param bold `true` to enable bold weight.
      * @param italic `true` to enable italic style.
-     * @param underline `true` to enable underline.
+     * @param underlineStyle underline presentation style.
      * @param inverse `true` to enable inverse/reverse-video.
      */
     fun setPenAttributes(
         fg: Int,
         bg: Int,
         bold: Boolean = false,
+        faint: Boolean = false,
         italic: Boolean = false,
-        underline: Boolean = false,
-        inverse: Boolean = false
+        underlineStyle: UnderlineStyle = UnderlineStyle.NONE,
+        strikethrough: Boolean = false,
+        overline: Boolean = false,
+        blink: Boolean = false,
+        inverse: Boolean = false,
+        conceal: Boolean = false,
+        underlineColor: Int = 0
     )
 
     /**
@@ -261,11 +268,20 @@ interface TerminalWriter {
     fun setPenColors(
         foreground: AttributeColor,
         background: AttributeColor,
+        underlineColor: AttributeColor = AttributeColor.DEFAULT,
         bold: Boolean = false,
+        faint: Boolean = false,
         italic: Boolean = false,
-        underline: Boolean = false,
-        inverse: Boolean = false
+        underlineStyle: UnderlineStyle = UnderlineStyle.NONE,
+        strikethrough: Boolean = false,
+        overline: Boolean = false,
+        blink: Boolean = false,
+        inverse: Boolean = false,
+        conceal: Boolean = false
     )
+
+    /** Sets the active OSC 8 hyperlink id for future printed cells. */
+    fun setHyperlinkId(hyperlinkId: Int)
 
     /**
      * Enables or disables selective-erase protection on future printed cells (DECSCA).

@@ -622,7 +622,7 @@ class MutationEngineTest {
             val state = createState(width = 6, height = 1)
             val writer = MutationEngine(state)
             seedLine(state, 0, "ABCDEF", attr = 10)
-            state.pen.setAttributes(fg = 3, bg = 4, underline = true)
+            state.pen.setAttributes(fg = 3, bg = 4, underlineStyle = com.gagik.core.model.UnderlineStyle.SINGLE)
             val fillAttr = state.pen.currentAttr
             state.cursor.col = 1
 

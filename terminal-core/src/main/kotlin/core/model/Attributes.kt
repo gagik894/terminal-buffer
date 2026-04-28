@@ -4,14 +4,25 @@ package com.gagik.core.model
  * Public representation of cell attributes for UI/rendering.
  */
 data class Attributes(
-    val foreground: AttributeColor,
-    val background: AttributeColor,
-    val bold: Boolean,
-    val italic: Boolean,
-    val underline: Boolean,
+    val foreground: AttributeColor = AttributeColor.DEFAULT,
+    val background: AttributeColor = AttributeColor.DEFAULT,
+    val underlineColor: AttributeColor = AttributeColor.DEFAULT,
+    val bold: Boolean = false,
+    val faint: Boolean = false,
+    val italic: Boolean = false,
+    val underlineStyle: UnderlineStyle = UnderlineStyle.NONE,
+    val strikethrough: Boolean = false,
+    val overline: Boolean = false,
+    val blink: Boolean = false,
+    val inverse: Boolean = false,
+    val conceal: Boolean = false,
     val selectiveEraseProtected: Boolean = false,
-    val inverse: Boolean = false
-)
+    val hyperlinkId: Int = 0
+) {
+    init {
+        require(hyperlinkId >= 0) { "hyperlinkId must be non-negative, was $hyperlinkId" }
+    }
+}
 
 /**
  * Renderer-facing color descriptor for a cell attribute.
@@ -57,4 +68,25 @@ enum class AttributeColorKind {
     DEFAULT,
     INDEXED,
     RGB
+}
+
+enum class UnderlineStyle(val sgrCode: Int) {
+    NONE(0),
+    SINGLE(1),
+    DOUBLE(2),
+    CURLY(3),
+    DOTTED(4),
+    DASHED(5);
+
+    companion object {
+        fun fromSgrCode(code: Int): UnderlineStyle? = when (code) {
+            NONE.sgrCode -> NONE
+            SINGLE.sgrCode -> SINGLE
+            DOUBLE.sgrCode -> DOUBLE
+            CURLY.sgrCode -> CURLY
+            DOTTED.sgrCode -> DOTTED
+            DASHED.sgrCode -> DASHED
+            else -> null
+        }
+    }
 }

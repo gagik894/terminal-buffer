@@ -123,11 +123,15 @@ internal class ScreenBuffer(
      * dropped, otherwise cluster payloads can leak in the shared [store].
      */
     fun clearGrid(penAttr: Long, viewportHeight: Int) {
+        clearGrid(penAttr, 0L, viewportHeight)
+    }
+
+    fun clearGrid(penAttr: Long, penExtendedAttr: Long, viewportHeight: Int) {
         for (i in 0 until ring.size) {
-            ring[i].clear(penAttr)
+            ring[i].clear(penAttr, penExtendedAttr)
         }
         ring.clear()
-        repeat(viewportHeight) { ring.push().clear(penAttr) }
+        repeat(viewportHeight) { ring.push().clear(penAttr, penExtendedAttr) }
     }
 
     /**
@@ -138,10 +142,10 @@ internal class ScreenBuffer(
      * replace them independently because every [Line] in the ring closes over
      * the active store instance.
      */
-    fun replaceStorage(newWidth: Int, newHeight: Int, penAttr: Long) {
+    fun replaceStorage(newWidth: Int, newHeight: Int, penAttr: Long, penExtendedAttr: Long = 0L) {
         store = ClusterStore()
         ring = HistoryRing(maxHistory + newHeight) { Line(newWidth, store) }
-        repeat(newHeight) { ring.push().clear(penAttr) }
+        repeat(newHeight) { ring.push().clear(penAttr, penExtendedAttr) }
         scrollTop = 0
         scrollBottom = newHeight - 1
         leftMargin = 0

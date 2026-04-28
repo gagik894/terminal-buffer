@@ -32,6 +32,12 @@ interface TerminalLineApi {
     fun getPackedAttr(col: Int): Long
 
     /**
+     * Returns the extended packed attribute word for the cell at [col].
+     * Decode together with [getPackedAttr] via [com.gagik.core.codec.AttributeCodec].
+     */
+    fun getPackedExtendedAttr(col: Int): Long = 0L
+
+    /**
      * Returns `true` if the cell at [col] holds a multi-codepoint grapheme cluster
      * requiring a call to [readCluster] for full rendering.
      *

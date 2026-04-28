@@ -33,4 +33,10 @@ internal class TerminalReaderImpl(
 		val line = getLine(row)
 		return if (line.width == 0) state.pen.currentAttr else line.getPackedAttr(col)
 	}
+
+	override fun getPackedExtendedAttrAt(col: Int, row: Int): Long {
+		if (!state.dimensions.isValidCol(col)) return state.pen.currentExtendedAttr
+		val line = getLine(row)
+		return if (line.width == 0) state.pen.currentExtendedAttr else line.getPackedExtendedAttr(col)
+	}
 }

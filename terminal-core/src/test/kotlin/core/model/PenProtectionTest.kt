@@ -9,8 +9,9 @@ class PenProtectionTest {
     @Test
     fun `setSelectiveEraseProtection toggles current attr without disturbing visual attrs`() {
         val pen = Pen()
-        pen.setAttributes(fg = 5, bg = 2, bold = true, italic = true, underline = false)
+        pen.setAttributes(fg = 5, bg = 2, bold = true, faint = true, italic = true)
         val visualOnly = pen.currentAttr
+        val visualOnlyExtended = pen.currentExtendedAttr
 
         pen.setSelectiveEraseProtection(true)
         val protectedAttr = pen.currentAttr
@@ -21,8 +22,9 @@ class PenProtectionTest {
             { assertEquals(AttributeCodec.foreground(visualOnly), AttributeCodec.foreground(protectedAttr)) },
             { assertEquals(AttributeCodec.background(visualOnly), AttributeCodec.background(protectedAttr)) },
             { assertEquals(AttributeCodec.isBold(visualOnly), AttributeCodec.isBold(protectedAttr)) },
+            { assertEquals(AttributeCodec.isFaint(visualOnly), AttributeCodec.isFaint(protectedAttr)) },
             { assertEquals(AttributeCodec.isItalic(visualOnly), AttributeCodec.isItalic(protectedAttr)) },
-            { assertEquals(AttributeCodec.isUnderline(visualOnly), AttributeCodec.isUnderline(protectedAttr)) }
+            { assertEquals(visualOnlyExtended, pen.currentExtendedAttr) }
         )
     }
 
@@ -31,7 +33,7 @@ class PenProtectionTest {
         val pen = Pen()
         pen.setSelectiveEraseProtection(true)
 
-        pen.setAttributes(fg = 3, bg = 7, bold = false, italic = true, underline = true)
+        pen.setAttributes(fg = 3, bg = 7, bold = false, italic = true, underlineStyle = UnderlineStyle.SINGLE)
 
         assertAll(
             { assertTrue(pen.isSelectiveEraseProtected) },
@@ -55,10 +57,11 @@ class PenProtectionTest {
     @Test
     fun `blankAttr strips selective erase protection while preserving visual attrs`() {
         val pen = Pen()
-        pen.setAttributes(fg = 6, bg = 1, bold = true, italic = false, underline = true)
+        pen.setAttributes(fg = 6, bg = 1, bold = true, italic = false, underlineStyle = UnderlineStyle.SINGLE)
         pen.setSelectiveEraseProtection(true)
 
         val blankAttr = pen.blankAttr
+        val blankExtendedAttr = pen.blankExtendedAttr
 
         assertAll(
             { assertFalse(AttributeCodec.isProtected(blankAttr)) },
@@ -66,7 +69,7 @@ class PenProtectionTest {
             { assertEquals(AttributeCodec.background(pen.currentAttr), AttributeCodec.background(blankAttr)) },
             { assertEquals(AttributeCodec.isBold(pen.currentAttr), AttributeCodec.isBold(blankAttr)) },
             { assertEquals(AttributeCodec.isItalic(pen.currentAttr), AttributeCodec.isItalic(blankAttr)) },
-            { assertEquals(AttributeCodec.isUnderline(pen.currentAttr), AttributeCodec.isUnderline(blankAttr)) }
+            { assertEquals(pen.currentExtendedAttr, blankExtendedAttr) }
         )
     }
 }

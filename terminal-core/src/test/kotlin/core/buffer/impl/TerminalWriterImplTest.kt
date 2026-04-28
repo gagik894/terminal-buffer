@@ -5,6 +5,7 @@ import com.gagik.core.engine.CursorEngine
 import com.gagik.core.engine.MutationEngine
 import com.gagik.core.model.AttributeColor
 import com.gagik.core.model.Attributes
+import com.gagik.core.model.UnderlineStyle
 import com.gagik.core.state.TerminalState
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
@@ -16,7 +17,7 @@ class TerminalWriterImplTest {
         val state = TerminalState(5, 2, 2)
         val writer = TerminalWriterImpl(state, MutationEngine(state), CursorEngine(state))
 
-        writer.setPenAttributes(3, 7, bold = true, italic = true, underline = false)
+        writer.setPenAttributes(3, 7, bold = true, italic = true)
         writer.writeCodepoint('X'.code)
 
         assertAll(
@@ -30,9 +31,12 @@ class TerminalWriterImplTest {
                         background = AttributeColor.indexed(6),
                         bold = true,
                         italic = true,
-                        underline = false
+                        underlineStyle = UnderlineStyle.NONE
                     ),
-                    AttributeCodec.unpack(state.ring[state.resolveRingIndex(0)].getPackedAttr(0))
+                    AttributeCodec.unpack(
+                        state.ring[state.resolveRingIndex(0)].getPackedAttr(0),
+                        state.ring[state.resolveRingIndex(0)].getPackedExtendedAttr(0),
+                    )
                 )
             }
         )
@@ -46,17 +50,20 @@ class TerminalWriterImplTest {
         writer.setPenColors(
             foreground = AttributeColor.rgb(0x10, 0x20, 0x30),
             background = AttributeColor.indexed(231),
-            underline = true,
+            underlineStyle = UnderlineStyle.SINGLE,
             inverse = true
         )
         writer.writeCodepoint('R'.code)
 
-        val unpacked = AttributeCodec.unpack(state.ring[state.resolveRingIndex(0)].getPackedAttr(0))
+        val unpacked = AttributeCodec.unpack(
+            state.ring[state.resolveRingIndex(0)].getPackedAttr(0),
+            state.ring[state.resolveRingIndex(0)].getPackedExtendedAttr(0),
+        )
 
         assertAll(
             { assertEquals(AttributeColor.rgb(0x10, 0x20, 0x30), unpacked.foreground) },
             { assertEquals(AttributeColor.indexed(231), unpacked.background) },
-            { assertTrue(unpacked.underline) },
+            { assertEquals(UnderlineStyle.SINGLE, unpacked.underlineStyle) },
             { assertTrue(unpacked.inverse) }
         )
     }

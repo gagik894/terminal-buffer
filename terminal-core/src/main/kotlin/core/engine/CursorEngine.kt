@@ -186,6 +186,7 @@ internal class CursorEngine(private val state: TerminalState) {
         state.savedCursor.col = state.cursor.col
         state.savedCursor.row = state.cursor.row
         state.savedCursor.attr = state.pen.currentAttr
+        state.savedCursor.extendedAttr = state.pen.currentExtendedAttr
         state.savedCursor.pendingWrap = state.cursor.pendingWrap
         state.savedCursor.isOriginMode = state.modes.isOriginMode
         state.savedCursor.isSaved = true
@@ -252,6 +253,6 @@ internal class CursorEngine(private val state: TerminalState) {
         state.cursor.row = restoredRow
         state.cursor.pendingWrap = state.savedCursor.pendingWrap && restoredCol == rightMargin
 
-        state.pen.restoreAttr(state.savedCursor.attr)
+        state.pen.restoreAttr(state.savedCursor.attr, state.savedCursor.extendedAttr)
     }
 }

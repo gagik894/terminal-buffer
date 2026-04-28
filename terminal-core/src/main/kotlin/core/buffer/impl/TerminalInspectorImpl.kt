@@ -14,7 +14,12 @@ internal class TerminalInspectorImpl(
 		if (!state.dimensions.isValidCol(col) || !state.dimensions.isValidRow(row)) return null
 		val line = visibleLine(row) ?: return null
 		val rawAttr = if (line.width == 0) state.pen.currentAttr else line.getPackedAttr(col)
-		return AttributeCodec.unpack(rawAttr)
+		val rawExtendedAttr = if (line.width == 0) {
+			state.pen.currentExtendedAttr
+		} else {
+			line.getPackedExtendedAttr(col)
+		}
+		return AttributeCodec.unpack(rawAttr, rawExtendedAttr)
 	}
 
 	override fun getLineAsString(row: Int): String {

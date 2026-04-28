@@ -4,6 +4,7 @@ import com.gagik.core.codec.AttributeCodec
 import com.gagik.core.engine.MutationEngine
 import com.gagik.core.model.AttributeColor
 import com.gagik.core.model.Attributes
+import com.gagik.core.model.UnderlineStyle
 import com.gagik.core.state.TerminalState
 import org.junit.jupiter.api.Assertions.assertAll
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -37,7 +38,7 @@ class TerminalInspectorImplTest {
         val mutation = MutationEngine(state)
         val inspector = TerminalInspectorImpl(state)
 
-        state.pen.setAttributes(3, 7, bold = true, italic = true, underline = false)
+        state.pen.setAttributes(3, 7, bold = true, italic = true)
         mutation.printCodepoint('X'.code, 1)
 
         val expected = Attributes(
@@ -45,11 +46,19 @@ class TerminalInspectorImplTest {
             background = AttributeColor.indexed(6),
             bold = true,
             italic = true,
-            underline = false
+            underlineStyle = UnderlineStyle.NONE
         )
         assertAll(
             { assertEquals(expected, inspector.getAttrAt(0, 0)) },
-            { assertEquals(expected, AttributeCodec.unpack(state.ring[state.resolveRingIndex(0)].getPackedAttr(0))) }
+            {
+                assertEquals(
+                    expected,
+                    AttributeCodec.unpack(
+                        state.ring[state.resolveRingIndex(0)].getPackedAttr(0),
+                        state.ring[state.resolveRingIndex(0)].getPackedExtendedAttr(0),
+                    )
+                )
+            }
         )
     }
 }

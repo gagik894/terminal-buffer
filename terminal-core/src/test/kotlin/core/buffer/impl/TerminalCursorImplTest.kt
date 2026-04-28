@@ -1,6 +1,7 @@
 package com.gagik.core.buffer.impl
 
 import com.gagik.core.engine.CursorEngine
+import com.gagik.core.model.UnderlineStyle
 import com.gagik.core.state.TerminalState
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
@@ -29,7 +30,7 @@ class TerminalCursorImplTest {
         val state = TerminalState(4, 3, 2)
         val cursor = TerminalCursorImpl(state, CursorEngine(state))
 
-        state.pen.setAttributes(2, 3, bold = true, italic = false, underline = true)
+        state.pen.setAttributes(2, 3, bold = true, italic = false, underlineStyle = UnderlineStyle.SINGLE)
         cursor.positionCursor(3, 2)
         cursor.saveCursor()
 
@@ -132,4 +133,3 @@ class TerminalCursorImplTest {
         assertFalse(state.cursor.pendingWrap)
     }
 }
-

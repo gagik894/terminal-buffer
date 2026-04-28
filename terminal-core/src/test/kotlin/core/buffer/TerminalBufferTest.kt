@@ -4,9 +4,10 @@ import com.gagik.core.TerminalBuffers
 import com.gagik.core.api.TerminalBufferApi
 import com.gagik.core.model.AttributeColor
 import com.gagik.core.model.Attributes
+import com.gagik.core.model.UnderlineStyle
+import com.gagik.core.state.TerminalState
 import com.gagik.terminal.protocol.MouseEncodingMode
 import com.gagik.terminal.protocol.MouseTrackingMode
-import com.gagik.core.state.TerminalState
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -64,11 +65,18 @@ class TerminalBufferTest {
 	fun `saveCursor and restoreCursor round-trip cursor and pen state through the facade`() {
 		val buffer = newApiBuffer(width = 4, height = 3)
 		buffer.positionCursor(2, 1)
-		buffer.setPenAttributes(3, 7, bold = true, italic = true, underline = false)
+		buffer.setPenAttributes(
+			3,
+			7,
+			bold = true,
+			italic = true,
+			underlineStyle = UnderlineStyle.DASHED,
+			underlineColor = 9
+		)
 
 		buffer.saveCursor()
 		buffer.positionCursor(0, 0)
-		buffer.setPenAttributes(1, 2, bold = false, italic = false, underline = true)
+		buffer.setPenAttributes(1, 2, bold = false, italic = false, underlineStyle = UnderlineStyle.SINGLE)
 		buffer.restoreCursor()
 
 		assertAll(
@@ -89,7 +97,8 @@ class TerminalBufferTest {
 						background = AttributeColor.indexed(6),
 						bold = true,
 						italic = true,
-						underline = false
+						underlineStyle = UnderlineStyle.DASHED,
+						underlineColor = AttributeColor.indexed(8)
 					),
 					buffer.getAttrAt(2, 1)
 				)

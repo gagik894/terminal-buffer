@@ -4,100 +4,116 @@ import com.gagik.core.codec.AttributeCodec
 
 /**
  * Manages the current writing attributes.
- * * Follows the Spec:
- * - 0 = Logical DEFAULT (The terminal's base color)
- * - 1..256 = Specific indexed palette colors
  */
 internal class Pen {
 
-    private val defaultAttr = AttributeCodec.pack(
-        fg = 0, bg = 0,
-        bold = false, italic = false, underline = false, protected = false
-    )
-
-    /** Current packed attributes for the pen state */
-    var currentAttr: Long = defaultAttr
+    var currentAttr: Long = AttributeCodec.DEFAULT_ATTR
         private set
 
-    /** Current blank-fill attribute with selective-erase protection stripped off. */
+    var currentExtendedAttr: Long = AttributeCodec.DEFAULT_EXTENDED_ATTR
+        private set
+
     val blankAttr: Long
         get() = AttributeCodec.withProtected(currentAttr, enabled = false)
 
-    /** Whether future printed cells are protected from DECSEL/DECSED. */
+    val blankExtendedAttr: Long
+        get() = currentExtendedAttr
+
     val isSelectiveEraseProtected: Boolean
         get() = AttributeCodec.isProtected(currentAttr)
 
-    /**
-     * Sets the current drawing style.
-     * @param fg 0 for Default, 1-256 for indexed palette colors
-     * @param bg 0 for Default, 1-256 for indexed palette colors
-     * @param bold Whether the text should be bold
-     * @param italic Whether the text should be italic
-     * @param underline Whether the text should be underlined
-     * @param inverse Whether foreground/background should be presented reversed
-     */
     fun setAttributes(
         fg: Int,
         bg: Int,
         bold: Boolean = false,
+        faint: Boolean = false,
         italic: Boolean = false,
-        underline: Boolean = false,
-        inverse: Boolean = false
+        underlineStyle: UnderlineStyle = UnderlineStyle.NONE,
+        strikethrough: Boolean = false,
+        overline: Boolean = false,
+        blink: Boolean = false,
+        inverse: Boolean = false,
+        conceal: Boolean = false,
+        underlineColor: Int = 0
     ) {
-        val safeFg = fg.coerceIn(0, AttributeCodec.MAX_COLOR)
-        val safeBg = bg.coerceIn(0, AttributeCodec.MAX_COLOR)
-        val isProtected = AttributeCodec.isProtected(currentAttr)
-
+        val protected = AttributeCodec.isProtected(currentAttr)
+        val hyperlinkId = AttributeCodec.hyperlinkId(currentExtendedAttr)
         currentAttr = AttributeCodec.pack(
-            safeFg,
-            safeBg,
-            bold,
-            italic,
-            underline,
-            inverse,
-            protected = isProtected
+            fg = fg.coerceIn(0, AttributeCodec.MAX_COLOR),
+            bg = bg.coerceIn(0, AttributeCodec.MAX_COLOR),
+            bold = bold,
+            faint = faint,
+            italic = italic,
+            blink = blink,
+            inverse = inverse,
+            protected = protected,
+        )
+        currentExtendedAttr = AttributeCodec.packExtended(
+            underlineColor = underlineColor.coerceIn(0, AttributeCodec.MAX_COLOR),
+            underlineStyle = underlineStyle,
+            strikethrough = strikethrough,
+            overline = overline,
+            conceal = conceal,
+            hyperlinkId = hyperlinkId,
         )
     }
 
-    /** Sets the current drawing style using explicit color descriptors. */
     fun setColors(
         foreground: AttributeColor,
         background: AttributeColor,
+        underlineColor: AttributeColor = AttributeColor.DEFAULT,
         bold: Boolean = false,
+        faint: Boolean = false,
         italic: Boolean = false,
-        underline: Boolean = false,
-        inverse: Boolean = false
+        underlineStyle: UnderlineStyle = UnderlineStyle.NONE,
+        strikethrough: Boolean = false,
+        overline: Boolean = false,
+        blink: Boolean = false,
+        inverse: Boolean = false,
+        conceal: Boolean = false
     ) {
-        val isProtected = AttributeCodec.isProtected(currentAttr)
-
+        val protected = AttributeCodec.isProtected(currentAttr)
+        val hyperlinkId = AttributeCodec.hyperlinkId(currentExtendedAttr)
         currentAttr = AttributeCodec.packColors(
-            foreground,
-            background,
-            bold,
-            italic,
-            underline,
-            inverse,
-            protected = isProtected
+            foreground = foreground,
+            background = background,
+            bold = bold,
+            faint = faint,
+            italic = italic,
+            blink = blink,
+            inverse = inverse,
+            protected = protected,
+        )
+        currentExtendedAttr = AttributeCodec.packExtendedColors(
+            underlineColor = underlineColor,
+            underlineStyle = underlineStyle,
+            strikethrough = strikethrough,
+            overline = overline,
+            conceal = conceal,
+            hyperlinkId = hyperlinkId,
         )
     }
 
-    /** Enables or disables selective-erase protection for future printable writes (DECSCA). */
     fun setSelectiveEraseProtection(enabled: Boolean) {
         currentAttr = AttributeCodec.withProtected(currentAttr, enabled)
     }
 
-    /**
-     * Restores the pen to a previously packed attribute value.
-     * Called exclusively by DECRC to reinstate a saved pen state.
-     */
-    fun restoreAttr(packedAttr: Long) {
-        currentAttr = packedAttr
+    fun setHyperlinkId(hyperlinkId: Int) {
+        currentExtendedAttr = AttributeCodec.withHyperlinkId(currentExtendedAttr, hyperlinkId)
     }
 
-    /**
-     * Resets the current attributes to the default state.
-     */
+    fun restoreAttr(packedAttr: Long, packedExtendedAttr: Long) {
+        currentAttr = packedAttr
+        currentExtendedAttr = packedExtendedAttr
+    }
+
+    fun resetSgr() {
+        currentAttr = AttributeCodec.sgrResetPrimary(currentAttr)
+        currentExtendedAttr = AttributeCodec.sgrResetExtended(currentExtendedAttr)
+    }
+
     fun reset() {
-        currentAttr = defaultAttr
+        currentAttr = AttributeCodec.DEFAULT_ATTR
+        currentExtendedAttr = AttributeCodec.DEFAULT_EXTENDED_ATTR
     }
 }

@@ -22,7 +22,8 @@ The core owns:
 - resize and reflow
 - `DECCOLM`
 - durable terminal mode state
-- attribute packing and pen state, including indexed/RGB colors and inverse
+- attribute packing and pen state, including indexed/RGB colors, underline
+  color/style, common text attributes, hyperlink ids, and inverse
 - cluster storage and history storage
 
 The core does not own:
@@ -184,8 +185,8 @@ Guaranteed behavior:
 
 - out-of-bounds line reads return a void line
 - out-of-bounds codepoint reads return `0`
-- packed cell attributes are exposed as `Long` words decoded by
-  `AttributeCodec`
+- packed cell attributes are exposed as primary and extended `Long` words
+  decoded together by `AttributeCodec`
 - blank cells read as `0`
 - wide spacers read as `-1`
 - cluster cells return the leading/base codepoint through `getCodepointAt`
