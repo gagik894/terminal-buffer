@@ -9,6 +9,7 @@ import com.gagik.terminal.input.policy.MetaKeyPolicy
 import com.gagik.terminal.input.policy.TerminalInputPolicy
 import com.gagik.terminal.input.policy.UnsupportedModifiedKeyPolicy
 import com.gagik.terminal.protocol.ControlCode
+import com.gagik.terminal.protocol.ModifyOtherKeysMode
 import com.gagik.terminal.protocol.host.TerminalHostOutput
 
 internal class KeyboardEncoder(
@@ -28,11 +29,17 @@ internal class KeyboardEncoder(
             encodeCodepoint(
                 codepoint = event.codepoint,
                 modifiers = event.modifiers,
+                modeBits = modeBits,
             )
         }
     }
 
-    private fun encodeCodepoint(codepoint: Int, modifiers: Int) {
+    private fun encodeCodepoint(codepoint: Int, modifiers: Int, modeBits: Long) {
+        if (shouldEncodeModifyOtherKey(codepoint, modifiers, modeBits)) {
+            encodeModifyOtherKey(codepoint, modifiers)
+            return
+        }
+
         if (shouldSuppressForMeta(modifiers)) {
             return
         }
@@ -74,7 +81,7 @@ internal class KeyboardEncoder(
             TerminalKey.ENTER -> encodeEnter(modifiers, modeBits)
             TerminalKey.NUMPAD_ENTER -> encodeKeypad(key, modifiers, modeBits)
 
-            TerminalKey.TAB -> encodeTab(modifiers)
+            TerminalKey.TAB -> encodeTab(modifiers, modeBits)
 
             TerminalKey.BACKSPACE -> encodeBackspace(modifiers)
 
@@ -184,6 +191,11 @@ internal class KeyboardEncoder(
     }
 
     private fun encodeEnter(modifiers: Int, modeBits: Long) {
+        if (shouldEncodeModifyOtherSpecial(ENTER_CODEPOINT, modifiers, modeBits)) {
+            encodeModifyOtherKey(ENTER_CODEPOINT, modifiers)
+            return
+        }
+
         val unsupportedModifier =
             TerminalModifiers.hasShift(modifiers) || TerminalModifiers.hasCtrl(modifiers)
 
@@ -242,6 +254,74 @@ internal class KeyboardEncoder(
             modifiers = modifiers,
             finalByte = 'Z'.code,
         )
+    }
+
+    private fun encodeTab(modifiers: Int, modeBits: Long) {
+        if (shouldEncodeModifyOtherSpecial(TAB_CODEPOINT, modifiers, modeBits)) {
+            encodeModifyOtherKey(TAB_CODEPOINT, modifiers)
+            return
+        }
+
+        encodeTab(modifiers)
+    }
+
+    /**
+     * Implements xterm's original modifyOtherKeys wire format
+     * `CSI 27 ; modifier ; codepoint ~` for ordinary keys. This intentionally
+     * does not implement `formatOtherKeys=1`/CSI-u or mode 3.
+     */
+    private fun shouldEncodeModifyOtherKey(
+        codepoint: Int,
+        modifiers: Int,
+        modeBits: Long,
+    ): Boolean {
+        if (modifiers == TerminalModifiers.NONE) {
+            return false
+        }
+
+        return when (TerminalInputState.modifyOtherKeysMode(modeBits)) {
+            ModifyOtherKeysMode.MODE_1 -> isLegacyAmbiguousOrMissing(codepoint, modifiers)
+            ModifyOtherKeysMode.MODE_2 -> true
+            else -> false
+        }
+    }
+
+    private fun shouldEncodeModifyOtherSpecial(
+        codepoint: Int,
+        modifiers: Int,
+        modeBits: Long,
+    ): Boolean {
+        if (modifiers == TerminalModifiers.NONE) {
+            return false
+        }
+
+        return TerminalInputState.modifyOtherKeysMode(modeBits) == ModifyOtherKeysMode.MODE_2 &&
+            (codepoint == TAB_CODEPOINT || codepoint == ENTER_CODEPOINT)
+    }
+
+    private fun isLegacyAmbiguousOrMissing(codepoint: Int, modifiers: Int): Boolean {
+        if (TerminalModifiers.hasShift(modifiers) && modifiers != TerminalModifiers.SHIFT) {
+            return true
+        }
+
+        if (TerminalModifiers.hasCtrl(modifiers) && controlCodeFor(codepoint) < 0) {
+            return true
+        }
+
+        return false
+    }
+
+    private fun encodeModifyOtherKey(codepoint: Int, modifiers: Int) {
+        scratch.clear()
+        scratch.appendByte(ControlCode.ESC)
+        scratch.appendByte('['.code)
+        scratch.appendDecimal(MODIFY_OTHER_KEYS_PREFIX)
+        scratch.appendByte(';'.code)
+        scratch.appendDecimal(TerminalModifiers.toCsiModifierParam(modifiers))
+        scratch.appendByte(';'.code)
+        scratch.appendDecimal(codepoint)
+        scratch.appendByte('~'.code)
+        scratch.writeTo(output)
     }
 
     private fun encodeArrow(
@@ -571,5 +651,8 @@ internal class KeyboardEncoder(
 
     private companion object {
         private const val BS: Int = 0x08
+        private const val ENTER_CODEPOINT: Int = 0x0d
+        private const val MODIFY_OTHER_KEYS_PREFIX: Int = 27
+        private const val TAB_CODEPOINT: Int = 0x09
     }
 }

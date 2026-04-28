@@ -7,9 +7,11 @@ The intent is to make gaps explicit. If a feature is missing, unsupported, or
 only partially modeled, it should be listed here rather than hidden behind a
 silent no-op.
 
-The target is not literal full xterm parity. The target is a modern, secure,
-xterm-compatible-enough terminal pipeline for contemporary shells and TUIs,
-with obsolete or risky legacy protocols excluded unless they earn their place.
+The target is a modern, secure, xterm-compatible terminal pipeline for
+contemporary shells and TUIs. When an xterm feature is accepted into scope, its
+implemented subset should be explicit and tested rather than a loose "v1"
+approximation. Obsolete or risky legacy protocols remain excluded unless they
+earn their place.
 
 Status labels:
 
@@ -356,11 +358,15 @@ Missing:
   - bounded legacy `ESC [ M` encoding with explicit coordinate-limit policy
   - UTF-8 extended mouse encoding (`?1005`) up to xterm's coordinate limit
   - URXVT mouse encoding (`?1015`)
-- `TODO(input)`: modifier encoding:
-  - xterm modifyOtherKeys mode 1/2 consumption from core packed mode bits
-  - documented xterm subset for `CSI 27 ; modifier ; codepoint ~`
-  - regression coverage for Ctrl/Shift/Alt/Meta printable input and
-    control-equivalent keys such as Ctrl+I/Tab and Ctrl+M/Enter
+- `DONE(input)`: xterm modifyOtherKeys mode 1/2 consumption from core packed
+  mode bits for the original `CSI 27 ; modifier ; codepoint ~` format,
+  including regression coverage for modified printable input and
+  control-equivalent Tab/Enter cases.
+- `TODO(input)`: broader modified-key encoding:
+  - `formatOtherKeys=1` / CSI-u
+  - modifyOtherKeys mode 3
+  - parser/integration control sequences for dynamically setting
+    modifyOtherKeys and formatOtherKeys, if not already routed
 - `TODO(parser/core/input)`: xterm modified-key policy surface for
   `modifyCursorKeys`, `modifyFunctionKeys`, and `modifyKeypadKeys` if those are
   added. These need protocol/core mode or policy state before input grows more

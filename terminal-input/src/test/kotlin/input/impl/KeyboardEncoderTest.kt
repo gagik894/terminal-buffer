@@ -8,6 +8,7 @@ import com.gagik.terminal.input.policy.BackspacePolicy
 import com.gagik.terminal.input.policy.MetaKeyPolicy
 import com.gagik.terminal.input.policy.TerminalInputPolicy
 import com.gagik.terminal.input.policy.UnsupportedModifiedKeyPolicy
+import com.gagik.terminal.protocol.ModifyOtherKeysMode
 import com.gagik.terminal.protocol.host.TerminalHostOutput
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertSame
@@ -99,6 +100,86 @@ class KeyboardEncoderTest {
     }
 
     @Test
+    fun `modifyOtherKeys mode 1 encodes ordinary keys legacy cannot represent`() {
+        val bits = modifyOtherKeysBits(ModifyOtherKeysMode.MODE_1)
+
+        assertBytes(
+            expected = esc("[27;5;233~"),
+            event = TerminalKeyEvent.codepoint(0x00e9, TerminalModifiers.CTRL),
+            modeBits = bits,
+        )
+        assertBytes(
+            expected = esc("[27;4;97~"),
+            event = TerminalKeyEvent.codepoint(
+                'a'.code,
+                TerminalModifiers.SHIFT or TerminalModifiers.ALT,
+            ),
+            modeBits = bits,
+        )
+        assertBytes(
+            expected = bytes(0x09),
+            event = TerminalKeyEvent.codepoint('i'.code, TerminalModifiers.CTRL),
+            modeBits = bits,
+        )
+        assertBytes(
+            expected = bytes(0x1b, 0xc3, 0xa9),
+            event = TerminalKeyEvent.codepoint(0x00e9, TerminalModifiers.ALT),
+            modeBits = bits,
+        )
+    }
+
+    @Test
+    fun `modifyOtherKeys mode 2 encodes all modified ordinary keys`() {
+        val bits = modifyOtherKeysBits(ModifyOtherKeysMode.MODE_2)
+
+        assertBytes(
+            expected = bytes(0x61),
+            event = TerminalKeyEvent.codepoint('a'.code),
+            modeBits = bits,
+        )
+        assertBytes(
+            expected = esc("[27;3;233~"),
+            event = TerminalKeyEvent.codepoint(0x00e9, TerminalModifiers.ALT),
+            modeBits = bits,
+        )
+        assertBytes(
+            expected = esc("[27;5;233~"),
+            event = TerminalKeyEvent.codepoint(0x00e9, TerminalModifiers.CTRL),
+            modeBits = bits,
+        )
+        assertBytes(
+            expected = esc("[27;4;97~"),
+            event = TerminalKeyEvent.codepoint(
+                'a'.code,
+                TerminalModifiers.SHIFT or TerminalModifiers.ALT,
+            ),
+            modeBits = bits,
+        )
+        assertBytes(
+            expected = esc("[27;9;97~"),
+            event = TerminalKeyEvent.codepoint('a'.code, TerminalModifiers.META),
+            modeBits = bits,
+            policy = TerminalInputPolicy(metaKeyPolicy = MetaKeyPolicy.SUPPRESS_EVENT),
+        )
+    }
+
+    @Test
+    fun `modifyOtherKeys mode 2 distinguishes control-equivalent ordinary keys`() {
+        val bits = modifyOtherKeysBits(ModifyOtherKeysMode.MODE_2)
+
+        assertBytes(
+            expected = esc("[27;5;105~"),
+            event = TerminalKeyEvent.codepoint('i'.code, TerminalModifiers.CTRL),
+            modeBits = bits,
+        )
+        assertBytes(
+            expected = esc("[27;5;109~"),
+            event = TerminalKeyEvent.codepoint('m'.code, TerminalModifiers.CTRL),
+            modeBits = bits,
+        )
+    }
+
+    @Test
     fun `encodes Backspace by policy`() {
         assertBytes(bytes(0x7f), TerminalKeyEvent.key(TerminalKey.BACKSPACE))
         assertBytes(
@@ -138,6 +219,22 @@ class KeyboardEncoderTest {
     }
 
     @Test
+    fun `modifyOtherKeys mode 2 encodes modified Enter`() {
+        val bits = modifyOtherKeysBits(ModifyOtherKeysMode.MODE_2)
+
+        assertBytes(
+            expected = esc("[27;5;13~"),
+            event = TerminalKeyEvent.key(TerminalKey.ENTER, TerminalModifiers.CTRL),
+            modeBits = bits,
+        )
+        assertBytes(
+            expected = esc("[27;2;13~"),
+            event = TerminalKeyEvent.key(TerminalKey.ENTER, TerminalModifiers.SHIFT),
+            modeBits = bits,
+        )
+    }
+
+    @Test
     fun `encodes Escape by modifier policy`() {
         assertBytes(bytes(0x1b), TerminalKeyEvent.key(TerminalKey.ESCAPE))
         assertBytes(bytes(0x1b, 0x1b), TerminalKeyEvent.key(TerminalKey.ESCAPE, TerminalModifiers.ALT))
@@ -157,6 +254,22 @@ class KeyboardEncoderTest {
         assertBytes(esc("[Z"), TerminalKeyEvent.key(TerminalKey.TAB, TerminalModifiers.SHIFT))
         assertBytes(esc("[1;5Z"), TerminalKeyEvent.key(TerminalKey.TAB, TerminalModifiers.CTRL))
         assertBytes(esc("[1;9Z"), TerminalKeyEvent.key(TerminalKey.TAB, TerminalModifiers.META))
+    }
+
+    @Test
+    fun `modifyOtherKeys mode 2 encodes modified Tab`() {
+        val bits = modifyOtherKeysBits(ModifyOtherKeysMode.MODE_2)
+
+        assertBytes(
+            expected = esc("[27;5;9~"),
+            event = TerminalKeyEvent.key(TerminalKey.TAB, TerminalModifiers.CTRL),
+            modeBits = bits,
+        )
+        assertBytes(
+            expected = esc("[27;2;9~"),
+            event = TerminalKeyEvent.key(TerminalKey.TAB, TerminalModifiers.SHIFT),
+            modeBits = bits,
+        )
     }
 
     @Test
@@ -317,6 +430,15 @@ class KeyboardEncoderTest {
 
     private fun esc(textAfterEsc: String): ByteArray {
         return bytes(0x1b) + ascii(textAfterEsc)
+    }
+
+    private fun modifyOtherKeysBits(mode: Int): Long {
+        return TerminalModeBits.withPackedValue(
+            bits = 0L,
+            mask = TerminalModeBits.MODIFY_OTHER_KEYS_MASK,
+            shift = TerminalModeBits.MODIFY_OTHER_KEYS_SHIFT,
+            value = mode,
+        )
     }
 
     private fun ascii(text: String): ByteArray {

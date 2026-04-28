@@ -72,4 +72,13 @@ class TerminalProtocolModesTest {
             { assertEquals("URXVT", MouseEncodingMode.URXVT.name) },
         )
     }
+
+    @Test
+    fun `modifyOtherKeys modes expose input and core shared vocabulary`() {
+        assertAll(
+            { assertEquals(0, ModifyOtherKeysMode.DISABLED) },
+            { assertEquals(1, ModifyOtherKeysMode.MODE_1) },
+            { assertEquals(2, ModifyOtherKeysMode.MODE_2) },
+        )
+    }
 }

@@ -2,6 +2,7 @@ package com.gagik.terminal.input.impl
 
 import com.gagik.core.TerminalBuffers
 import com.gagik.terminal.input.event.*
+import com.gagik.terminal.protocol.ModifyOtherKeysMode
 import com.gagik.terminal.protocol.MouseEncodingMode
 import com.gagik.terminal.protocol.MouseTrackingMode
 import com.gagik.terminal.protocol.host.TerminalHostOutput
@@ -47,6 +48,23 @@ class DefaultTerminalInputEncoderCoreStateTest {
         encoder.encodeKey(TerminalKeyEvent.key(TerminalKey.NUMPAD_1))
 
         assertArrayEquals("1".encodeToByteArray() + esc("Oq"), output.bytes)
+    }
+
+    @Test
+    fun `uses real core modifyOtherKeys mode for keyboard encoding`() {
+        val terminal = TerminalBuffers.create(width = 4, height = 2)
+        val output = RecordingHostOutput()
+        val encoder = DefaultTerminalInputEncoder(terminal, output)
+
+        encoder.encodeKey(TerminalKeyEvent.codepoint(0x00e9, TerminalModifiers.CTRL))
+        terminal.setModifyOtherKeysMode(ModifyOtherKeysMode.MODE_2)
+        encoder.encodeKey(TerminalKeyEvent.codepoint(0x00e9, TerminalModifiers.CTRL))
+        encoder.encodeKey(TerminalKeyEvent.key(TerminalKey.ENTER, TerminalModifiers.SHIFT))
+
+        assertArrayEquals(
+            esc("[27;5;233~") + esc("[27;2;13~"),
+            output.bytes,
+        )
     }
 
     @Test
