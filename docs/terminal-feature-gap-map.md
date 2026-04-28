@@ -243,8 +243,11 @@ Missing:
 
 ### Reset and Mode Semantics
 
-- `TODO(core)`: DECSTR soft reset API.
-  Do not fake this with full `reset`, because DECSTR is less destructive than RIS.
+- `DONE(core/integration)`: DECSTR soft reset API. `CSI ! p` now routes to a
+  core soft reset that preserves visible content, scrollback, tab stops,
+  dimensions, and active screen selection while resetting soft mode/write state,
+  margins, pen attributes, selective-erase write protection, pending wrap, and
+  saved-cursor restore targets.
 - `DONE(core/integration)`: alternate-screen variants distinguish switch-only,
   clearing switch-only, cursor save/restore-only, and 1049-style combined
   behavior.
@@ -306,7 +309,7 @@ Missing:
   attributes are mapped to core pen attributes without clamping.
 - `DONE(integration)`: map faint, blink, conceal, strikethrough, overline,
   underline style, and underline color SGR attributes to core pen storage.
-- `TODO(integration)`: map DECSTR only after core exposes a soft-reset API.
+- `DONE(integration)`: parser DECSTR maps to core `softReset`.
 - `DONE(integration)`: map alternate-screen `47`, `1047`, `1048`, and `1049`
   to distinct core semantics.
 - `DONE(integration)`: parser RIS maps to core `reset`.

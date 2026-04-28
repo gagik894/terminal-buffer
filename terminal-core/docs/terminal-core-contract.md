@@ -224,6 +224,23 @@ Not guaranteed:
 - tab stops resized non-destructively
 - saved-cursor state clamped to valid bounds
 
+### Soft reset
+
+`softReset()` implements DECSTR (`CSI ! p`).
+
+Guaranteed behavior:
+
+- visible content and scrollback are preserved
+- dimensions, tab stops, and active screen selection are preserved
+- insert, origin, application cursor/keypad, cursor presentation, left/right
+  margin mode, and modify-other-keys state reset to defaults
+- bracketed paste, focus reporting, and mouse reporting modes are preserved
+- top/bottom and left/right margins reset to the full viewport on both buffers
+- current cursor position is preserved, but pending wrap is cleared
+- saved-cursor slots restore to home with default pen state
+- active pen attributes, hyperlink id, and selective-erase write protection
+  reset to defaults
+
 ### `DECCOLM`
 
 `executeDeccolm(newWidth)` accepts only `80` or `132`.

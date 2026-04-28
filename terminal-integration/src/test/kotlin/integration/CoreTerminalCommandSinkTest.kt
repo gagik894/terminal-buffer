@@ -149,6 +149,41 @@ class CoreTerminalCommandSinkTest {
                 { assertEquals(false, attr?.bold) },
             )
         }
+
+        @Test
+        fun `DECSTR soft reset parsed from bytes preserves content and resets soft state`() {
+            val f = Fixture(terminal = TerminalBuffers.create(width = 8, height = 3))
+
+            f.acceptAscii("\u001B[?1;6;7;12;25;66;1004;1006;2004h")
+            f.acceptAscii("\u001B[4h")
+            f.acceptAscii("AB")
+            f.acceptAscii("\u001B[1;38;5;196m")
+            f.acceptAscii("\u001B[?7l")
+            f.acceptAscii("\u001B[1\"q")
+            f.acceptAscii("\u001B[!p")
+            f.acceptAscii("C")
+            f.end()
+
+            val snapshot = f.terminal.getModeSnapshot()
+            val attr = f.terminal.getAttrAt(2, 0)
+
+            assertAll(
+                { assertEquals("ABC", f.terminal.getLineAsString(0)) },
+                { assertFalse(snapshot.isInsertMode) },
+                { assertFalse(snapshot.isApplicationCursorKeys) },
+                { assertFalse(snapshot.isApplicationKeypad) },
+                { assertFalse(snapshot.isOriginMode) },
+                { assertTrue(snapshot.isAutoWrap) },
+                { assertTrue(snapshot.isCursorVisible) },
+                { assertFalse(snapshot.isCursorBlinking) },
+                { assertTrue(snapshot.isFocusReportingEnabled) },
+                { assertTrue(snapshot.isBracketedPasteEnabled) },
+                { assertEquals(MouseEncodingMode.SGR, snapshot.mouseEncodingMode) },
+                { assertEquals(AttributeColor.DEFAULT, attr?.foreground) },
+                { assertFalse(attr?.bold == true) },
+                { assertFalse(attr?.selectiveEraseProtected == true) },
+            )
+        }
     }
 
     @Nested

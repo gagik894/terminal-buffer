@@ -17,6 +17,7 @@ import com.gagik.core.state.TerminalState
  * Cross-cutting responsibilities owned here:
  * - resize orchestration across both screen buffers
  * - full terminal reset (RIS)
+ * - soft terminal reset (DECSTR)
  */
 internal class TerminalBuffer private constructor(
     private val components: Components
@@ -79,6 +80,30 @@ internal class TerminalBuffer private constructor(
         state.tabStops.resetToDefault()
     }
 
+    override fun softReset() {
+        state.pen.reset()
+
+        val modes = state.modes
+        modes.isInsertMode = false
+        modes.isApplicationCursorKeys = false
+        modes.isApplicationKeypad = false
+        modes.isOriginMode = false
+        modes.isAutoWrap = true
+        modes.isLeftRightMarginMode = false
+        modes.isCursorVisible = true
+        modes.isCursorBlinking = false
+        modes.modifyOtherKeysMode = 0
+
+        state.primaryBuffer.resetScrollRegion(state.dimensions.height)
+        state.altBuffer.resetScrollRegion(state.dimensions.height)
+        state.primaryBuffer.resetLeftRightMargins(state.dimensions.width)
+        state.altBuffer.resetLeftRightMargins(state.dimensions.width)
+        state.primaryBuffer.cursor.pendingWrap = false
+        state.altBuffer.cursor.pendingWrap = false
+        resetSavedCursorToHome(state.primaryBuffer.savedCursor)
+        resetSavedCursorToHome(state.altBuffer.savedCursor)
+    }
+
     override fun executeDeccolm(newWidth: Int) {
         if (newWidth != 80 && newWidth != 132) return
 
@@ -90,6 +115,16 @@ internal class TerminalBuffer private constructor(
 
         primarySaved.restoreInto(state.primaryBuffer.savedCursor)
         altSaved.restoreInto(state.altBuffer.savedCursor)
+    }
+
+    private fun resetSavedCursorToHome(target: SavedCursorState) {
+        target.col = 0
+        target.row = 0
+        target.attr = state.pen.currentAttr
+        target.extendedAttr = state.pen.currentExtendedAttr
+        target.pendingWrap = false
+        target.isOriginMode = false
+        target.isSaved = true
     }
 
     private data class Components(

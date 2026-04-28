@@ -133,6 +133,87 @@ class TerminalBufferTest {
 	}
 
 	@Test
+	fun `softReset preserves content and cursor while resetting soft terminal state`() {
+		val buffer = newApiBuffer(width = 8, height = 4, maxHistory = 2)
+		val state = stateOf(buffer)
+
+		buffer.writeText("AB")
+		buffer.setScrollRegion(2, 4)
+		buffer.setLeftRightMarginMode(true)
+		buffer.setLeftRightMargins(3, 6)
+		buffer.setInsertMode(true)
+		buffer.setApplicationCursorKeys(true)
+		buffer.setApplicationKeypad(true)
+		buffer.setOriginMode(true)
+		buffer.setAutoWrap(false)
+		buffer.setCursorVisible(false)
+		buffer.setCursorBlinking(true)
+		buffer.setBracketedPasteEnabled(true)
+		buffer.setFocusReportingEnabled(true)
+		buffer.setMouseTrackingMode(MouseTrackingMode.BUTTON_EVENT)
+		buffer.setMouseEncodingMode(MouseEncodingMode.SGR)
+		buffer.setModifyOtherKeysMode(2)
+		buffer.setSelectiveEraseProtection(true)
+		buffer.setPenColors(
+			foreground = AttributeColor.indexed(196),
+			background = AttributeColor.indexed(17),
+			bold = true,
+			underlineStyle = UnderlineStyle.CURLY,
+		)
+		buffer.positionCursor(5, 2)
+		buffer.saveCursor()
+		buffer.positionCursor(2, 1)
+
+		buffer.softReset()
+
+		val snapshot = buffer.getModeSnapshot()
+
+		assertAll(
+			{ assertEquals("AB", buffer.getLineAsString(0)) },
+			{ assertEquals(4, buffer.cursorCol) },
+			{ assertEquals(2, buffer.cursorRow) },
+			{ assertFalse(state.cursor.pendingWrap) },
+			{ assertFalse(snapshot.isInsertMode) },
+			{ assertFalse(snapshot.isApplicationCursorKeys) },
+			{ assertFalse(snapshot.isApplicationKeypad) },
+			{ assertFalse(snapshot.isOriginMode) },
+			{ assertTrue(snapshot.isAutoWrap) },
+			{ assertFalse(snapshot.isLeftRightMarginMode) },
+			{ assertTrue(snapshot.isCursorVisible) },
+			{ assertFalse(snapshot.isCursorBlinking) },
+			{ assertTrue(snapshot.isBracketedPasteEnabled) },
+			{ assertTrue(snapshot.isFocusReportingEnabled) },
+			{ assertEquals(MouseTrackingMode.BUTTON_EVENT, snapshot.mouseTrackingMode) },
+			{ assertEquals(MouseEncodingMode.SGR, snapshot.mouseEncodingMode) },
+			{ assertEquals(0, snapshot.modifyOtherKeysMode) },
+			{ assertEquals(0, state.primaryBuffer.scrollTop) },
+			{ assertEquals(3, state.primaryBuffer.scrollBottom) },
+			{ assertEquals(0, state.primaryBuffer.leftMargin) },
+			{ assertEquals(7, state.primaryBuffer.rightMargin) },
+		)
+
+		buffer.writeCodepoint('C'.code)
+
+		val attr = buffer.getAttrAt(4, 2)
+		assertAll(
+			{ assertEquals('C'.code, buffer.getCodepointAt(4, 2)) },
+			{ assertEquals(AttributeColor.DEFAULT, attr?.foreground) },
+			{ assertEquals(AttributeColor.DEFAULT, attr?.background) },
+			{ assertFalse(attr?.bold == true) },
+			{ assertFalse(attr?.selectiveEraseProtected == true) },
+		)
+
+		buffer.positionCursor(7, 3)
+		buffer.restoreCursor()
+
+		assertAll(
+			{ assertEquals(0, buffer.cursorCol) },
+			{ assertEquals(0, buffer.cursorRow) },
+			{ assertFalse(buffer.getModeSnapshot().isOriginMode) },
+		)
+	}
+
+	@Test
 	fun `reset exits alt buffer and restores current core mode defaults`() {
 		val buffer = newApiBuffer(width = 5, height = 3, maxHistory = 2)
 		val state = stateOf(buffer)

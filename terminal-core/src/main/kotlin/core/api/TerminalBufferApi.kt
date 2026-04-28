@@ -52,6 +52,18 @@ interface TerminalBufferApi :
     fun reset()
 
     /**
+     * Performs a soft terminal reset (DECSTR, `CSI ! p`).
+     *
+     * Leaves visible content, scrollback history, tab stops, dimensions, and the
+     * active screen selection intact. Resets modes and write state that affect
+     * subsequent output/input coordination: insert, origin, application
+     * cursor/keypad, cursor presentation, modify-other-keys, margins, pen
+     * attributes, selective-erase write protection, and pending wrap. The saved
+     * cursor slots are replaced with a home/default restore target.
+     */
+    fun softReset()
+
+    /**
      * Executes DECCOLM (`CSI ? 3 h` / `CSI ? 3 l`) as a core-owned macro command.
      *
      * Valid widths are `80` and `132`; all other values are ignored.

@@ -88,9 +88,11 @@ class CoreTerminalCommandSink(
     }
 
     override fun softReset() {
-        // TODO(core-gap): Add a DECSTR soft-reset API to core. Full RIS reset exists, but DECSTR
-        // is a softer reset and should not be mapped blindly to TerminalBufferApi.reset().
-        resetAttributes()
+        terminal.softReset()
+        resetPenMirror()
+        activeHyperlinkUri = null
+        activeHyperlinkId = null
+        activeHyperlinkNumericId = 0
     }
 
     override fun resetTerminal() {
