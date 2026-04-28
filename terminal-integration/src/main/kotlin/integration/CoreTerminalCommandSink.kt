@@ -256,6 +256,7 @@ class CoreTerminalCommandSink(
             DecPrivateMode.REVERSE_VIDEO -> terminal.setReverseVideo(enable)
             DecPrivateMode.ORIGIN -> terminal.setOriginMode(enable)
             DecPrivateMode.AUTO_WRAP -> terminal.setAutoWrap(enable)
+            DecPrivateMode.CURSOR_BLINK -> terminal.setCursorBlinking(enable)
             DecPrivateMode.CURSOR_VISIBLE -> terminal.setCursorVisible(enable)
             DecPrivateMode.APPLICATION_KEYPAD -> terminal.setApplicationKeypad(enable)
             DecPrivateMode.LEFT_RIGHT_MARGIN -> terminal.setLeftRightMarginMode(enable)
@@ -264,8 +265,14 @@ class CoreTerminalCommandSink(
             DecPrivateMode.MOUSE_BUTTON_EVENT -> setMouseTrackingMode(enable, MouseTrackingMode.BUTTON_EVENT)
             DecPrivateMode.MOUSE_ANY_EVENT -> setMouseTrackingMode(enable, MouseTrackingMode.ANY_EVENT)
             DecPrivateMode.FOCUS_REPORTING -> terminal.setFocusReportingEnabled(enable)
+            DecPrivateMode.MOUSE_UTF8 -> terminal.setMouseEncodingMode(
+                if (enable) MouseEncodingMode.UTF8 else MouseEncodingMode.DEFAULT
+            )
             DecPrivateMode.MOUSE_SGR -> terminal.setMouseEncodingMode(
                 if (enable) MouseEncodingMode.SGR else MouseEncodingMode.DEFAULT
+            )
+            DecPrivateMode.MOUSE_URXVT -> terminal.setMouseEncodingMode(
+                if (enable) MouseEncodingMode.URXVT else MouseEncodingMode.DEFAULT
             )
             DecPrivateMode.ALT_SCREEN,
             DecPrivateMode.ALT_SCREEN_BUFFER -> {

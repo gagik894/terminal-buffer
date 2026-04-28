@@ -102,6 +102,7 @@ class ModeDispatchTest {
                 DecPrivateMode.REVERSE_VIDEO,
                 DecPrivateMode.ORIGIN,
                 DecPrivateMode.AUTO_WRAP,
+                DecPrivateMode.CURSOR_BLINK,
                 DecPrivateMode.CURSOR_VISIBLE,
                 DecPrivateMode.APPLICATION_KEYPAD,
                 DecPrivateMode.LEFT_RIGHT_MARGIN,
@@ -124,7 +125,9 @@ class ModeDispatchTest {
                 DecPrivateMode.MOUSE_NORMAL,
                 DecPrivateMode.MOUSE_BUTTON_EVENT,
                 DecPrivateMode.MOUSE_ANY_EVENT,
+                DecPrivateMode.MOUSE_UTF8,
                 DecPrivateMode.MOUSE_SGR,
+                DecPrivateMode.MOUSE_URXVT,
             )
 
             assertEquals(
@@ -249,13 +252,14 @@ class ModeDispatchTest {
         fun `DEC private modes route through ByteClass FSM action engine and dispatcher`() {
             val fixture = TerminalParserFixture()
 
-            fixture.acceptAscii("\u001B[?1;6;7;25;66;69;1000;1002;1003;1004;1006;2004h")
+            fixture.acceptAscii("\u001B[?1;6;7;12;25;66;69;1000;1002;1003;1004;1005;1006;1015;2004h")
 
             assertEquals(
                 listOf(
                     decEvent(DecPrivateMode.APPLICATION_CURSOR_KEYS, true),
                     decEvent(DecPrivateMode.ORIGIN, true),
                     decEvent(DecPrivateMode.AUTO_WRAP, true),
+                    decEvent(DecPrivateMode.CURSOR_BLINK, true),
                     decEvent(DecPrivateMode.CURSOR_VISIBLE, true),
                     decEvent(DecPrivateMode.APPLICATION_KEYPAD, true),
                     decEvent(DecPrivateMode.LEFT_RIGHT_MARGIN, true),
@@ -263,7 +267,9 @@ class ModeDispatchTest {
                     decEvent(DecPrivateMode.MOUSE_BUTTON_EVENT, true),
                     decEvent(DecPrivateMode.MOUSE_ANY_EVENT, true),
                     decEvent(DecPrivateMode.FOCUS_REPORTING, true),
+                    decEvent(DecPrivateMode.MOUSE_UTF8, true),
                     decEvent(DecPrivateMode.MOUSE_SGR, true),
+                    decEvent(DecPrivateMode.MOUSE_URXVT, true),
                     decEvent(DecPrivateMode.BRACKETED_PASTE, true),
                 ),
                 fixture.sink.events,

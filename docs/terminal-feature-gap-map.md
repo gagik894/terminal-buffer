@@ -84,14 +84,16 @@ surface or maintenance cost without meaningful modern terminal value.
   `TerminalBufferApi.reset`.
 - `TODO(parser)`: full DEC private mode vocabulary and tests beyond the current common set:
   - alternate-screen variants `47`, `1047`, `1048`, `1049`
-  - cursor blink mode
-  - mouse UTF-8 and URXVT encodings
   - synchronized output mode `?2026`
-  - focus, paste, mouse, and application-mode interactions
+  - focus, paste, mouse, and application-mode behavior beyond durable mode state
 - `DONE(parser/integration)`: xterm title stack:
   - `CSI 22 t` push window/icon title
   - `CSI 23 t` pop window/icon title
   Shells use this when temporarily changing titles for foreground commands.
+- `DONE(parser/core/integration)`: input-facing durable DEC private mode state
+  routes into core mode snapshots for application cursor keys, application
+  keypad, cursor blink, focus reporting, bracketed paste, mouse tracking modes,
+  and mouse UTF-8/SGR/URXVT encoding selectors.
 - `DONE(parser/core/integration)`: safe xterm window/grid size reports:
   - `CSI 14 t`, report window size in pixels
   - `CSI 18 t`, report terminal size in characters
@@ -378,3 +380,37 @@ professional emulator needs explicit contracts for it.
 - `TODO(policy)`: window manipulation allow/deny behavior for xterm window ops.
 - `TODO(policy)`: desktop notification allow/deny behavior for OSC 777 and
   related notification protocols.
+
+
+
+1. Finalize mode state needed by input
+DEC/application cursor key mode
+application keypad mode
+bracketed paste mode
+focus reporting mode
+mouse tracking modes
+mouse encoding modes: SGR, UTF-8, URXVT if you intend to support them
+synchronized output ?2026 can remain TODO unless renderer batching is near
+
+2.Fix alternate-screen semantics before input
+Distinguish 47, 1047, 1048, 1049.
+Core currently sounds mostly 1049-style.
+This is worth doing now because mode switching affects cursor save/restore, scrollback, and later input/runtime state expectations.
+
+3.Add DECSTR soft reset
+Core needs a real soft-reset API.
+Parser/integration can then map CSI ! p.
+This matters because reset behavior should define which modes survive, including modes input will consume.
+
+4.Complete the DEC private mode vocabulary pass
+Not every historical mode, but the modern/common set should be parsed, tested, and either routed or explicitly ignored.
+Especially: cursor blink, mouse modes, focus, paste, application cursor/keypad, alternate screen variants.
+
+5.Stabilize core snapshot/read APIs
+Before :terminal-input, decide what input reads from core.
+Ideally input depends on terminal-protocol vocabulary plus a small core mode snapshot, not parser internals.
+This is the contract I would make boring and stable before creating the new module.
+
+6.Decide host/event boundary, but only minimally
+Title changes, bell, hyperlinks, palette updates, notifications, mouse/focus/paste reports all point toward an event/callback surface.
+You do not need the full host API before input, but you should decide whether terminal-to-host bytes all go through the core response queue or whether input gets a sibling output channel.

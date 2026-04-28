@@ -160,7 +160,7 @@ class CoreTerminalCommandSinkTest {
             val f = Fixture()
 
             f.acceptAscii("\u001B[4;20h")
-            f.acceptAscii("\u001B[?1;5;6;7;25;66;69;1004;2004h")
+            f.acceptAscii("\u001B[?1;5;6;7;12;25;66;69;1004;2004h")
 
             val snapshot = f.terminal.getModeSnapshot()
 
@@ -171,6 +171,7 @@ class CoreTerminalCommandSinkTest {
                 { assertTrue(snapshot.isReverseVideo) },
                 { assertTrue(snapshot.isOriginMode) },
                 { assertTrue(snapshot.isAutoWrap) },
+                { assertTrue(snapshot.isCursorBlinking) },
                 { assertTrue(snapshot.isCursorVisible) },
                 { assertTrue(snapshot.isApplicationKeypad) },
                 { assertTrue(snapshot.isLeftRightMarginMode) },
@@ -183,8 +184,8 @@ class CoreTerminalCommandSinkTest {
         fun `DEC mode reset parsed from bytes updates core mode snapshot`() {
             val f = Fixture()
 
-            f.acceptAscii("\u001B[4;20h\u001B[?1;5;6;7;25;66;69;1004;2004h")
-            f.acceptAscii("\u001B[4;20l\u001B[?1;5;6;7;25;66;69;1004;2004l")
+            f.acceptAscii("\u001B[4;20h\u001B[?1;5;6;7;12;25;66;69;1004;2004h")
+            f.acceptAscii("\u001B[4;20l\u001B[?1;5;6;7;12;25;66;69;1004;2004l")
 
             val snapshot = f.terminal.getModeSnapshot()
 
@@ -195,6 +196,7 @@ class CoreTerminalCommandSinkTest {
                 { assertFalse(snapshot.isReverseVideo) },
                 { assertFalse(snapshot.isOriginMode) },
                 { assertFalse(snapshot.isAutoWrap) },
+                { assertFalse(snapshot.isCursorBlinking) },
                 { assertFalse(snapshot.isCursorVisible) },
                 { assertFalse(snapshot.isApplicationKeypad) },
                 { assertFalse(snapshot.isLeftRightMarginMode) },
@@ -222,6 +224,20 @@ class CoreTerminalCommandSinkTest {
                 { assertEquals(MouseTrackingMode.OFF, snapshot.mouseTrackingMode) },
                 { assertEquals(MouseEncodingMode.DEFAULT, snapshot.mouseEncodingMode) },
             )
+        }
+
+        @Test
+        fun `UTF8 and URXVT mouse encoding modes update core snapshot`() {
+            val f = Fixture()
+
+            f.acceptAscii("\u001B[?1005h")
+            assertEquals(MouseEncodingMode.UTF8, f.terminal.getModeSnapshot().mouseEncodingMode)
+
+            f.acceptAscii("\u001B[?1015h")
+            assertEquals(MouseEncodingMode.URXVT, f.terminal.getModeSnapshot().mouseEncodingMode)
+
+            f.acceptAscii("\u001B[?1015l")
+            assertEquals(MouseEncodingMode.DEFAULT, f.terminal.getModeSnapshot().mouseEncodingMode)
         }
 
         @Test

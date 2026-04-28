@@ -41,11 +41,14 @@ class TerminalProtocolModesTest {
             { assertEquals(1, DecPrivateMode.APPLICATION_CURSOR_KEYS) },
             { assertEquals(6, DecPrivateMode.ORIGIN) },
             { assertEquals(7, DecPrivateMode.AUTO_WRAP) },
+            { assertEquals(12, DecPrivateMode.CURSOR_BLINK) },
             { assertEquals(25, DecPrivateMode.CURSOR_VISIBLE) },
             { assertEquals(1000, DecPrivateMode.MOUSE_NORMAL) },
             { assertEquals(1002, DecPrivateMode.MOUSE_BUTTON_EVENT) },
             { assertEquals(1003, DecPrivateMode.MOUSE_ANY_EVENT) },
+            { assertEquals(1005, DecPrivateMode.MOUSE_UTF8) },
             { assertEquals(1006, DecPrivateMode.MOUSE_SGR) },
+            { assertEquals(1015, DecPrivateMode.MOUSE_URXVT) },
             { assertEquals(2004, DecPrivateMode.BRACKETED_PASTE) },
         )
     }
