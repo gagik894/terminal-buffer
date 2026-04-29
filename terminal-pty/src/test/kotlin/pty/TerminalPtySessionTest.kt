@@ -145,11 +145,11 @@ class TerminalPtySessionTest {
     }
 
     private fun TerminalPtySession.waitForReader() {
-        joinReader(1000)
+        assertTrue(joinReader(1000), "reader thread did not stop")
     }
 
     private fun TerminalPtySession.waitForWatcher() {
-        joinWatcher(1000)
+        assertTrue(joinWatcher(1000), "watcher thread did not stop")
     }
 
     private class FixedProcessFactory(
@@ -234,5 +234,7 @@ class TerminalPtySessionTest {
         override fun processExited(session: TerminalPtySession, exitCode: Int) {
             exitCodes += exitCode
         }
+
+        override fun listenerFailed(session: TerminalPtySession, exception: Exception) = Unit
     }
 }

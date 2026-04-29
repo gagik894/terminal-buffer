@@ -82,6 +82,7 @@ class SessionHostEventBridgeTest {
         }
         override fun readerFailed(session: TerminalPtySession, exception: IOException) = Unit
         override fun processExited(session: TerminalPtySession, exitCode: Int) = Unit
+        override fun listenerFailed(session: TerminalPtySession, exception: Exception) = Unit
     }
 
     private class TestProcess : TerminalProcess {

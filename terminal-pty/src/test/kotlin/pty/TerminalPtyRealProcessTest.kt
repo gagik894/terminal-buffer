@@ -24,7 +24,7 @@ class TerminalPtyRealProcessTest {
         )
 
         val exitCode = session.waitFor()
-        session.joinReader(2000)
+        assertTrue(session.joinReader(2000), "reader thread did not stop")
         session.close()
 
         assertTrue(exitCode == 0, "expected smoke process to exit successfully")

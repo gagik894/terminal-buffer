@@ -117,15 +117,31 @@ class TerminalPtySession internal constructor(
     @Throws(InterruptedException::class)
     fun waitFor(): Int = process.waitFor()
 
-    internal fun joinReader(timeoutMillis: Long) {
-        if (::readerThread.isInitialized) {
+    internal fun joinReader(timeoutMillis: Long): Boolean {
+        if (!::readerThread.isInitialized) {
+            return true
+        }
+
+        return try {
             readerThread.join(timeoutMillis)
+            !readerThread.isAlive
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            false
         }
     }
 
-    internal fun joinWatcher(timeoutMillis: Long) {
-        if (::watcherThread.isInitialized) {
+    internal fun joinWatcher(timeoutMillis: Long): Boolean {
+        if (!::watcherThread.isInitialized) {
+            return true
+        }
+
+        return try {
             watcherThread.join(timeoutMillis)
+            !watcherThread.isAlive
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            false
         }
     }
 
@@ -270,11 +286,21 @@ class TerminalPtySession internal constructor(
 
     private fun joinThreads() {
         if (::readerThread.isInitialized && Thread.currentThread() !== readerThread) {
-            readerThread.join(CLOSE_JOIN_MILLIS)
+            try {
+                readerThread.join(CLOSE_JOIN_MILLIS)
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+                return
+            }
         }
 
         if (::watcherThread.isInitialized && Thread.currentThread() !== watcherThread) {
-            watcherThread.join(CLOSE_JOIN_MILLIS)
+            try {
+                watcherThread.join(CLOSE_JOIN_MILLIS)
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+                return
+            }
         }
     }
 
@@ -282,8 +308,15 @@ class TerminalPtySession internal constructor(
         try {
             block()
         } catch (exception: Exception) {
-            System.err.println("TerminalPtyEventListener failed: ${exception.message}")
-            exception.printStackTrace()
+            notifyListenerFailed(exception)
+        }
+    }
+
+    private fun notifyListenerFailed(exception: Exception) {
+        try {
+            eventListener.listenerFailed(this@TerminalPtySession, exception)
+        } catch (_: Exception) {
+            // Ignore secondary listener failure.
         }
     }
 

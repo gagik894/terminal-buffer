@@ -18,6 +18,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 class TerminalPtySessionHardeningTest {
     @Test
@@ -43,12 +44,14 @@ class TerminalPtySessionHardeningTest {
         }
         resizeThread.start()
 
-        Thread.sleep(100)
-        assertFalse(resizeReturned.get())
+        assertFalse(
+            resizeReturned.get(),
+            "resize returned while parser.accept was still running",
+        )
 
         releaseAccept.countDown()
-        resizeThread.join(1000)
-        session.joinReader(1000)
+        resizeThread.joinOrFail(1000, "resize thread")
+        session.waitForReader()
 
         assertTrue(resizeReturned.get())
         assertEquals(20, session.terminal.width)
@@ -78,7 +81,7 @@ class TerminalPtySessionHardeningTest {
 
         assertEquals("a", output.toString(Charsets.UTF_8))
         releaseAccept.countDown()
-        session.joinReader(1000)
+        session.waitForReader()
     }
 
     @Test
@@ -97,7 +100,7 @@ class TerminalPtySessionHardeningTest {
         )
 
         session.startReader()
-        session.joinReader(1000)
+        session.waitForReader()
 
         assertEquals("\u001B[0n", output.toString(Charsets.UTF_8))
     }
@@ -151,7 +154,7 @@ class TerminalPtySessionHardeningTest {
         bridge.attach(session)
 
         session.startReader()
-        session.joinReader(1000)
+        session.waitForReader()
 
         assertTrue(process.destroyed)
     }
@@ -178,12 +181,14 @@ class TerminalPtySessionHardeningTest {
         }
         closeThread.start()
 
-        Thread.sleep(100)
-        assertFalse(closeReturned.get())
+        assertFalse(
+            closeReturned.get(),
+            "close returned while host write was still running",
+        )
 
         output.releaseWrite.countDown()
-        encodeThread.join(1000)
-        closeThread.join(1000)
+        encodeThread.joinOrFail(1000, "encode thread")
+        closeThread.joinOrFail(1000, "close thread")
 
         assertTrue(closeReturned.get())
         assertEquals("a", output.bytes.toString(Charsets.UTF_8))
@@ -198,10 +203,14 @@ class TerminalPtySessionHardeningTest {
         val second = Thread { session.encodeKey(TerminalKeyEvent.codepoint('b'.code)) }
 
         first.start()
+        assertTrue(encoder.firstEntered.await(1, TimeUnit.SECONDS))
         second.start()
-        first.join(1000)
-        second.join(1000)
+        assertEquals(1, encoder.maxConcurrent.get())
+        encoder.releaseFirst.countDown()
+        first.joinOrFail(1000, "first input thread")
+        second.joinOrFail(1000, "second input thread")
 
+        encoder.failure.get()?.let { throw it }
         assertEquals(1, encoder.maxConcurrent.get())
         assertEquals(2, encoder.calls.get())
     }
@@ -233,13 +242,14 @@ class TerminalPtySessionHardeningTest {
         bridge.attach(session)
 
         session.startReader()
-        session.joinReader(1000)
+        session.waitForReader()
 
         assertTrue(acceptReturned.get())
     }
 
     @Test
-    fun `listener exceptions are isolated from reader and watcher threads`() {
+    fun `listener exception is reported through listenerFailed and does not kill lifecycle threads`() {
+        val failures = mutableListOf<Exception>()
         val listener = object : TerminalPtyEventListener by TerminalPtyEventListener.NONE {
             override fun bell(session: TerminalPtySession) {
                 throw IllegalStateException("bell failed")
@@ -248,6 +258,10 @@ class TerminalPtySessionHardeningTest {
             override fun processExited(session: TerminalPtySession, exitCode: Int) {
                 throw IllegalStateException("exit failed")
             }
+
+            override fun listenerFailed(session: TerminalPtySession, exception: Exception) {
+                failures += exception
+            }
         }
         val process = TestProcess(input = ByteArrayInputStream("\u0007".encodeToByteArray()), exitCode = 9)
         val session = TerminalPtySessions.start(
@@ -255,11 +269,34 @@ class TerminalPtySessionHardeningTest {
             FixedProcessFactory(process),
         )
 
-        session.joinReader(1000)
-        session.joinWatcher(1000)
+        session.waitForReader()
+        session.waitForWatcher()
 
         assertNull(session.failure)
         assertEquals(9, session.exitCode)
+        assertEquals(setOf("bell failed", "exit failed"), failures.map { it.message }.toSet())
+    }
+
+    @Test
+    fun `listenerFailed exception is ignored`() {
+        val listener = object : TerminalPtyEventListener by TerminalPtyEventListener.NONE {
+            override fun bell(session: TerminalPtySession) {
+                throw IllegalStateException("bell failed")
+            }
+
+            override fun listenerFailed(session: TerminalPtySession, exception: Exception) {
+                throw IllegalStateException("failure handler failed")
+            }
+        }
+        val process = TestProcess(input = ByteArrayInputStream("\u0007".encodeToByteArray()))
+        val session = TerminalPtySessions.start(
+            TerminalPtyOptions(command = listOf("fake"), eventListener = listener),
+            FixedProcessFactory(process),
+        )
+
+        session.waitForReader()
+
+        assertNull(session.failure)
     }
 
     private fun testSession(
@@ -343,13 +380,26 @@ class TerminalPtySessionHardeningTest {
         val active = AtomicInteger()
         val maxConcurrent = AtomicInteger()
         val calls = AtomicInteger()
+        val firstEntered = CountDownLatch(1)
+        val releaseFirst = CountDownLatch(1)
+        private val firstCall = AtomicBoolean(true)
+        val failure = AtomicReference<Throwable>()
 
         override fun encodeKey(event: TerminalKeyEvent) {
             val now = active.incrementAndGet()
             maxConcurrent.updateAndGet { current -> maxOf(current, now) }
-            Thread.sleep(50)
-            calls.incrementAndGet()
-            active.decrementAndGet()
+            try {
+                if (firstCall.compareAndSet(true, false)) {
+                    firstEntered.countDown()
+                    assertTrue(releaseFirst.await(1, TimeUnit.SECONDS))
+                }
+                calls.incrementAndGet()
+            } catch (throwable: Throwable) {
+                failure.set(throwable)
+                throw throwable
+            } finally {
+                active.decrementAndGet()
+            }
         }
 
         override fun encodePaste(event: TerminalPasteEvent) = Unit
@@ -362,5 +412,24 @@ class TerminalPtySessionHardeningTest {
         override fun acceptByte(byteValue: Int) = Unit
         override fun endOfInput() = Unit
         override fun reset() = Unit
+    }
+
+    private fun TerminalPtySession.waitForReader() {
+        assertTrue(joinReader(1000), "reader thread did not stop")
+    }
+
+    private fun TerminalPtySession.waitForWatcher() {
+        assertTrue(joinWatcher(1000), "watcher thread did not stop")
+    }
+
+    private fun Thread.joinOrFail(timeoutMillis: Long, label: String = name) {
+        try {
+            join(timeoutMillis)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            fail("interrupted while waiting for $label")
+        }
+
+        assertFalse(isAlive, "$label did not finish within ${timeoutMillis}ms")
     }
 }

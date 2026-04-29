@@ -48,6 +48,17 @@ interface TerminalPtyEventListener {
      */
     fun processExited(session: TerminalPtySession, exitCode: Int)
 
+    /**
+     * Called when another listener callback throws.
+     *
+     * This callback is also failure-isolated; exceptions thrown from it are
+     * ignored.
+     *
+     * @param session session whose listener callback failed.
+     * @param exception exception thrown by another listener callback.
+     */
+    fun listenerFailed(session: TerminalPtySession, exception: Exception)
+
     companion object {
         /**
          * Listener used when the host does not need PTY callbacks.
@@ -59,6 +70,7 @@ interface TerminalPtyEventListener {
             override fun windowTitleChanged(session: TerminalPtySession, title: String) = Unit
             override fun readerFailed(session: TerminalPtySession, exception: IOException) = Unit
             override fun processExited(session: TerminalPtySession, exitCode: Int) = Unit
+            override fun listenerFailed(session: TerminalPtySession, exception: Exception) = Unit
         }
     }
 }
