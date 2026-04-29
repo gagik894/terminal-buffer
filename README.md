@@ -1,15 +1,25 @@
 # Terminal Buffer
 
-A high-performance terminal model/core in Kotlin. This repository builds the
-headless screen-state engine only: grid memory, scrollback, wrap semantics,
-resize reflow, attributes, alternate-screen state, and cluster-aware cell
-storage.
+A high-performance terminal pipeline in Kotlin. The core remains a headless
+screen-state engine, while parser, integration, input, session, transport, and
+PTY modules are split so rendering and UI can sit on top without touching grid
+internals.
 
 ## Architecture
 
 - **terminal-protocol** holds dependency-free control-code constants, ANSI/DEC
   mode ids, and shared mode vocabulary used by parser, core, integration, and
-  future input code.
+  input code.
+- **terminal-parser** converts byte streams into semantic terminal commands.
+- **terminal-integration** maps parser commands onto public core APIs and
+  host metadata callbacks.
+- **terminal-input** encodes keyboard, paste, focus, and mouse events to
+  host-bound bytes.
+- **terminal-transport-api** defines the connector contract for PTY/SSH/test
+  transports.
+- **terminal-session** serializes parser/core mutation and host-bound writes.
+- **terminal-pty** exposes PTY4J-backed local processes as transport connectors.
+- **terminal-testkit** provides connector fakes for cross-module tests.
 - **TerminalBuffer** is the facade that coordinates the state, mutation, cursor,
   mode, and reader/inspector surfaces.
 - **ScreenBuffer** owns one complete screen arena: `HistoryRing`, `ClusterStore`,
@@ -34,7 +44,7 @@ The core is cluster-capable but not a grapheme segmenter.
 - A future parser module should own grapheme segmentation, buffering, and
   dispatch into the core.
 
-## Parser / input handoff
+## Pipeline Handoff
 
 The detailed public contract lives in
 [`docs/terminal-core-contract.md`](terminal-core/docs/terminal-core-contract.md).
@@ -50,6 +60,9 @@ playbooks in [`docs/agent-skills.md`](docs/agent-skills.md).
   consume that module and core snapshots, not parser internals.
 - The core stores host-controlled input and presentation flags, but it does not
   encode input events or render frames.
+- Transport connectors own byte-stream I/O threads. `TerminalSession` owns
+  parser/core synchronization, response draining, and ordering between UI input
+  bytes and terminal response bytes.
 
 ## Behavioral notes
 

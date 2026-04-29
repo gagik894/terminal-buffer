@@ -406,23 +406,29 @@ Missing:
   locked. Keep it as a separate protocol path rather than mixing it into the
   xterm legacy/modifyOtherKeys encoder.
 
-## Rendering and Host Integration Gaps
+## Session, Transport, Rendering, and Host Integration Gaps
 
 Rendering is intentionally outside the current core/parser modules, but a
 professional emulator needs explicit contracts for it.
 
-- `DONE(host)`: local PTY process lifecycle scaffold:
-  - `:terminal-pty` starts PTY4J-backed processes
-  - PTY stdout feeds `TerminalOutputParser`
-  - parser/integration/core responses and UI input events serialize to PTY stdin
-  - PTY resize updates both the child PTY size and public core buffer dimensions
-- `DONE(host/integration)`: host event callbacks for:
-  - PTY reader failures
-  - child process exit codes
-  - BEL notifications
-  - OSC icon/window title changes
-- `DONE(host)`: opt-in native PTY smoke test verifies real process output flows
-  through PTY4J into parser and core. It is gated by
+- `DONE(host)`: transport/session split:
+  - `:terminal-transport-api` defines `TerminalConnector` and
+    `TerminalConnectorListener`
+  - `:terminal-session` owns parser/core synchronization, core response
+    draining, input encoding, outbound write ordering, local/remote close state,
+    and idempotent parser cleanup
+  - `:terminal-testkit` provides `MockConnector` for logic tests
+- `DONE(host)`: local PTY process lifecycle:
+  - `:terminal-pty` starts PTY4J-backed processes behind `PtyConnector`
+  - PTY connectors own reader/watcher threads, raw host bytes, stdin writes,
+    resize, local close, read errors, and process exit notification
+  - `TerminalPtySessions` and `TerminalSessions.localPty` return the shared
+    `TerminalSession` rather than a PTY-specific session class
+- `DONE(host/integration)`: PTY convenience factory wires integration host event
+  callbacks for BEL and OSC icon/window title changes.
+- `DONE(host)`: opt-in native PTY integration tests verify real process output,
+  resize, local close, process exit codes, and large output flow through PTY4J,
+  connector, session, parser, integration, and core. They are gated by
   `-Dterminal.pty.integration=true` to keep default tests deterministic.
 - `TODO(host)`: renderer API for cell attributes, cursor shape, cursor blink,
   reverse video, selection, hyperlinks, and dirty regions.
@@ -449,37 +455,3 @@ professional emulator needs explicit contracts for it.
 - `TODO(policy)`: window manipulation allow/deny behavior for xterm window ops.
 - `TODO(policy)`: desktop notification allow/deny behavior for OSC 777 and
   related notification protocols.
-
-
-
-1. Finalize mode state needed by input
-DEC/application cursor key mode
-application keypad mode
-bracketed paste mode
-focus reporting mode
-mouse tracking modes
-mouse encoding modes: SGR, UTF-8, URXVT if you intend to support them
-synchronized output ?2026 can remain TODO unless renderer batching is near
-
-2.Fix alternate-screen semantics before input
-Distinguish 47, 1047, 1048, 1049.
-Core currently sounds mostly 1049-style.
-This is worth doing now because mode switching affects cursor save/restore, scrollback, and later input/runtime state expectations.
-
-3.Add DECSTR soft reset
-Core needs a real soft-reset API.
-Parser/integration can then map CSI ! p.
-This matters because reset behavior should define which modes survive, including modes input will consume.
-
-4.Complete the DEC private mode vocabulary pass
-Not every historical mode, but the modern/common set should be parsed, tested, and either routed or explicitly ignored.
-Especially: cursor blink, mouse modes, focus, paste, application cursor/keypad, alternate screen variants.
-
-5.Stabilize core snapshot/read APIs
-Before :terminal-input, decide what input reads from core.
-Ideally input depends on terminal-protocol vocabulary plus a small core mode snapshot, not parser internals.
-This is the contract I would make boring and stable before creating the new module.
-
-6.Decide host/event boundary, but only minimally
-Title changes, bell, hyperlinks, palette updates, notifications, mouse/focus/paste reports all point toward an event/callback surface.
-You do not need the full host API before input, but you should decide whether terminal-to-host bytes all go through the core response queue or whether input gets a sibling output channel.
