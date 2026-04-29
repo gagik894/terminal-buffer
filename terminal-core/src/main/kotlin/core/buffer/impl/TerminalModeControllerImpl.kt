@@ -72,15 +72,27 @@ internal class TerminalModeControllerImpl(
 	}
 
 	override fun setReverseVideo(enabled: Boolean) {
-		mutateMode { state.modes.isReverseVideo = enabled }
+		mutateMode {
+			if (state.modes.isReverseVideo == enabled) return@mutateMode
+			state.modes.isReverseVideo = enabled
+			state.markVisualChanged()
+		}
 	}
 
 	override fun setCursorVisible(enabled: Boolean) {
-		mutateMode { state.modes.isCursorVisible = enabled }
+		mutateMode {
+			if (state.modes.isCursorVisible == enabled) return@mutateMode
+			state.modes.isCursorVisible = enabled
+			state.markCursorChanged()
+		}
 	}
 
 	override fun setCursorBlinking(enabled: Boolean) {
-		mutateMode { state.modes.isCursorBlinking = enabled }
+		mutateMode {
+			if (state.modes.isCursorBlinking == enabled) return@mutateMode
+			state.modes.isCursorBlinking = enabled
+			state.markCursorChanged()
+		}
 	}
 
 	override fun setTreatAmbiguousAsWide(enabled: Boolean) {
@@ -91,12 +103,16 @@ internal class TerminalModeControllerImpl(
 		if (state.isAltScreenActive) return
 
 		state.enterAltScreen(clearBeforeEnter)
+		state.markStructureChanged()
+		state.markCursorChanged()
 	}
 
 	override fun exitAltBufferWithoutCursorRestore() {
 		if (!state.isAltScreenActive) return
 
 		state.exitAltScreen()
+		state.markStructureChanged()
+		state.markCursorChanged()
 	}
 
 	override fun enterAltBuffer() {
@@ -104,6 +120,8 @@ internal class TerminalModeControllerImpl(
 
 		cursorEngine.saveCursor()
 		state.enterAltScreen(clearBeforeEnter = true)
+		state.markStructureChanged()
+		state.markCursorChanged()
 	}
 
 	override fun exitAltBuffer() {
@@ -111,5 +129,6 @@ internal class TerminalModeControllerImpl(
 
 		state.exitAltScreen()
 		cursorEngine.restoreCursor()
+		state.markStructureChanged()
 	}
 }

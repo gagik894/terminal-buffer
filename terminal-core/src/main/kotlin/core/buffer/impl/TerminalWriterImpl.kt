@@ -57,6 +57,8 @@ internal class TerminalWriterImpl(
     override fun carriageReturn() = cursorEngine.carriageReturn()
 
     override fun setScrollRegion(top: Int, bottom: Int) {
+        val oldCol = state.cursor.col
+        val oldRow = state.cursor.row
         state.activeBuffer.setScrollRegion(
             top,
             bottom,
@@ -64,6 +66,9 @@ internal class TerminalWriterImpl(
             state.dimensions.height,
             state.effectiveLeftMargin
         )
+        if (state.cursor.col != oldCol || state.cursor.row != oldRow) {
+            state.markCursorChanged()
+        }
     }
 
     override fun setLeftRightMargins(left: Int, right: Int) {

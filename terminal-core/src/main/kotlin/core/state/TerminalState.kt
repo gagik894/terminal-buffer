@@ -27,6 +27,15 @@ internal class TerminalState(
     var windowPixelWidth: Int = 0
     var windowPixelHeight: Int = 0
 
+    var frameGeneration: Long = 0L
+        private set
+
+    var structureGeneration: Long = 0L
+        private set
+
+    var cursorGeneration: Long = 0L
+        private set
+
     // Physical screens.
 
     val primaryBuffer = ScreenBuffer(initialWidth, initialHeight, maxHistory)
@@ -104,6 +113,25 @@ internal class TerminalState(
         (activeBuffer.ring.size - dimensions.height).coerceAtLeast(0) + viewportRow
 
     // Convenience helpers.
+
+    fun markVisualChanged() {
+        frameGeneration++
+    }
+
+    fun markLineChanged(line: Line) {
+        markVisualChanged()
+        line.renderGeneration = frameGeneration
+    }
+
+    fun markStructureChanged() {
+        markVisualChanged()
+        structureGeneration++
+    }
+
+    fun markCursorChanged() {
+        markVisualChanged()
+        cursorGeneration++
+    }
 
     /** Clears the phantom-column pending-wrap flag on the active cursor. */
     fun cancelPendingWrap() {

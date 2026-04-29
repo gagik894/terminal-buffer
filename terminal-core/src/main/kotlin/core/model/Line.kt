@@ -56,6 +56,15 @@ internal class Line(
      */
     var wrapped: Boolean = false
 
+    /**
+     * Visual generation for this physical line.
+     *
+     * Updated by terminal state mutation helpers when content, attributes,
+     * cluster payloads, hyperlink identifiers, or the wrap flag changes.
+     */
+    var renderGeneration: Long = 0L
+        internal set
+
     // Internal raw accessors: used by GridWriter and TerminalResizer only
 
     /**

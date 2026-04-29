@@ -56,6 +56,12 @@ internal class MutationEngine(
      */
     private fun getLine(row: Int): Line = state.ring[state.resolveRingIndex(row)]
 
+    private fun markCursorIfMoved(oldCol: Int, oldRow: Int) {
+        if (state.cursor.col != oldCol || state.cursor.row != oldRow) {
+            state.markCursorChanged()
+        }
+    }
+
     /**
      * Internal scroll-up primitive that deliberately does not cancel pending wrap.
      *
@@ -71,16 +77,21 @@ internal class MutationEngine(
 
         if (state.isFullViewportScroll) {
             repeat(n) {
-                state.ring.push().clear(blankAttr, blankExtendedAttr)
+                val line = state.ring.push()
+                line.clear(blankAttr, blankExtendedAttr)
+                state.markLineChanged(line)
             }
         } else {
             val absTop = state.resolveRingIndex(top)
             val absBottom = state.resolveRingIndex(bottom)
             repeat(n) {
                 state.ring.rotateUp(absTop, absBottom)
-                state.ring[absBottom].clear(blankAttr, blankExtendedAttr)
+                val line = state.ring[absBottom]
+                line.clear(blankAttr, blankExtendedAttr)
+                state.markLineChanged(line)
             }
         }
+        state.markStructureChanged()
     }
 
     /**
@@ -99,8 +110,11 @@ internal class MutationEngine(
         val absBottom = state.resolveRingIndex(bottom)
         repeat(n) {
             state.ring.rotateDown(absTop, absBottom)
-            state.ring[absTop].clear(blankAttr, blankExtendedAttr)
+            val line = state.ring[absTop]
+            line.clear(blankAttr, blankExtendedAttr)
+            state.markLineChanged(line)
         }
+        state.markStructureChanged()
     }
 
     /** Scrolls the active region upward by [count] lines. */
@@ -168,16 +182,19 @@ internal class MutationEngine(
 
         if (raw == TerminalConstants.WIDE_CHAR_SPACER) {
             line.setCell(start, TerminalConstants.EMPTY, attr, extendedAttr)
+            state.markLineChanged(line)
             return
         }
 
         if (start + 1 < width && line.rawCodepoint(start + 1) == TerminalConstants.WIDE_CHAR_SPACER) {
             line.setCell(start, TerminalConstants.EMPTY, attr, extendedAttr)
             line.setCell(start + 1, TerminalConstants.EMPTY, attr, extendedAttr)
+            state.markLineChanged(line)
             return
         }
 
         line.setCell(start, TerminalConstants.EMPTY, attr, extendedAttr)
+        state.markLineChanged(line)
     }
 
     /**
@@ -243,10 +260,12 @@ internal class MutationEngine(
             val next = occupantEndExclusive(line, start)
             if (!isProtectedOccupant(line, start)) {
                 line.clearRange(start, minOf(next, width), blankAttr, blankExtendedAttr)
+                state.markLineChanged(line)
             }
             col = maxOf(col + 1, next)
         }
         line.wrapped = false
+        state.markLineChanged(line)
     }
 
     /**
@@ -268,6 +287,7 @@ internal class MutationEngine(
             val start = findClusterStart(line, col).coerceIn(0, width - 1)
             val next = occupantEndExclusive(line, start)
             line.clearRange(start, minOf(next, width), blankAttr, blankExtendedAttr)
+            state.markLineChanged(line)
             col = maxOf(col + 1, next)
         }
     }
@@ -281,6 +301,8 @@ internal class MutationEngine(
      * improvement from refactoring.
      */
     private inline fun writeToGrid(charWidth: Int, crossinline writeCell: (line: Line, col: Int) -> Unit) {
+        val oldCursorCol = state.cursor.col
+        val oldCursorRow = state.cursor.row
         var cCol = state.cursor.col
         var cRow = state.cursor.row
         val widthInCells = if (charWidth == 2) 2 else 1
@@ -297,6 +319,7 @@ internal class MutationEngine(
         if (state.cursor.pendingWrap) {
             state.cursor.pendingWrap = false
             line.wrapped = true
+            state.markLineChanged(line)
             cCol = leftMargin
             cRow = advanceRow(cRow)
             line = getLine(cRow)
@@ -314,6 +337,7 @@ internal class MutationEngine(
                 annihilateAt(cRow, cCol)
             }
             line.insertCellsInRange(cCol, widthInCells, rightMargin, blankAttr, blankExtendedAttr)
+            state.markLineChanged(line)
         }
 
         annihilateAt(cRow, cCol)
@@ -322,6 +346,7 @@ internal class MutationEngine(
         }
 
         writeCell(line, cCol)
+        state.markLineChanged(line)
         cCol += 1
 
         if (widthInCells == 2 && cCol < width) {
@@ -331,6 +356,7 @@ internal class MutationEngine(
                 state.pen.currentAttr,
                 state.pen.currentExtendedAttr,
             )
+            state.markLineChanged(line)
             cCol += 1
         }
 
@@ -338,12 +364,14 @@ internal class MutationEngine(
             state.cursor.col = rightMargin
             state.cursor.row = cRow
             state.cursor.pendingWrap = state.modes.isAutoWrap
+            markCursorIfMoved(oldCursorCol, oldCursorRow)
             return
         }
 
         state.cursor.col = cCol
         state.cursor.row = cRow
         state.cursor.pendingWrap = false
+        markCursorIfMoved(oldCursorCol, oldCursorRow)
     }
 
     /**
@@ -357,6 +385,8 @@ internal class MutationEngine(
         val extendedAttr = state.pen.currentExtendedAttr
         val cCol = state.cursor.col
         val cRow = state.cursor.row
+        val oldCursorCol = cCol
+        val oldCursorRow = cRow
 
         if (!state.modes.isInsertMode &&
             charWidth != 2 &&
@@ -367,6 +397,7 @@ internal class MutationEngine(
             val line = getLine(cRow)
             if (line.rawCodepoint(cCol) == TerminalConstants.EMPTY) {
                 line.setCell(cCol, codepoint, attr, extendedAttr)
+                state.markLineChanged(line)
                 if (cCol == rightMargin) {
                     if (state.modes.isAutoWrap) {
                         state.cursor.pendingWrap = true
@@ -378,6 +409,7 @@ internal class MutationEngine(
                     state.cursor.col = cCol + 1
                     state.cursor.pendingWrap = false
                 }
+                markCursorIfMoved(oldCursorCol, oldCursorRow)
                 return
             }
         }
@@ -437,8 +469,11 @@ internal class MutationEngine(
                 if (!state.modes.isLeftRightMarginMode) {
                     repeat(times) {
                         state.ring.rotateDown(absCursorRow, absBottom)
-                        state.ring[absCursorRow].clear(blankAttr, blankExtendedAttr)
+                        val line = state.ring[absCursorRow]
+                        line.clear(blankAttr, blankExtendedAttr)
+                        state.markLineChanged(line)
                     }
+                    state.markStructureChanged()
                     return@mutateLines
                 }
 
@@ -447,12 +482,15 @@ internal class MutationEngine(
                 for (row in bottomRow downTo topRow + times) {
                     copySlice(getLine(row - times), getLine(row), leftMargin, rightMargin)
                     getLine(row).wrapped = false
+                    state.markLineChanged(getLine(row))
                 }
                 for (row in topRow until topRow + times) {
                     val line = getLine(row)
                     line.clearRange(leftMargin, rightMargin + 1, blankAttr, blankExtendedAttr)
                     line.wrapped = false
+                    state.markLineChanged(line)
                 }
+                state.markStructureChanged()
             }
         }
     }
@@ -466,8 +504,11 @@ internal class MutationEngine(
                 if (!state.modes.isLeftRightMarginMode) {
                     repeat(times) {
                         state.ring.rotateUp(absCursorRow, absBottom)
-                        state.ring[absBottom].clear(blankAttr, blankExtendedAttr)
+                        val line = state.ring[absBottom]
+                        line.clear(blankAttr, blankExtendedAttr)
+                        state.markLineChanged(line)
                     }
+                    state.markStructureChanged()
                     return@mutateLines
                 }
 
@@ -476,12 +517,15 @@ internal class MutationEngine(
                 for (row in topRow..bottomRow - times) {
                     copySlice(getLine(row + times), getLine(row), leftMargin, rightMargin)
                     getLine(row).wrapped = false
+                    state.markLineChanged(getLine(row))
                 }
                 for (row in bottomRow - times + 1..bottomRow) {
                     val line = getLine(row)
                     line.clearRange(leftMargin, rightMargin + 1, blankAttr, blankExtendedAttr)
                     line.wrapped = false
+                    state.markLineChanged(line)
                 }
+                state.markStructureChanged()
             }
         }
     }
@@ -515,6 +559,7 @@ internal class MutationEngine(
             }
 
             line.insertCellsInRange(cCol, safeCount, rightMargin, blankAttr, blankExtendedAttr)
+            state.markLineChanged(line)
         }
     }
 
@@ -544,7 +589,9 @@ internal class MutationEngine(
                 }
             }
 
-            getLine(cRow).deleteCellsInRange(cCol, safeCount, rightMargin, blankAttr, blankExtendedAttr)
+            val line = getLine(cRow)
+            line.deleteCellsInRange(cCol, safeCount, rightMargin, blankAttr, blankExtendedAttr)
+            state.markLineChanged(line)
         }
     }
 
@@ -581,18 +628,22 @@ internal class MutationEngine(
         if (state.modes.isLeftRightMarginMode) {
             if (cCol !in leftMargin..rightMargin) {
                 line.wrapped = false
+                state.markLineChanged(line)
                 return
             }
             val start = maxOf(cCol, leftMargin)
             if (start <= rightMargin) {
                 annihilateAt(cRow, start)
                 line.clearRange(start, rightMargin + 1, blankAttr, blankExtendedAttr)
+                state.markLineChanged(line)
             }
         } else {
             annihilateAt(cRow, cCol)
             line.clearFromColumn(cCol, blankAttr, blankExtendedAttr)
+            state.markLineChanged(line)
         }
         line.wrapped = false
+        state.markLineChanged(line)
     }
 
     /** Erases from the cursor through the end of the current line (EL 0). */
@@ -611,10 +662,12 @@ internal class MutationEngine(
             if (end >= leftMargin) {
                 annihilateAt(cRow, end)
                 line.clearRange(leftMargin, end + 1, blankAttr, blankExtendedAttr)
+                state.markLineChanged(line)
             }
         } else {
             annihilateAt(cRow, cCol)
             line.clearToColumn(cCol, blankAttr, blankExtendedAttr)
+            state.markLineChanged(line)
         }
     }
 
@@ -637,6 +690,7 @@ internal class MutationEngine(
             line.clear(blankAttr, blankExtendedAttr)
         }
         line.wrapped = false
+        state.markLineChanged(line)
     }
 
     /** Selectively erases from the cursor through the end of the current line (DECSEL 0). */
@@ -647,7 +701,9 @@ internal class MutationEngine(
 
         if (state.modes.isLeftRightMarginMode) {
             if (cCol !in leftMargin..rightMargin) {
-                getLine(cRow).wrapped = false
+                val line = getLine(cRow)
+                line.wrapped = false
+                state.markLineChanged(line)
                 return@structuralMutation
             }
             selectiveEraseRange(cRow, maxOf(cCol, leftMargin), rightMargin + 1)
@@ -692,7 +748,9 @@ internal class MutationEngine(
         }
 
         for (row in cRow + 1 until height) {
-            getLine(row).clear(blankAttr, blankExtendedAttr)
+            val line = getLine(row)
+            line.clear(blankAttr, blankExtendedAttr)
+            state.markLineChanged(line)
         }
     }
 
@@ -702,7 +760,9 @@ internal class MutationEngine(
         if (cRow !in 0 until height) return@structuralMutation
 
         for (row in 0 until cRow) {
-            getLine(row).clear(blankAttr, blankExtendedAttr)
+            val line = getLine(row)
+            line.clear(blankAttr, blankExtendedAttr)
+            state.markLineChanged(line)
         }
 
         val cCol = state.cursor.col.coerceAtMost(width - 1)
@@ -722,7 +782,9 @@ internal class MutationEngine(
                 if (cCol in leftMargin..rightMargin) {
                     selectiveEraseRange(cRow, maxOf(cCol, leftMargin), rightMargin + 1)
                 } else {
-                    getLine(cRow).wrapped = false
+                    val line = getLine(cRow)
+                    line.wrapped = false
+                    state.markLineChanged(line)
                 }
             } else {
                 selectiveEraseRange(cRow, cCol, width)
@@ -795,15 +857,19 @@ internal class MutationEngine(
                 }
             }
             destLine.wrapped = srcLine.wrapped
+            state.markLineChanged(destLine)
         }
 
         buffer.store = newStore
         buffer.ring = newRing
+        state.markStructureChanged()
     }
 
     private fun clearViewportInternal() {
         for (row in 0 until height.coerceAtMost(state.ring.size)) {
-            getLine(row).clear(blankAttr, blankExtendedAttr)
+            val line = getLine(row)
+            line.clear(blankAttr, blankExtendedAttr)
+            state.markLineChanged(line)
         }
     }
 
@@ -820,6 +886,10 @@ internal class MutationEngine(
     /** Clears the active buffer's viewport and scrollback history. */
     fun clearAllHistory() = structuralMutation {
         clearAllHistoryInternal()
+        for (row in 0 until height) {
+            state.markLineChanged(getLine(row))
+        }
+        state.markStructureChanged()
     }
 
     /**
@@ -842,25 +912,38 @@ internal class MutationEngine(
      */
     fun deccolmReset(newWidth: Int) = structuralMutation {
         clearAllHistoryInternal()
+        for (row in 0 until height) {
+            state.markLineChanged(getLine(row))
+        }
+        val oldCursorCol = state.cursor.col
+        val oldCursorRow = state.cursor.row
         state.activeBuffer.cursor.col = 0
         state.activeBuffer.cursor.row = 0
+        markCursorIfMoved(oldCursorCol, oldCursorRow)
         state.activeBuffer.resetScrollRegion(height)
         state.activeBuffer.resetLeftRightMargins(newWidth)
         state.tabStops.reset(newWidth)
+        state.markStructureChanged()
     }
 
     /** Executes a line feed relative to the active scroll region. */
     fun newLine() = structuralMutation {
+        val oldCursorCol = state.cursor.col
+        val oldCursorRow = state.cursor.row
         state.cursor.row = advanceRow(state.cursor.row)
+        markCursorIfMoved(oldCursorCol, oldCursorRow)
     }
 
     /** Executes reverse index relative to the active scroll region. */
     fun reverseLineFeed() = structuralMutation {
+        val oldCursorCol = state.cursor.col
+        val oldCursorRow = state.cursor.row
         val cRow = state.cursor.row
         if (cRow == state.scrollTop) {
             scrollDownInternal()
         } else {
             state.cursor.row = (cRow - 1).coerceAtLeast(0)
         }
+        markCursorIfMoved(oldCursorCol, oldCursorRow)
     }
 }

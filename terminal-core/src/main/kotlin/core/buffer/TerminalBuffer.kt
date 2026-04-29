@@ -48,6 +48,8 @@ internal class TerminalBuffer private constructor(
 
         val oldWidth = state.dimensions.width
         val oldHeight = state.dimensions.height
+        val oldCursorCol = state.cursor.col
+        val oldCursorRow = state.cursor.row
 
         if (newWidth == oldWidth && newHeight == oldHeight) return
 
@@ -65,6 +67,13 @@ internal class TerminalBuffer private constructor(
         state.primaryBuffer.clampSavedCursorToBounds(newWidth, newHeight)
         state.altBuffer.clampSavedCursorToBounds(newWidth, newHeight)
         state.cancelPendingWrap()
+        for (row in 0 until newHeight) {
+            state.markLineChanged(state.ring[state.resolveRingIndex(row)])
+        }
+        state.markStructureChanged()
+        if (state.cursor.col != oldCursorCol || state.cursor.row != oldCursorRow) {
+            state.markCursorChanged()
+        }
     }
 
     override fun reset() {
@@ -78,6 +87,8 @@ internal class TerminalBuffer private constructor(
         state.hostResponses.clear()
         state.modes.reset()
         state.tabStops.resetToDefault()
+        state.markStructureChanged()
+        state.markCursorChanged()
     }
 
     override fun softReset() {
@@ -93,6 +104,7 @@ internal class TerminalBuffer private constructor(
         state.altBuffer.cursor.pendingWrap = false
         resetSavedCursorToHome(state.primaryBuffer.savedCursor)
         resetSavedCursorToHome(state.altBuffer.savedCursor)
+        state.markCursorChanged()
     }
 
     override fun executeDeccolm(newWidth: Int) {
