@@ -343,8 +343,14 @@ mode snapshots, not parser internals or core storage details. The default
 encoder reads packed mode bits once per event and serializes output through a
 host-bound byte sink.
 
+The module behavioral contract lives in
+`terminal-input/docs/terminal-input-contract.md`.
+
 Missing:
 
+- `DONE(input/docs)`: terminal input has a module contract covering event
+  validation, mode reads, host-output ordering, thread-safety, encoding
+  guarantees, policy surfaces, allocation rules, and testing obligations.
 - `DONE(input)`: keyboard encoding for printable Unicode scalars,
   Ctrl/Alt combinations, normal and application cursor-key modes, navigation
   keys, function keys, and numeric/application keypad modes.
@@ -387,7 +393,7 @@ Missing:
   - raw paste
   - strip C0 controls except TAB/CR/LF
   - line-ending normalization
-- `TODO(integration/host)`: terminal-to-host output ordering contract. UI input
+- `DONE(integration/host)`: terminal-to-host output ordering contract. UI input
   events and parser/core responses such as DSR/CPR/DA/OSC/DCS replies should be
   serialized through the same terminal actor and `TerminalHostOutput`.
 - `DONE(input)`: xterm input profile matrix tests covering application

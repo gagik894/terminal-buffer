@@ -19,6 +19,9 @@ import com.gagik.terminal.protocol.host.TerminalHostOutput
  *
  * This is intentional: terminal-to-host byte ordering must be deterministic,
  * and the encoder reuses one scratch buffer to avoid per-event allocation.
+ * UI adapters should enqueue input events onto the same terminal actor that
+ * writes parser/core responses to [TerminalHostOutput], so input reports and
+ * terminal replies keep one coherent host-bound order.
  *
  * @param inputState read-only core mode state used for input decisions.
  * @param output host-bound byte sink.

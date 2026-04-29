@@ -1,8 +1,10 @@
 # Terminal Input Agent Guide
 
 `terminal-input` owns host-to-terminal input encoding. It converts UI-level key,
-paste, focus, and later mouse events into bytes written to the terminal host
-input stream.
+paste, focus, and mouse events into bytes written to the terminal host input
+stream.
+
+Read `docs/terminal-input-contract.md` before changing public input behavior.
 
 Keyboard, paste, focus, and cell-coordinate mouse encoding are implemented.
 Richer keyboard protocols and pixel-coordinate mouse reporting remain future
@@ -28,8 +30,15 @@ Input must not:
 The intended dependency shape is:
 
 ```text
-UI adapter -> terminal-input -> TerminalHostOutput -> PTY stdin
+UI adapter -> terminal actor -> terminal-input -> TerminalHostOutput -> PTY stdin
+parser/core responses -> same terminal actor -> TerminalHostOutput -> PTY stdin
 ```
+
+UI adapters should not call the default encoder concurrently with parser/core
+response writers. The default encoder intentionally owns a reusable scratch
+buffer and is serialized-use only; the terminal actor owns host-bound byte
+ordering across keyboard, mouse, paste, focus, DSR/CPR/DA, and future OSC/DCS
+responses.
 
 For mode-dependent behavior, input should read packed mode bits once per event
 from core's input-readable API and then encode from that stable value.
