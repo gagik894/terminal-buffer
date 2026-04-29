@@ -15,6 +15,7 @@ dependencies {
     implementation(project(":terminal-integration"))
     implementation(project(":terminal-input"))
     implementation(project(":terminal-protocol"))
+    implementation(project(":terminal-render-api"))
     implementation(project(":terminal-transport-api"))
 
     testImplementation(project(":terminal-testkit"))

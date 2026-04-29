@@ -1,0 +1,108 @@
+package com.gagik.terminal.render.api
+
+/**
+ * Short-lived primitive view of the terminal's visible render state.
+ *
+ * A frame exposes stable public render encodings, not core internal storage.
+ * Consumers should copy rows into caller-owned primitive arrays during the
+ * enclosing [TerminalRenderFrameReader.readRenderFrame] callback.
+ */
+interface TerminalRenderFrame {
+    /**
+     * Number of visible columns in each render row.
+     */
+    val columns: Int
+
+    /**
+     * Number of visible render rows.
+     */
+    val rows: Int
+
+    /**
+     * Monotonic generation that changes on any visually relevant mutation.
+     *
+     * Consumers can use this as a cheap "anything changed?" check. Callers must
+     * compare for equality or inequality rather than assuming the value remains
+     * positive forever.
+     */
+    val frameGeneration: Long
+
+    /**
+     * Generation that changes when the visible row mapping or shape changes.
+     *
+     * Resize, full reset, scrolling, buffer switches, and reflow should advance
+     * this value. When it changes, renderers should conservatively recopy all
+     * visible rows.
+     */
+    val structureGeneration: Long
+
+    /**
+     * Currently active terminal screen buffer.
+     */
+    val activeBuffer: TerminalRenderBufferKind
+
+    /**
+     * Current render cursor overlay state.
+     */
+    val cursor: TerminalRenderCursor
+
+    /**
+     * Returns the generation for visible [row].
+     *
+     * The generation changes when visual cell content, attributes, hyperlink
+     * identifiers, cluster text, or the row wrap flag changes.
+     *
+     * @param row zero-based visible row index.
+     * @return row visual generation.
+     */
+    fun lineGeneration(row: Int): Long
+
+    /**
+     * Reports whether visible [row] soft-wraps into the next row.
+     *
+     * @param row zero-based visible row index.
+     * @return `true` when the row wraps into the following row.
+     */
+    fun lineWrapped(row: Int): Boolean
+
+    /**
+     * Copies one visible row into caller-owned primitive arrays.
+     *
+     * All destination arrays must have enough space for [columns] entries from
+     * their respective offsets. [extraAttrWords] and [hyperlinkIds] are optional
+     * because not every renderer needs those channels.
+     *
+     * [clusterSink] is called for cells marked [TerminalRenderCellFlags.CLUSTER].
+     * The receiver must copy or cache the text if it needs it after this method
+     * returns.
+     *
+     * @param row zero-based visible row index.
+     * @param codeWords destination for Unicode scalar values or zero for empty,
+     * cluster, and wide trailing cells.
+     * @param codeOffset first destination index in [codeWords].
+     * @param attrWords destination for stable public render attribute words.
+     * @param attrOffset first destination index in [attrWords].
+     * @param flags destination for [TerminalRenderCellFlags] bit sets.
+     * @param flagOffset first destination index in [flags].
+     * @param extraAttrWords optional destination for less common attribute data.
+     * @param extraAttrOffset first destination index in [extraAttrWords].
+     * @param hyperlinkIds optional destination for public hyperlink identifiers,
+     * where zero means no hyperlink.
+     * @param hyperlinkOffset first destination index in [hyperlinkIds].
+     * @param clusterSink optional receiver for cluster text on cluster cells.
+     */
+    fun copyLine(
+        row: Int,
+        codeWords: IntArray,
+        codeOffset: Int = 0,
+        attrWords: LongArray,
+        attrOffset: Int = 0,
+        flags: IntArray,
+        flagOffset: Int = 0,
+        extraAttrWords: LongArray? = null,
+        extraAttrOffset: Int = 0,
+        hyperlinkIds: IntArray? = null,
+        hyperlinkOffset: Int = 0,
+        clusterSink: TerminalRenderClusterSink? = null,
+    )
+}

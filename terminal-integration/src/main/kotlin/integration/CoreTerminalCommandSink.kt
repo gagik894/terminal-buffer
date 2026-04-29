@@ -516,11 +516,13 @@ class CoreTerminalCommandSink(
 
     private fun updateIconTitle(title: String) {
         iconTitle = title
+        terminal.setIconTitle(title)
         hostEvents.iconTitleChanged(title)
     }
 
     private fun updateWindowTitle(title: String) {
         windowTitle = title
+        terminal.setWindowTitle(title)
         hostEvents.windowTitleChanged(title)
     }
 

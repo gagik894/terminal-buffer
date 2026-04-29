@@ -6,7 +6,10 @@ import com.gagik.core.engine.CursorEngine
 import com.gagik.core.engine.MutationEngine
 import com.gagik.core.engine.TerminalResizer
 import com.gagik.core.model.SavedCursorState
+import com.gagik.core.render.CoreTerminalRenderFrame
 import com.gagik.core.state.TerminalState
+import com.gagik.terminal.render.api.TerminalRenderFrameConsumer
+import com.gagik.terminal.render.api.TerminalRenderFrameReader
 
 /**
  * Concrete facade for the terminal-buffer core.
@@ -19,9 +22,10 @@ import com.gagik.core.state.TerminalState
  * - full terminal reset (RIS)
  * - soft terminal reset (DECSTR)
  */
-internal class TerminalBuffer private constructor(
+class TerminalBuffer private constructor(
     private val components: Components
 ) : TerminalBufferApi,
+    TerminalRenderFrameReader,
     TerminalReader by TerminalReaderImpl(components.state),
     TerminalWriter by TerminalWriterImpl(components.state, components.mutationEngine, components.cursorEngine),
     TerminalCursor by TerminalCursorImpl(components.state, components.cursorEngine),
@@ -32,10 +36,23 @@ internal class TerminalBuffer private constructor(
 
     private val state: TerminalState
         get() = components.state
+    private val renderFrame = CoreTerminalRenderFrame(components.state)
 
     constructor(initialWidth: Int, initialHeight: Int, maxHistory: Int = 1000) : this(
         createComponents(initialWidth, initialHeight, maxHistory)
     )
+
+    /**
+     * Provides a low-level render frame without taking a lock.
+     *
+     * Callers that may race with terminal mutation must synchronize externally.
+     * `terminal-session` is the intended synchronization point for UI code.
+     */
+    override fun readRenderFrame(consumer: TerminalRenderFrameConsumer) {
+        renderFrame.use {
+            consumer.accept(renderFrame)
+        }
+    }
 
     /**
      * Reflows the primary screen, recreates the alternate screen, updates global
@@ -48,6 +65,8 @@ internal class TerminalBuffer private constructor(
 
         val oldWidth = state.dimensions.width
         val oldHeight = state.dimensions.height
+        val oldCursorCol = state.cursor.col
+        val oldCursorRow = state.cursor.row
 
         if (newWidth == oldWidth && newHeight == oldHeight) return
 
@@ -65,6 +84,13 @@ internal class TerminalBuffer private constructor(
         state.primaryBuffer.clampSavedCursorToBounds(newWidth, newHeight)
         state.altBuffer.clampSavedCursorToBounds(newWidth, newHeight)
         state.cancelPendingWrap()
+        for (row in 0 until newHeight) {
+            state.markLineChanged(state.ring[state.resolveRingIndex(row)])
+        }
+        state.markStructureChanged()
+        if (state.cursor.col != oldCursorCol || state.cursor.row != oldCursorRow) {
+            state.markCursorChanged()
+        }
     }
 
     override fun reset() {
@@ -78,9 +104,12 @@ internal class TerminalBuffer private constructor(
         state.hostResponses.clear()
         state.modes.reset()
         state.tabStops.resetToDefault()
+        state.markStructureChanged()
+        state.markCursorChanged()
     }
 
     override fun softReset() {
+        val wasReverseVideo = state.modes.isReverseVideo
         state.pen.reset()
 
         state.modes.softReset()
@@ -93,6 +122,10 @@ internal class TerminalBuffer private constructor(
         state.altBuffer.cursor.pendingWrap = false
         resetSavedCursorToHome(state.primaryBuffer.savedCursor)
         resetSavedCursorToHome(state.altBuffer.savedCursor)
+        if (wasReverseVideo != state.modes.isReverseVideo) {
+            state.markVisibleLinesChanged()
+        }
+        state.markCursorChanged()
     }
 
     override fun executeDeccolm(newWidth: Int) {

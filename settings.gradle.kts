@@ -5,6 +5,7 @@ plugins {
 rootProject.name = "Lattice"
 include(
     ":terminal-core",
+    ":terminal-render-api",
     ":terminal-parser",
     ":terminal-protocol",
     ":terminal-input",
@@ -13,4 +14,5 @@ include(
     ":terminal-transport-api",
     ":terminal-session",
     ":terminal-testkit",
+    ":terminal-render-cache",
 )

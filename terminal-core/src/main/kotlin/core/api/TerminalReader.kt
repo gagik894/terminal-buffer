@@ -15,6 +15,12 @@ interface TerminalReader {
     /** Current viewport height in rows. */
     val height: Int
 
+    /** Active xterm window title. */
+    val windowTitle: String
+
+    /** Active xterm icon title. */
+    val iconTitle: String
+
     /** Active cursor column in zero-based viewport coordinates. */
     val cursorCol: Int
 

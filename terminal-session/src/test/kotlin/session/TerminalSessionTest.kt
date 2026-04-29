@@ -7,6 +7,7 @@ import com.gagik.terminal.input.event.TerminalFocusEvent
 import com.gagik.terminal.input.event.TerminalKeyEvent
 import com.gagik.terminal.input.event.TerminalMouseEvent
 import com.gagik.terminal.input.event.TerminalPasteEvent
+import com.gagik.terminal.render.api.*
 import com.gagik.terminal.testkit.MockConnector
 import com.gagik.terminal.transport.TerminalConnector
 import com.gagik.terminal.transport.TerminalConnectorListener
@@ -204,6 +205,7 @@ class TerminalSessionTest {
         val parser = RecordingParser()
         val session = TerminalSession(
             terminal = terminal,
+            renderReader = terminal as TerminalRenderFrameReader,
             responseReader = terminal,
             connector = connector,
             parser = parser,
@@ -216,6 +218,228 @@ class TerminalSessionTest {
         session.close()
 
         assertEquals(1, parser.endOfInputCalls)
+    }
+
+    @Test
+    fun `readRenderFrame exposes frame through session reader`() {
+        val connector = MockConnector()
+        val session = createStartedSession(connector, columns = 10, rows = 3)
+
+        session.readRenderFrame { frame ->
+            assertAll(
+                { assertEquals(10, frame.columns) },
+                { assertEquals(3, frame.rows) },
+            )
+        }
+
+        session.close()
+    }
+
+    @Test
+    fun `readRenderFrame blocks host byte mutation until callback returns`() {
+        val terminal = TerminalBuffers.create(width = 10, height = 3)
+        val connector = MockConnector()
+        val parser = RecordingParser()
+        val session = TerminalSession(
+            terminal = terminal,
+            renderReader = terminal as TerminalRenderFrameReader,
+            responseReader = terminal,
+            connector = connector,
+            parser = parser,
+            inputEncoder = NoOpInputEncoder,
+        )
+        val callbackEntered = CountDownLatch(1)
+        val releaseCallback = CountDownLatch(1)
+        val feedCompleted = CountDownLatch(1)
+
+        session.start(columns = 10, rows = 3)
+
+        val renderThread = Thread {
+            session.readRenderFrame {
+                callbackEntered.countDown()
+                assertTrue(releaseCallback.await(1, TimeUnit.SECONDS), "render callback was not released")
+            }
+        }.apply {
+            name = "terminal-session-render-lock-test"
+            start()
+        }
+
+        assertTrue(callbackEntered.await(1, TimeUnit.SECONDS), "render callback did not start")
+
+        val feedThread = Thread {
+            connector.feedFromHost("A".ascii())
+            feedCompleted.countDown()
+        }.apply {
+            name = "terminal-session-feed-lock-test"
+            start()
+        }
+
+        assertFalse(feedCompleted.await(100, TimeUnit.MILLISECONDS), "host bytes mutated during render callback")
+        assertEquals(0, parser.acceptCalls)
+
+        releaseCallback.countDown()
+        renderThread.join(1000)
+        feedThread.join(1000)
+
+        assertTrue(feedCompleted.await(1, TimeUnit.SECONDS), "host byte feed did not complete")
+        assertEquals(1, parser.acceptCalls)
+        session.close()
+    }
+
+    @Test
+    fun `readRenderFrame blocks resize until callback returns`() {
+        val connector = MockConnector()
+        val session = createStartedSession(connector, columns = 10, rows = 3)
+        val callbackEntered = CountDownLatch(1)
+        val releaseCallback = CountDownLatch(1)
+        val resizeCompleted = CountDownLatch(1)
+
+        val renderThread = Thread {
+            session.readRenderFrame {
+                callbackEntered.countDown()
+                assertTrue(releaseCallback.await(1, TimeUnit.SECONDS), "render callback was not released")
+            }
+        }.apply {
+            name = "terminal-session-render-resize-lock-test"
+            start()
+        }
+
+        assertTrue(callbackEntered.await(1, TimeUnit.SECONDS), "render callback did not start")
+
+        val resizeThread = Thread {
+            session.resize(columns = 20, rows = 5)
+            resizeCompleted.countDown()
+        }.apply {
+            name = "terminal-session-resize-lock-test"
+            start()
+        }
+
+        assertFalse(resizeCompleted.await(100, TimeUnit.MILLISECONDS), "resize completed during render callback")
+        assertEquals(10, session.terminal.width)
+        assertEquals(3, session.terminal.height)
+
+        releaseCallback.countDown()
+        renderThread.join(1000)
+        resizeThread.join(1000)
+
+        assertTrue(resizeCompleted.await(1, TimeUnit.SECONDS), "resize did not complete")
+        assertEquals(20, session.terminal.width)
+        assertEquals(5, session.terminal.height)
+        session.close()
+    }
+
+    @Test
+    fun `onBytes cannot mutate while copyLine is running inside render callback`() {
+        val terminal = TerminalBuffers.create(width = 10, height = 3)
+        val connector = MockConnector()
+        val parser = RecordingParser()
+        val copyEntered = CountDownLatch(1)
+        val releaseCopy = CountDownLatch(1)
+        val feedCompleted = CountDownLatch(1)
+        val session = TerminalSession(
+            terminal = terminal,
+            renderReader = BlockingCopyRenderReader(copyEntered, releaseCopy),
+            responseReader = terminal,
+            connector = connector,
+            parser = parser,
+            inputEncoder = NoOpInputEncoder,
+        )
+        session.start(columns = 10, rows = 3)
+
+        val renderThread = Thread {
+            session.readRenderFrame { frame ->
+                frame.copyLine(
+                    row = 0,
+                    codeWords = IntArray(frame.columns),
+                    attrWords = LongArray(frame.columns),
+                    flags = IntArray(frame.columns),
+                )
+            }
+        }.apply {
+            name = "terminal-session-copyline-lock-test"
+            start()
+        }
+
+        assertTrue(copyEntered.await(1, TimeUnit.SECONDS), "copyLine did not start")
+
+        val feedThread = Thread {
+            connector.feedFromHost("A".ascii())
+            feedCompleted.countDown()
+        }.apply {
+            name = "terminal-session-feed-during-copyline-test"
+            start()
+        }
+
+        assertFalse(feedCompleted.await(100, TimeUnit.MILLISECONDS), "host bytes mutated during copyLine")
+        assertEquals(0, parser.acceptCalls)
+
+        releaseCopy.countDown()
+        renderThread.join(1000)
+        feedThread.join(1000)
+
+        assertTrue(feedCompleted.await(1, TimeUnit.SECONDS), "host byte feed did not complete")
+        assertEquals(1, parser.acceptCalls)
+        session.close()
+    }
+
+    @Test
+    fun `UI callback cannot observe half mutated row`() {
+        val terminal = TerminalBuffers.create(width = 10, height = 3)
+        val connector = MockConnector()
+        val firstWriteDone = CountDownLatch(1)
+        val releaseSecondWrite = CountDownLatch(1)
+        val renderEntered = CountDownLatch(1)
+        val renderSawCompleteRow = CountDownLatch(1)
+        val parser = HalfRowParser(terminal, firstWriteDone, releaseSecondWrite)
+        val session = TerminalSession(
+            terminal = terminal,
+            renderReader = terminal as TerminalRenderFrameReader,
+            responseReader = terminal,
+            connector = connector,
+            parser = parser,
+            inputEncoder = NoOpInputEncoder,
+        )
+        session.start(columns = 10, rows = 3)
+
+        val feedThread = Thread {
+            connector.feedFromHost("ignored".ascii())
+        }.apply {
+            name = "terminal-session-half-row-feed-test"
+            start()
+        }
+
+        assertTrue(firstWriteDone.await(1, TimeUnit.SECONDS), "parser did not perform first write")
+
+        val renderThread = Thread {
+            session.readRenderFrame { frame ->
+                renderEntered.countDown()
+                val codeWords = IntArray(frame.columns)
+                val attrWords = LongArray(frame.columns)
+                val flags = IntArray(frame.columns)
+                frame.copyLine(
+                    row = 0,
+                    codeWords = codeWords,
+                    attrWords = attrWords,
+                    flags = flags,
+                )
+                if (codeWords[0] == 'A'.code && codeWords[1] == 'B'.code) {
+                    renderSawCompleteRow.countDown()
+                }
+            }
+        }.apply {
+            name = "terminal-session-half-row-render-test"
+            start()
+        }
+
+        assertFalse(renderEntered.await(100, TimeUnit.MILLISECONDS), "render callback observed half-mutated row")
+
+        releaseSecondWrite.countDown()
+        feedThread.join(1000)
+        renderThread.join(1000)
+
+        assertTrue(renderEntered.await(1, TimeUnit.SECONDS), "render callback did not run")
+        assertTrue(renderSawCompleteRow.await(1, TimeUnit.SECONDS), "render callback did not see complete row")
+        session.close()
     }
 
     private fun createStartedSession(
@@ -236,8 +460,13 @@ class TerminalSessionTest {
     private class RecordingParser : TerminalOutputParser {
         var endOfInputCalls: Int = 0
             private set
+        @Volatile
+        var acceptCalls: Int = 0
+            private set
 
-        override fun accept(bytes: ByteArray, offset: Int, length: Int) = Unit
+        override fun accept(bytes: ByteArray, offset: Int, length: Int) {
+            acceptCalls++
+        }
 
         override fun acceptByte(byteValue: Int) = Unit
 
@@ -246,6 +475,76 @@ class TerminalSessionTest {
         }
 
         override fun reset() = Unit
+    }
+
+    private class HalfRowParser(
+        private val terminal: com.gagik.core.api.TerminalBufferApi,
+        private val firstWriteDone: CountDownLatch,
+        private val releaseSecondWrite: CountDownLatch,
+    ) : TerminalOutputParser {
+        override fun accept(bytes: ByteArray, offset: Int, length: Int) {
+            terminal.writeCodepoint('A'.code)
+            firstWriteDone.countDown()
+            check(releaseSecondWrite.await(1, TimeUnit.SECONDS)) {
+                "second write was not released"
+            }
+            terminal.writeCodepoint('B'.code)
+        }
+
+        override fun acceptByte(byteValue: Int) = Unit
+
+        override fun endOfInput() = Unit
+
+        override fun reset() = Unit
+    }
+
+    private class BlockingCopyRenderReader(
+        private val copyEntered: CountDownLatch,
+        private val releaseCopy: CountDownLatch,
+    ) : TerminalRenderFrameReader {
+        override fun readRenderFrame(consumer: TerminalRenderFrameConsumer) {
+            consumer.accept(object : TerminalRenderFrame {
+                override val columns: Int = 2
+                override val rows: Int = 1
+                override val frameGeneration: Long = 0
+                override val structureGeneration: Long = 0
+                override val activeBuffer: TerminalRenderBufferKind = TerminalRenderBufferKind.PRIMARY
+                override val cursor: TerminalRenderCursor = TerminalRenderCursor(
+                    column = 0,
+                    row = 0,
+                    visible = true,
+                    blinking = false,
+                    shape = TerminalRenderCursorShape.BLOCK,
+                    generation = 0,
+                )
+
+                override fun lineGeneration(row: Int): Long = 0
+
+                override fun lineWrapped(row: Int): Boolean = false
+
+                override fun copyLine(
+                    row: Int,
+                    codeWords: IntArray,
+                    codeOffset: Int,
+                    attrWords: LongArray,
+                    attrOffset: Int,
+                    flags: IntArray,
+                    flagOffset: Int,
+                    extraAttrWords: LongArray?,
+                    extraAttrOffset: Int,
+                    hyperlinkIds: IntArray?,
+                    hyperlinkOffset: Int,
+                    clusterSink: TerminalRenderClusterSink?,
+                ) {
+                    copyEntered.countDown()
+                    check(releaseCopy.await(1, TimeUnit.SECONDS)) {
+                        "copyLine was not released"
+                    }
+                    codeWords[codeOffset] = 'X'.code
+                    flags[flagOffset] = TerminalRenderCellFlags.CODEPOINT
+                }
+            })
+        }
     }
 
     private object NoOpInputEncoder : TerminalInputEncoder {

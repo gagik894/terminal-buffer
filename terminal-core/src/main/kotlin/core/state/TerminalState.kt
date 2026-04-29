@@ -26,6 +26,29 @@ internal class TerminalState(
     val hostResponses = HostResponseQueue()
     var windowPixelWidth: Int = 0
     var windowPixelHeight: Int = 0
+    var windowTitle: String = ""
+        set(value) {
+            if (field != value) {
+                field = value
+                markVisualChanged()
+            }
+        }
+    var iconTitle: String = ""
+        set(value) {
+            if (field != value) {
+                field = value
+                markVisualChanged()
+            }
+        }
+
+    var frameGeneration: Long = 0L
+        private set
+
+    var structureGeneration: Long = 0L
+        private set
+
+    var cursorGeneration: Long = 0L
+        private set
 
     // Physical screens.
 
@@ -104,6 +127,31 @@ internal class TerminalState(
         (activeBuffer.ring.size - dimensions.height).coerceAtLeast(0) + viewportRow
 
     // Convenience helpers.
+
+    fun markVisualChanged() {
+        frameGeneration++
+    }
+
+    fun markLineChanged(line: Line) {
+        markVisualChanged()
+        line.renderGeneration = frameGeneration
+    }
+
+    fun markVisibleLinesChanged() {
+        for (row in 0 until dimensions.height) {
+            markLineChanged(ring[resolveRingIndex(row)])
+        }
+    }
+
+    fun markStructureChanged() {
+        markVisualChanged()
+        structureGeneration++
+    }
+
+    fun markCursorChanged() {
+        markVisualChanged()
+        cursorGeneration++
+    }
 
     /** Clears the phantom-column pending-wrap flag on the active cursor. */
     fun cancelPendingWrap() {
