@@ -22,7 +22,7 @@ import com.gagik.terminal.render.api.TerminalRenderFrameReader
  * - full terminal reset (RIS)
  * - soft terminal reset (DECSTR)
  */
-internal class TerminalBuffer private constructor(
+class TerminalBuffer private constructor(
     private val components: Components
 ) : TerminalBufferApi,
     TerminalRenderFrameReader,

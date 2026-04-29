@@ -122,6 +122,29 @@ class TerminalRenderCache(
     var cursorChangedOnLastUpdate: Boolean = false
         private set
 
+    private var clusterSinkRow: Int = NO_CLUSTER_SINK_ROW
+
+    /**
+     * Reused sink to avoid allocating one capturing lambda per copied row.
+     *
+     * [clusterSinkRow] is set immediately before [TerminalRenderFrame.copyLine]
+     * and reset immediately after it. This object must not escape this cache.
+     */
+    private val reusableClusterSink = TerminalRenderClusterSink { column, text ->
+        val row = clusterSinkRow
+        check(row != NO_CLUSTER_SINK_ROW) {
+            "TerminalRenderClusterSink invoked outside copyLine"
+        }
+        check(row in 0 until rows) {
+            "Cluster sink row out of bounds: row=$row, rows=$rows"
+        }
+        check(column in 0 until columns) {
+            "Cluster sink column out of bounds: column=$column, columns=$columns"
+        }
+
+        clusters[row][column] = text
+    }
+
     init {
         require(columns > 0) { "columns must be > 0, was $columns" }
         require(rows > 0) { "rows must be > 0, was $rows" }
@@ -140,6 +163,7 @@ class TerminalRenderCache(
     fun updateFrom(reader: TerminalRenderFrameReader) {
         reader.readRenderFrame { frame ->
             resizedOnLastUpdate = false
+
             if (columns != frame.columns || rows != frame.rows) {
                 resizeStorage(frame.columns, frame.rows)
                 resizedOnLastUpdate = true
@@ -158,35 +182,45 @@ class TerminalRenderCache(
             while (row < frame.rows) {
                 val lineGeneration = frame.lineGeneration(row)
                 val wrapped = frame.lineWrapped(row)
-                if (structureChanged ||
+
+                if (
+                    structureChanged ||
                     lineGenerations[row] != lineGeneration ||
                     lineWrapped[row] != wrapped
                 ) {
                     clearClusterRow(row)
-                    frame.copyLine(
-                        row = row,
-                        codeWords = codeWords[row],
-                        attrWords = attrWords[row],
-                        flags = flags[row],
-                        extraAttrWords = extraAttrWords[row],
-                        hyperlinkIds = hyperlinkIds[row],
-                        clusterSink = TerminalRenderClusterSink { col, text ->
-                            clusters[row][col] = text
-                        },
-                    )
+
+                    clusterSinkRow = row
+                    try {
+                        frame.copyLine(
+                            row = row,
+                            codeWords = codeWords[row],
+                            attrWords = attrWords[row],
+                            flags = flags[row],
+                            extraAttrWords = extraAttrWords[row],
+                            hyperlinkIds = hyperlinkIds[row],
+                            clusterSink = reusableClusterSink,
+                        )
+                    } finally {
+                        clusterSinkRow = NO_CLUSTER_SINK_ROW
+                    }
+
                     lineGenerations[row] = lineGeneration
                     lineWrapped[row] = wrapped
                     dirtyRows[row] = true
                 }
+
                 row++
             }
 
             activeBuffer = frame.activeBuffer
+
             val oldCursor = cursor
             val newCursor = frame.cursor
             if (oldCursor?.generation != newCursor.generation) {
                 cursorChangedOnLastUpdate = true
             }
+
             cursor = newCursor
             frameGeneration = frame.frameGeneration
             structureGeneration = frame.structureGeneration
@@ -196,17 +230,27 @@ class TerminalRenderCache(
     private fun resizeStorage(newColumns: Int, newRows: Int) {
         require(newColumns > 0) { "columns must be > 0, was $newColumns" }
         require(newRows > 0) { "rows must be > 0, was $newRows" }
+
         columns = newColumns
         rows = newRows
+
         codeWords = Array(newRows) { IntArray(newColumns) }
         attrWords = Array(newRows) { LongArray(newColumns) }
         flags = Array(newRows) { IntArray(newColumns) }
         extraAttrWords = Array(newRows) { LongArray(newColumns) }
         hyperlinkIds = Array(newRows) { IntArray(newColumns) }
         clusters = Array(newRows) { arrayOfNulls(newColumns) }
+
         lineGenerations = LongArray(newRows) { UNINITIALIZED_GENERATION }
         lineWrapped = BooleanArray(newRows)
         dirtyRows = BooleanArray(newRows)
+
+        cursor = null
+        frameGeneration = UNINITIALIZED_GENERATION
+        structureGeneration = UNINITIALIZED_GENERATION
+        activeBuffer = TerminalRenderBufferKind.PRIMARY
+        cursorChangedOnLastUpdate = false
+        clusterSinkRow = NO_CLUSTER_SINK_ROW
     }
 
     private fun clearAllClusters() {
@@ -223,6 +267,7 @@ class TerminalRenderCache(
 
     private companion object {
         private const val UNINITIALIZED_GENERATION = -1L
+        private const val NO_CLUSTER_SINK_ROW = -1
 
         private fun emptyIntRows(): Array<IntArray> = emptyArray()
 
