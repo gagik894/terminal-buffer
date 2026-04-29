@@ -148,10 +148,21 @@ internal class KeyboardEncoder(
             TerminalKey.F11 -> encodeTildeKey(23, modifiers)
             TerminalKey.F12 -> encodeTildeKey(24, modifiers)
 
+            TerminalKey.PF1 -> encodeFunctionSs3OrModified('P'.code, modifiers)
+            TerminalKey.PF2 -> encodeFunctionSs3OrModified('Q'.code, modifiers)
+            TerminalKey.PF3 -> encodeFunctionSs3OrModified('R'.code, modifiers)
+            TerminalKey.PF4 -> encodeFunctionSs3OrModified('S'.code, modifiers)
+
+            TerminalKey.NUMPAD_SPACE,
+            TerminalKey.NUMPAD_TAB,
             TerminalKey.NUMPAD_DIVIDE,
             TerminalKey.NUMPAD_MULTIPLY,
             TerminalKey.NUMPAD_SUBTRACT,
             TerminalKey.NUMPAD_ADD,
+            TerminalKey.NUMPAD_COMMA,
+            TerminalKey.NUMPAD_SEPARATOR,
+            TerminalKey.NUMPAD_EQUALS,
+            TerminalKey.NUMPAD_BEGIN,
             TerminalKey.NUMPAD_DECIMAL,
             TerminalKey.NUMPAD_0,
             TerminalKey.NUMPAD_1,
@@ -439,6 +450,11 @@ internal class KeyboardEncoder(
         }
 
         if (TerminalInputState.isApplicationKeypad(modeBits)) {
+            if (key == TerminalKey.NUMPAD_BEGIN) {
+                writeCsiFinal('E'.code)
+                return
+            }
+
             val final = applicationKeypadFinal(key)
             if (final >= 0) {
                 writeSs3(final)
@@ -491,6 +507,8 @@ internal class KeyboardEncoder(
 
     private fun applicationKeypadFinal(key: TerminalKey): Int {
         return when (key) {
+            TerminalKey.NUMPAD_SPACE -> ' '.code
+            TerminalKey.NUMPAD_TAB -> 'I'.code
             TerminalKey.NUMPAD_ENTER -> 'M'.code
             TerminalKey.NUMPAD_0 -> 'p'.code
             TerminalKey.NUMPAD_1 -> 'q'.code
@@ -507,12 +525,17 @@ internal class KeyboardEncoder(
             TerminalKey.NUMPAD_MULTIPLY -> 'j'.code
             TerminalKey.NUMPAD_SUBTRACT -> 'm'.code
             TerminalKey.NUMPAD_ADD -> 'k'.code
+            TerminalKey.NUMPAD_COMMA,
+            TerminalKey.NUMPAD_SEPARATOR -> 'l'.code
+            TerminalKey.NUMPAD_EQUALS -> 'X'.code
             else -> -1
         }
     }
 
     private fun normalKeypadAscii(key: TerminalKey): Int {
         return when (key) {
+            TerminalKey.NUMPAD_SPACE -> ' '.code
+            TerminalKey.NUMPAD_TAB -> ControlCode.HT
             TerminalKey.NUMPAD_0 -> '0'.code
             TerminalKey.NUMPAD_1 -> '1'.code
             TerminalKey.NUMPAD_2 -> '2'.code
@@ -528,6 +551,10 @@ internal class KeyboardEncoder(
             TerminalKey.NUMPAD_MULTIPLY -> '*'.code
             TerminalKey.NUMPAD_SUBTRACT -> '-'.code
             TerminalKey.NUMPAD_ADD -> '+'.code
+            TerminalKey.NUMPAD_COMMA,
+            TerminalKey.NUMPAD_SEPARATOR -> ','.code
+            TerminalKey.NUMPAD_EQUALS -> '='.code
+            TerminalKey.NUMPAD_BEGIN -> '5'.code
             else -> -1
         }
     }
@@ -611,6 +638,14 @@ internal class KeyboardEncoder(
         scratch.clear()
         scratch.appendByte(ControlCode.ESC)
         scratch.appendByte('O'.code)
+        scratch.appendByte(finalByte)
+        scratch.writeTo(output)
+    }
+
+    private fun writeCsiFinal(finalByte: Int) {
+        scratch.clear()
+        scratch.appendByte(ControlCode.ESC)
+        scratch.appendByte('['.code)
         scratch.appendByte(finalByte)
         scratch.writeTo(output)
     }

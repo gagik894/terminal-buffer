@@ -337,7 +337,18 @@ class KeyboardEncoderTest {
     }
 
     @Test
+    fun `encodes PF keypad keys independently from physical function keys`() {
+        assertBytes(esc("OP"), TerminalKeyEvent.key(TerminalKey.PF1))
+        assertBytes(esc("OQ"), TerminalKeyEvent.key(TerminalKey.PF2))
+        assertBytes(esc("OR"), TerminalKeyEvent.key(TerminalKey.PF3))
+        assertBytes(esc("OS"), TerminalKeyEvent.key(TerminalKey.PF4))
+        assertBytes(esc("[1;5P"), TerminalKeyEvent.key(TerminalKey.PF1, TerminalModifiers.CTRL))
+    }
+
+    @Test
     fun `encodes each normal keypad key`() {
+        assertBytes(ascii(" "), TerminalKeyEvent.key(TerminalKey.NUMPAD_SPACE))
+        assertBytes(bytes(0x09), TerminalKeyEvent.key(TerminalKey.NUMPAD_TAB))
         assertBytes(ascii("0"), TerminalKeyEvent.key(TerminalKey.NUMPAD_0))
         assertBytes(ascii("1"), TerminalKeyEvent.key(TerminalKey.NUMPAD_1))
         assertBytes(ascii("2"), TerminalKeyEvent.key(TerminalKey.NUMPAD_2))
@@ -353,6 +364,10 @@ class KeyboardEncoderTest {
         assertBytes(ascii("*"), TerminalKeyEvent.key(TerminalKey.NUMPAD_MULTIPLY))
         assertBytes(ascii("-"), TerminalKeyEvent.key(TerminalKey.NUMPAD_SUBTRACT))
         assertBytes(ascii("+"), TerminalKeyEvent.key(TerminalKey.NUMPAD_ADD))
+        assertBytes(ascii(","), TerminalKeyEvent.key(TerminalKey.NUMPAD_COMMA))
+        assertBytes(ascii(","), TerminalKeyEvent.key(TerminalKey.NUMPAD_SEPARATOR))
+        assertBytes(ascii("="), TerminalKeyEvent.key(TerminalKey.NUMPAD_EQUALS))
+        assertBytes(ascii("5"), TerminalKeyEvent.key(TerminalKey.NUMPAD_BEGIN))
         assertBytes(bytes(0x0d), TerminalKeyEvent.key(TerminalKey.NUMPAD_ENTER))
         assertBytes(bytes(0x0d, 0x0a), TerminalKeyEvent.key(TerminalKey.NUMPAD_ENTER), TerminalModeBits.NEW_LINE_MODE)
     }
@@ -361,6 +376,8 @@ class KeyboardEncoderTest {
     fun `encodes application keypad keys`() {
         val bits = TerminalModeBits.APPLICATION_KEYPAD
 
+        assertBytes(esc("O "), TerminalKeyEvent.key(TerminalKey.NUMPAD_SPACE), bits)
+        assertBytes(esc("OI"), TerminalKeyEvent.key(TerminalKey.NUMPAD_TAB), bits)
         assertBytes(esc("Op"), TerminalKeyEvent.key(TerminalKey.NUMPAD_0), bits)
         assertBytes(esc("Oq"), TerminalKeyEvent.key(TerminalKey.NUMPAD_1), bits)
         assertBytes(esc("Or"), TerminalKeyEvent.key(TerminalKey.NUMPAD_2), bits)
@@ -376,6 +393,10 @@ class KeyboardEncoderTest {
         assertBytes(esc("Oj"), TerminalKeyEvent.key(TerminalKey.NUMPAD_MULTIPLY), bits)
         assertBytes(esc("Om"), TerminalKeyEvent.key(TerminalKey.NUMPAD_SUBTRACT), bits)
         assertBytes(esc("Ok"), TerminalKeyEvent.key(TerminalKey.NUMPAD_ADD), bits)
+        assertBytes(esc("Ol"), TerminalKeyEvent.key(TerminalKey.NUMPAD_COMMA), bits)
+        assertBytes(esc("Ol"), TerminalKeyEvent.key(TerminalKey.NUMPAD_SEPARATOR), bits)
+        assertBytes(esc("OX"), TerminalKeyEvent.key(TerminalKey.NUMPAD_EQUALS), bits)
+        assertBytes(esc("[E"), TerminalKeyEvent.key(TerminalKey.NUMPAD_BEGIN), bits)
         assertBytes(esc("OM"), TerminalKeyEvent.key(TerminalKey.NUMPAD_ENTER), bits)
     }
 

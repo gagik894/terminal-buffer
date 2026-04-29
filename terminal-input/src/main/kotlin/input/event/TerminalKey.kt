@@ -85,6 +85,24 @@ enum class TerminalKey {
     /** Function key F12. */
     F12,
 
+    /** Keypad PF1 key. */
+    PF1,
+
+    /** Keypad PF2 key. */
+    PF2,
+
+    /** Keypad PF3 key. */
+    PF3,
+
+    /** Keypad PF4 key. */
+    PF4,
+
+    /** Numeric keypad space key. */
+    NUMPAD_SPACE,
+
+    /** Numeric keypad tab key. */
+    NUMPAD_TAB,
+
     /** Numeric keypad enter key. */
     NUMPAD_ENTER,
 
@@ -99,6 +117,18 @@ enum class TerminalKey {
 
     /** Numeric keypad add key. */
     NUMPAD_ADD,
+
+    /** Numeric keypad comma key. */
+    NUMPAD_COMMA,
+
+    /** Numeric keypad separator key. */
+    NUMPAD_SEPARATOR,
+
+    /** Numeric keypad equals key. */
+    NUMPAD_EQUALS,
+
+    /** Numeric keypad begin key, usually the keypad 5 navigation function. */
+    NUMPAD_BEGIN,
 
     /** Numeric keypad decimal key. */
     NUMPAD_DECIMAL,

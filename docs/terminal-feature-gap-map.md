@@ -371,8 +371,9 @@ Missing:
   `modifyCursorKeys`, `modifyFunctionKeys`, and `modifyKeypadKeys` if those are
   added. These need protocol/core mode or policy state before input grows more
   branches.
-- `TODO(input)`: keypad fidelity:
-  - keypad equals, comma, separator, begin/keypad-5 if UI adapters expose them
+- `DONE(input)`: keypad fidelity for xterm's stable cell-keyboard vocabulary:
+  - keypad space, tab, equals, comma, separator, and begin/keypad-5 when UI
+    adapters expose them
   - explicit PF1-PF4 terminal keys rather than permanently overloading physical
     F1-F4 when a platform can distinguish keypad PF keys
 - `TODO(input/policy)`: additional xterm-compatible key policies when a real
