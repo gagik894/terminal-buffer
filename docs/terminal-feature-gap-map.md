@@ -413,6 +413,14 @@ professional emulator needs explicit contracts for it.
   - PTY stdout feeds `TerminalOutputParser`
   - parser/integration/core responses and UI input events serialize to PTY stdin
   - PTY resize updates both the child PTY size and public core buffer dimensions
+- `DONE(host/integration)`: host event callbacks for:
+  - PTY reader failures
+  - child process exit codes
+  - BEL notifications
+  - OSC icon/window title changes
+- `DONE(host)`: opt-in native PTY smoke test verifies real process output flows
+  through PTY4J into parser and core. It is gated by
+  `-Dterminal.pty.integration=true` to keep default tests deterministic.
 - `TODO(host)`: renderer API for cell attributes, cursor shape, cursor blink,
   reverse video, selection, hyperlinks, and dirty regions.
 - `TODO(host)`: font measurement policy and fallback fonts.

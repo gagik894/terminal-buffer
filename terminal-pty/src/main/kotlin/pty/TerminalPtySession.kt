@@ -27,12 +27,17 @@ class TerminalPtySession internal constructor(
     private val hostOutput: StreamTerminalHostOutput,
     private val readBufferSize: Int,
     private val readerThreadName: String,
+    private val watcherThreadName: String,
+    private val eventListener: TerminalPtyEventListener,
 ) : TerminalInputEncoder, AutoCloseable {
     private val hostWriteLock = Any()
     private val closed = AtomicBoolean(false)
     @Volatile
     private var readerFailure: IOException? = null
+    @Volatile
+    private var processExitCode: Int? = null
     private lateinit var readerThread: Thread
+    private lateinit var watcherThread: Thread
 
     /**
      * Returns true while the underlying process reports that it is alive.
@@ -40,10 +45,29 @@ class TerminalPtySession internal constructor(
     val isAlive: Boolean
         get() = process.isAlive()
 
+    /**
+     * Reader failure captured from the PTY stdout thread, or `null` when no
+     * failure has occurred.
+     */
+    val failure: IOException?
+        get() = readerFailure
+
+    /**
+     * Child process exit code after the process watcher observes termination.
+     */
+    val exitCode: Int?
+        get() = processExitCode
+
     internal fun startReader() {
         readerThread = Thread(this::readProcessOutput, readerThreadName)
         readerThread.isDaemon = true
         readerThread.start()
+    }
+
+    internal fun startWatcher() {
+        watcherThread = Thread(this::watchProcessExit, watcherThreadName)
+        watcherThread.isDaemon = true
+        watcherThread.start()
     }
 
     /**
@@ -70,6 +94,12 @@ class TerminalPtySession internal constructor(
     internal fun joinReader(timeoutMillis: Long) {
         if (::readerThread.isInitialized) {
             readerThread.join(timeoutMillis)
+        }
+    }
+
+    internal fun joinWatcher(timeoutMillis: Long) {
+        if (::watcherThread.isInitialized) {
+            watcherThread.join(timeoutMillis)
         }
     }
 
@@ -123,6 +153,9 @@ class TerminalPtySession internal constructor(
         if (::readerThread.isInitialized && Thread.currentThread() !== readerThread) {
             readerThread.join(CLOSE_JOIN_MILLIS)
         }
+        if (::watcherThread.isInitialized && Thread.currentThread() !== watcherThread) {
+            watcherThread.join(CLOSE_JOIN_MILLIS)
+        }
     }
 
     private fun readProcessOutput() {
@@ -136,9 +169,22 @@ class TerminalPtySession internal constructor(
                 drainCoreResponses()
             }
         } catch (exception: IOException) {
-            if (!closed.get()) readerFailure = exception
+            if (!closed.get()) {
+                readerFailure = exception
+                eventListener.readerFailed(this, exception)
+            }
         } finally {
             parser.endOfInput()
+        }
+    }
+
+    private fun watchProcessExit() {
+        try {
+            val code = process.waitFor()
+            processExitCode = code
+            eventListener.processExited(this, code)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
         }
     }
 

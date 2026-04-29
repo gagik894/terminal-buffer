@@ -15,6 +15,8 @@ import java.nio.file.Path
  * @param maxHistory maximum scrollback lines retained by the core buffer.
  * @param readBufferSize buffer size used by the PTY stdout reader thread.
  * @param readerThreadName name for the daemon PTY stdout reader thread.
+ * @param watcherThreadName name for the daemon process exit watcher thread.
+ * @param eventListener host callbacks for PTY lifecycle and metadata events.
  */
 data class TerminalPtyOptions(
     val command: List<String> = defaultCommand(),
@@ -25,6 +27,8 @@ data class TerminalPtyOptions(
     val maxHistory: Int = 1000,
     val readBufferSize: Int = 8192,
     val readerThreadName: String = "terminal-pty-reader",
+    val watcherThreadName: String = "terminal-pty-watcher",
+    val eventListener: TerminalPtyEventListener = TerminalPtyEventListener.NONE,
 ) {
     init {
         require(command.isNotEmpty()) { "PTY command must not be empty" }
@@ -33,6 +37,8 @@ data class TerminalPtyOptions(
         require(rows > 0) { "PTY rows must be positive, got $rows" }
         require(maxHistory >= 0) { "PTY maxHistory must be >= 0, got $maxHistory" }
         require(readBufferSize > 0) { "PTY readBufferSize must be positive, got $readBufferSize" }
+        require(readerThreadName.isNotBlank()) { "PTY readerThreadName must not be blank" }
+        require(watcherThreadName.isNotBlank()) { "PTY watcherThreadName must not be blank" }
     }
 
     companion object {

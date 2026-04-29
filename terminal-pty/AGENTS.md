@@ -12,6 +12,8 @@ PTY owns:
 - pumping process output bytes into `TerminalOutputParser`.
 - serializing UI input bytes and parser/core response bytes to process stdin.
 - resizing the PTY and the public terminal buffer together.
+- reporting PTY lifecycle, reader failures, BEL, and title metadata through
+  `TerminalPtyEventListener`.
 
 PTY must not:
 
@@ -24,5 +26,8 @@ PTY must not:
 ## Testing
 
 Unit tests should use fake process streams for lifecycle and wiring behavior.
-Launching a real PTY process is platform-sensitive and should be covered by
-explicit integration tests when a stable host test harness exists.
+Native PTY smoke tests are opt-in because PTY4J startup is platform-sensitive:
+
+```text
+./gradlew :terminal-pty:test --tests "com.gagik.terminal.pty.TerminalPtyRealProcessTest" "-Dterminal.pty.integration=true"
+```

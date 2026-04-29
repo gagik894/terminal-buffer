@@ -39,7 +39,8 @@ object TerminalPtySessions {
             maxHistory = options.maxHistory,
         )
         val hostOutput = StreamTerminalHostOutput(process.output)
-        val sink = CoreTerminalCommandSink(terminal)
+        val hostEventBridge = SessionHostEventBridge(options.eventListener)
+        val sink = CoreTerminalCommandSink(terminal, hostEventBridge)
         val parser = TerminalParsers.create(sink)
         val inputEncoder = DefaultTerminalInputEncoder(terminal, hostOutput)
 
@@ -51,8 +52,12 @@ object TerminalPtySessions {
             hostOutput = hostOutput,
             readBufferSize = options.readBufferSize,
             readerThreadName = options.readerThreadName,
+            watcherThreadName = options.watcherThreadName,
+            eventListener = options.eventListener,
         )
+        hostEventBridge.session = session
         session.startReader()
+        session.startWatcher()
         return session
     }
 }
