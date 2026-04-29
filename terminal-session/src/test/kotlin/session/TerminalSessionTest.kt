@@ -7,6 +7,7 @@ import com.gagik.terminal.input.event.TerminalFocusEvent
 import com.gagik.terminal.input.event.TerminalKeyEvent
 import com.gagik.terminal.input.event.TerminalMouseEvent
 import com.gagik.terminal.input.event.TerminalPasteEvent
+import com.gagik.terminal.render.api.TerminalRenderFrameReader
 import com.gagik.terminal.testkit.MockConnector
 import com.gagik.terminal.transport.TerminalConnector
 import com.gagik.terminal.transport.TerminalConnectorListener
@@ -204,6 +205,7 @@ class TerminalSessionTest {
         val parser = RecordingParser()
         val session = TerminalSession(
             terminal = terminal,
+            renderReader = terminal as TerminalRenderFrameReader,
             responseReader = terminal,
             connector = connector,
             parser = parser,
@@ -216,6 +218,114 @@ class TerminalSessionTest {
         session.close()
 
         assertEquals(1, parser.endOfInputCalls)
+    }
+
+    @Test
+    fun `readRenderFrame exposes frame through session reader`() {
+        val connector = MockConnector()
+        val session = createStartedSession(connector, columns = 10, rows = 3)
+
+        session.readRenderFrame { frame ->
+            assertAll(
+                { assertEquals(10, frame.columns) },
+                { assertEquals(3, frame.rows) },
+            )
+        }
+
+        session.close()
+    }
+
+    @Test
+    fun `readRenderFrame blocks host byte mutation until callback returns`() {
+        val terminal = TerminalBuffers.create(width = 10, height = 3)
+        val connector = MockConnector()
+        val parser = RecordingParser()
+        val session = TerminalSession(
+            terminal = terminal,
+            renderReader = terminal as TerminalRenderFrameReader,
+            responseReader = terminal,
+            connector = connector,
+            parser = parser,
+            inputEncoder = NoOpInputEncoder,
+        )
+        val callbackEntered = CountDownLatch(1)
+        val releaseCallback = CountDownLatch(1)
+        val feedCompleted = CountDownLatch(1)
+
+        session.start(columns = 10, rows = 3)
+
+        val renderThread = Thread {
+            session.readRenderFrame {
+                callbackEntered.countDown()
+                assertTrue(releaseCallback.await(1, TimeUnit.SECONDS), "render callback was not released")
+            }
+        }.apply {
+            name = "terminal-session-render-lock-test"
+            start()
+        }
+
+        assertTrue(callbackEntered.await(1, TimeUnit.SECONDS), "render callback did not start")
+
+        val feedThread = Thread {
+            connector.feedFromHost("A".ascii())
+            feedCompleted.countDown()
+        }.apply {
+            name = "terminal-session-feed-lock-test"
+            start()
+        }
+
+        assertFalse(feedCompleted.await(100, TimeUnit.MILLISECONDS), "host bytes mutated during render callback")
+        assertEquals(0, parser.acceptCalls)
+
+        releaseCallback.countDown()
+        renderThread.join(1000)
+        feedThread.join(1000)
+
+        assertTrue(feedCompleted.await(1, TimeUnit.SECONDS), "host byte feed did not complete")
+        assertEquals(1, parser.acceptCalls)
+        session.close()
+    }
+
+    @Test
+    fun `readRenderFrame blocks resize until callback returns`() {
+        val connector = MockConnector()
+        val session = createStartedSession(connector, columns = 10, rows = 3)
+        val callbackEntered = CountDownLatch(1)
+        val releaseCallback = CountDownLatch(1)
+        val resizeCompleted = CountDownLatch(1)
+
+        val renderThread = Thread {
+            session.readRenderFrame {
+                callbackEntered.countDown()
+                assertTrue(releaseCallback.await(1, TimeUnit.SECONDS), "render callback was not released")
+            }
+        }.apply {
+            name = "terminal-session-render-resize-lock-test"
+            start()
+        }
+
+        assertTrue(callbackEntered.await(1, TimeUnit.SECONDS), "render callback did not start")
+
+        val resizeThread = Thread {
+            session.resize(columns = 20, rows = 5)
+            resizeCompleted.countDown()
+        }.apply {
+            name = "terminal-session-resize-lock-test"
+            start()
+        }
+
+        assertFalse(resizeCompleted.await(100, TimeUnit.MILLISECONDS), "resize completed during render callback")
+        assertEquals(10, session.terminal.width)
+        assertEquals(3, session.terminal.height)
+
+        releaseCallback.countDown()
+        renderThread.join(1000)
+        resizeThread.join(1000)
+
+        assertTrue(resizeCompleted.await(1, TimeUnit.SECONDS), "resize did not complete")
+        assertEquals(20, session.terminal.width)
+        assertEquals(5, session.terminal.height)
+        session.close()
     }
 
     private fun createStartedSession(
@@ -236,8 +346,13 @@ class TerminalSessionTest {
     private class RecordingParser : TerminalOutputParser {
         var endOfInputCalls: Int = 0
             private set
+        @Volatile
+        var acceptCalls: Int = 0
+            private set
 
-        override fun accept(bytes: ByteArray, offset: Int, length: Int) = Unit
+        override fun accept(bytes: ByteArray, offset: Int, length: Int) {
+            acceptCalls++
+        }
 
         override fun acceptByte(byteValue: Int) = Unit
 

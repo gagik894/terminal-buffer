@@ -14,6 +14,8 @@ import com.gagik.terminal.input.event.TerminalMouseEvent
 import com.gagik.terminal.input.event.TerminalPasteEvent
 import com.gagik.terminal.input.impl.DefaultTerminalInputEncoder
 import com.gagik.terminal.input.policy.TerminalInputPolicy
+import com.gagik.terminal.render.api.TerminalRenderFrameConsumer
+import com.gagik.terminal.render.api.TerminalRenderFrameReader
 import com.gagik.terminal.transport.TerminalConnector
 import com.gagik.terminal.transport.TerminalConnectorListener
 import java.util.concurrent.atomic.AtomicBoolean
@@ -29,12 +31,13 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 class TerminalSession(
     val terminal: TerminalBufferApi,
+    private val renderReader: TerminalRenderFrameReader,
     private val responseReader: TerminalHostResponseReader,
     private val connector: TerminalConnector,
     private val parser: TerminalOutputParser,
     private val inputEncoder: TerminalInputEncoder,
     private val outboundWriteLock: Any = Any(),
-) : TerminalConnectorListener, TerminalInputEncoder, AutoCloseable {
+) : TerminalConnectorListener, TerminalInputEncoder, TerminalRenderFrameReader, AutoCloseable {
     private val localCloseRequested = AtomicBoolean(false)
     private val remoteClosed = AtomicBoolean(false)
     private val parserClosed = AtomicBoolean(false)
@@ -163,6 +166,19 @@ class TerminalSession(
     }
 
     /**
+     * Reads a short-lived render frame while holding the terminal mutation lock.
+     *
+     * UI callers should use this session-level reader rather than reading the
+     * core buffer directly, so parser output and resize cannot mutate the grid
+     * while a renderer copies primitive row data.
+     */
+    override fun readRenderFrame(consumer: TerminalRenderFrameConsumer) {
+        synchronized(mutationLock) {
+            renderReader.readRenderFrame(consumer)
+        }
+    }
+
+    /**
      * Records remote closure and closes the parser exactly once.
      */
     override fun onClosed(exitCode: Int?) {
@@ -243,9 +259,12 @@ class TerminalSession(
             val sink = CoreTerminalCommandSink(terminal, hostEvents, hostPolicy)
             val parser = TerminalParsers.create(sink)
             val inputEncoder = DefaultTerminalInputEncoder(terminal, hostOutput, inputPolicy)
+            val renderReader = terminal as? TerminalRenderFrameReader
+                ?: error("terminal must implement TerminalRenderFrameReader")
 
             return TerminalSession(
                 terminal = terminal,
+                renderReader = renderReader,
                 responseReader = terminal,
                 connector = connector,
                 parser = parser,
