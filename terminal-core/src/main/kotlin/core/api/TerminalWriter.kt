@@ -317,14 +317,14 @@ interface TerminalWriter {
     /**
      * Sets the xterm window title.
      *
-     * Changes to the title advance [TerminalReader.frameGeneration].
+     * Changes to the title advance the render frame generation.
      */
     fun setWindowTitle(title: String)
 
     /**
      * Sets the xterm icon title.
      *
-     * Changes to the title advance [TerminalReader.frameGeneration].
+     * Changes to the title advance the render frame generation.
      */
     fun setIconTitle(title: String)
 
