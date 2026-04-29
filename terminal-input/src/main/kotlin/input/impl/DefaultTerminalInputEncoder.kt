@@ -31,7 +31,7 @@ class DefaultTerminalInputEncoder(
 ) : TerminalInputEncoder {
     private val scratch = InputScratchBuffer()
     private val keyboard = KeyboardEncoder(output, scratch, policy)
-    private val paste = PasteEncoder(output)
+    private val paste = PasteEncoder(output, scratch, policy)
     private val focus = FocusEncoder(output)
     private val mouse = MouseEncoder(output, scratch, policy)
 

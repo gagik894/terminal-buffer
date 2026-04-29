@@ -2,6 +2,8 @@ package com.gagik.terminal.input.impl
 
 import com.gagik.core.api.TerminalModeBits
 import com.gagik.terminal.input.event.TerminalPasteEvent
+import com.gagik.terminal.input.policy.PasteSanitizationPolicy
+import com.gagik.terminal.input.policy.TerminalInputPolicy
 import com.gagik.terminal.protocol.host.TerminalHostOutput
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Test
@@ -23,6 +25,15 @@ class PasteEncoderTest {
     }
 
     @Test
+    fun `bracketed paste preserves newlines by default`() {
+        assertBytes(
+            expected = esc("[200~") + "a\r\nb\nc\rd".encodeToByteArray() + esc("[201~"),
+            event = TerminalPasteEvent("a\r\nb\nc\rd"),
+            modeBits = TerminalModeBits.BRACKETED_PASTE,
+        )
+    }
+
+    @Test
     fun `empty bracketed paste still emits wrappers`() {
         assertBytes(
             expected = esc("[200~") + esc("[201~"),
@@ -31,13 +42,76 @@ class PasteEncoderTest {
         )
     }
 
+    @Test
+    fun `raw paste preserves escape controls`() {
+        assertBytes(
+            expected = byteArrayOf('a'.code.toByte(), 0x1b, 'b'.code.toByte()),
+            event = TerminalPasteEvent("a\u001bb"),
+        )
+    }
+
+    @Test
+    fun `strip C0 paste policy removes controls except tab cr and lf`() {
+        assertBytes(
+            expected = byteArrayOf(
+                'a'.code.toByte(),
+                0x09,
+                'b'.code.toByte(),
+                0x0d,
+                'c'.code.toByte(),
+                0x0a,
+                'd'.code.toByte(),
+                'e'.code.toByte(),
+            ),
+            event = TerminalPasteEvent("a\tb\rc\nd\u001be\u0000"),
+            policy = TerminalInputPolicy(
+                pasteSanitizationPolicy = PasteSanitizationPolicy.STRIP_C0_EXCEPT_TAB_CR_LF,
+            ),
+        )
+    }
+
+    @Test
+    fun `strip C0 paste policy preserves non ASCII text`() {
+        assertBytes(
+            expected = "Ã©😀".encodeToByteArray(),
+            event = TerminalPasteEvent("\u001bÃ©😀"),
+            policy = TerminalInputPolicy(
+                pasteSanitizationPolicy = PasteSanitizationPolicy.STRIP_C0_EXCEPT_TAB_CR_LF,
+            ),
+        )
+    }
+
+    @Test
+    fun `normalize line endings paste policy maps crlf and cr to lf`() {
+        assertBytes(
+            expected = "a\nb\nc\nd".encodeToByteArray(),
+            event = TerminalPasteEvent("a\r\nb\rc\nd"),
+            policy = TerminalInputPolicy(
+                pasteSanitizationPolicy = PasteSanitizationPolicy.NORMALIZE_LINE_ENDINGS,
+            ),
+        )
+    }
+
+    @Test
+    fun `bracketed paste applies sanitization inside wrappers`() {
+        assertBytes(
+            expected = esc("[200~") + "ab".encodeToByteArray() + esc("[201~"),
+            event = TerminalPasteEvent("a\u001bb"),
+            modeBits = TerminalModeBits.BRACKETED_PASTE,
+            policy = TerminalInputPolicy(
+                pasteSanitizationPolicy = PasteSanitizationPolicy.STRIP_C0_EXCEPT_TAB_CR_LF,
+            ),
+        )
+    }
+
     private fun assertBytes(
         expected: ByteArray,
         event: TerminalPasteEvent,
         modeBits: Long = 0L,
+        policy: TerminalInputPolicy = TerminalInputPolicy(),
     ) {
         val output = RecordingHostOutput()
-        val encoder = PasteEncoder(output)
+        val encoder = PasteEncoder(output, InputScratchBuffer(), policy)
 
         encoder.encode(event, modeBits)
 

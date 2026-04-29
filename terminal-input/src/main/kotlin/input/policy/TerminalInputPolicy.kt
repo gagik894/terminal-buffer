@@ -16,6 +16,8 @@ package com.gagik.terminal.input.policy
  * encodings with ESC.
  * @property mouseCoordinateLimitPolicy handling for legacy mouse coordinates
  * outside the bounded `ESC [ M` byte range.
+ * @property pasteSanitizationPolicy handling for pasted text before optional
+ * bracketed-paste wrapping.
  */
 data class TerminalInputPolicy(
     val backspacePolicy: BackspacePolicy = BackspacePolicy.DELETE,
@@ -25,6 +27,7 @@ data class TerminalInputPolicy(
     val altSendsEscapePrefix: Boolean = true,
     val mouseCoordinateLimitPolicy: MouseCoordinateLimitPolicy =
         MouseCoordinateLimitPolicy.SUPPRESS_OUT_OF_RANGE,
+    val pasteSanitizationPolicy: PasteSanitizationPolicy = PasteSanitizationPolicy.RAW,
 )
 
 /**
@@ -75,4 +78,18 @@ enum class MouseCoordinateLimitPolicy {
 
     /** Clamp events whose one-based coordinate is greater than 223 to 223. */
     CLAMP_TO_MAX,
+}
+
+/**
+ * Policy for paste payload transformation before terminal-host emission.
+ */
+enum class PasteSanitizationPolicy {
+    /** Preserve paste payload exactly as provided by the host/UI layer. */
+    RAW,
+
+    /** Drop C0 controls except TAB, CR, and LF. */
+    STRIP_C0_EXCEPT_TAB_CR_LF,
+
+    /** Normalize CRLF and lone CR line endings to LF. */
+    NORMALIZE_LINE_ENDINGS,
 }

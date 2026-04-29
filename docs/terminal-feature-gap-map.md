@@ -383,7 +383,7 @@ Missing:
 - `TODO(parser/core/input)`: xterm highlight mouse tracking (`?1001`) if full
   xterm mouse parity is required; it needs a distinct interaction contract
   rather than simple cell-coordinate event forwarding.
-- `TODO(input/policy)`: paste sanitization policy hook:
+- `DONE(input/policy)`: paste sanitization policy hook:
   - raw paste
   - strip C0 controls except TAB/CR/LF
   - line-ending normalization

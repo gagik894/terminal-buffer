@@ -2,10 +2,14 @@ package com.gagik.terminal.input.impl
 
 import com.gagik.core.api.TerminalInputState
 import com.gagik.terminal.input.event.TerminalPasteEvent
+import com.gagik.terminal.input.policy.PasteSanitizationPolicy
+import com.gagik.terminal.input.policy.TerminalInputPolicy
 import com.gagik.terminal.protocol.host.TerminalHostOutput
 
 internal class PasteEncoder(
     private val output: TerminalHostOutput,
+    private val scratch: InputScratchBuffer,
+    private val policy: TerminalInputPolicy = TerminalInputPolicy(),
 ) {
     fun encode(event: TerminalPasteEvent, modeBits: Long) {
         if (TerminalInputState.isBracketedPasteEnabled(modeBits)) {
@@ -14,14 +18,93 @@ internal class PasteEncoder(
                 0,
                 TerminalSequences.BRACKETED_PASTE_START.size,
             )
-            output.writeUtf8(event.text)
+            writePasteText(event.text)
             output.writeBytes(
                 TerminalSequences.BRACKETED_PASTE_END,
                 0,
                 TerminalSequences.BRACKETED_PASTE_END.size,
             )
         } else {
-            output.writeUtf8(event.text)
+            writePasteText(event.text)
         }
+    }
+
+    private fun writePasteText(text: String) {
+        when (policy.pasteSanitizationPolicy) {
+            PasteSanitizationPolicy.RAW -> output.writeUtf8(text)
+            PasteSanitizationPolicy.STRIP_C0_EXCEPT_TAB_CR_LF -> writeStrippedC0(text)
+            PasteSanitizationPolicy.NORMALIZE_LINE_ENDINGS -> writeNormalizedLineEndings(text)
+        }
+    }
+
+    private fun writeStrippedC0(text: String) {
+        var offset = 0
+        while (offset < text.length) {
+            val codepoint = text.codePointAt(offset)
+            if (isAllowedAfterC0Strip(codepoint)) {
+                writeUtf8Codepoint(codepoint)
+            }
+            offset += Character.charCount(codepoint)
+        }
+    }
+
+    private fun isAllowedAfterC0Strip(codepoint: Int): Boolean {
+        return codepoint !in 0x00..0x1f ||
+            codepoint == TAB ||
+            codepoint == CR ||
+            codepoint == LF
+    }
+
+    private fun writeNormalizedLineEndings(text: String) {
+        var offset = 0
+        while (offset < text.length) {
+            val codepoint = text.codePointAt(offset)
+            if (codepoint == CR) {
+                writeUtf8Codepoint(LF)
+                offset += Character.charCount(codepoint)
+                if (offset < text.length && text.codePointAt(offset) == LF) {
+                    offset += Character.charCount(LF)
+                }
+            } else {
+                writeUtf8Codepoint(codepoint)
+                offset += Character.charCount(codepoint)
+            }
+        }
+    }
+
+    private fun writeUtf8Codepoint(codepoint: Int) {
+        when {
+            codepoint <= 0x7f -> output.writeByte(codepoint)
+
+            codepoint <= 0x7ff -> {
+                scratch.clear()
+                scratch.appendByte(0xc0 or (codepoint shr 6))
+                scratch.appendByte(0x80 or (codepoint and 0x3f))
+                scratch.writeTo(output)
+            }
+
+            codepoint <= 0xffff -> {
+                scratch.clear()
+                scratch.appendByte(0xe0 or (codepoint shr 12))
+                scratch.appendByte(0x80 or ((codepoint shr 6) and 0x3f))
+                scratch.appendByte(0x80 or (codepoint and 0x3f))
+                scratch.writeTo(output)
+            }
+
+            else -> {
+                scratch.clear()
+                scratch.appendByte(0xf0 or (codepoint shr 18))
+                scratch.appendByte(0x80 or ((codepoint shr 12) and 0x3f))
+                scratch.appendByte(0x80 or ((codepoint shr 6) and 0x3f))
+                scratch.appendByte(0x80 or (codepoint and 0x3f))
+                scratch.writeTo(output)
+            }
+        }
+    }
+
+    private companion object {
+        private const val CR: Int = 0x0d
+        private const val LF: Int = 0x0a
+        private const val TAB: Int = 0x09
     }
 }

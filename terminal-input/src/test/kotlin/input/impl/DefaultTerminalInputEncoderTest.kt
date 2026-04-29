@@ -3,6 +3,7 @@ package com.gagik.terminal.input.impl
 import com.gagik.core.api.TerminalInputState
 import com.gagik.core.api.TerminalModeBits
 import com.gagik.terminal.input.event.*
+import com.gagik.terminal.input.policy.PasteSanitizationPolicy
 import com.gagik.terminal.input.policy.TerminalInputPolicy
 import com.gagik.terminal.input.policy.UnsupportedModifiedKeyPolicy
 import com.gagik.terminal.protocol.host.TerminalHostOutput
@@ -146,6 +147,24 @@ class DefaultTerminalInputEncoderTest {
 
         assertEquals(2, inputState.reads)
         assertArrayEquals(esc("[<0;1;1M") + esc("[<35;2;3M"), output.bytes)
+    }
+
+    @Test
+    fun `encodePaste applies injected paste sanitization policy`() {
+        val inputState = RecordingInputState(0L)
+        val output = RecordingHostOutput()
+        val encoder = DefaultTerminalInputEncoder(
+            inputState = inputState,
+            output = output,
+            policy = TerminalInputPolicy(
+                pasteSanitizationPolicy = PasteSanitizationPolicy.STRIP_C0_EXCEPT_TAB_CR_LF,
+            ),
+        )
+
+        encoder.encodePaste(TerminalPasteEvent("a\u001bb"))
+
+        assertEquals(1, inputState.reads)
+        assertArrayEquals("ab".encodeToByteArray(), output.bytes)
     }
 
     private fun esc(textAfterEsc: String): ByteArray {
