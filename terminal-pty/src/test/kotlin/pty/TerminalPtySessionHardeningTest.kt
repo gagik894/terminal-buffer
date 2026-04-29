@@ -106,6 +106,45 @@ class TerminalPtySessionHardeningTest {
     }
 
     @Test
+    fun `blocked core response write does not block resize`() {
+        val terminal = TerminalBuffers.create(width = 5, height = 2)
+        val parser = object : TerminalOutputParser by NoopParser {
+            override fun accept(bytes: ByteArray, offset: Int, length: Int) {
+                terminal.requestDeviceStatusReport(mode = 5, decPrivate = false)
+            }
+        }
+        val output = BlockingOutputStream()
+        val session = testSession(
+            terminal = terminal,
+            process = TestProcess(input = ByteArrayInputStream(byteArrayOf(1)), output = output),
+            parser = parser,
+        )
+
+        session.startReader()
+        assertTrue(output.writeEntered.await(1, TimeUnit.SECONDS))
+
+        val resizeReturned = AtomicBoolean(false)
+        val resizeThread = Thread {
+            session.resize(20, 4)
+            resizeReturned.set(true)
+        }
+        resizeThread.start()
+
+        try {
+            resizeThread.joinOrFail(1000, "resize thread")
+            assertTrue(resizeReturned.get())
+            assertEquals(20, session.terminal.width)
+            assertEquals(4, session.terminal.height)
+        } finally {
+            output.releaseWrite.countDown()
+        }
+
+        session.waitForReader()
+
+        assertEquals("\u001B[0n", output.bytes.toString(Charsets.UTF_8))
+    }
+
+    @Test
     fun `close prevents later input writes`() {
         val output = ByteArrayOutputStream()
         val session = testSession(process = TestProcess(output = output))
@@ -192,6 +231,42 @@ class TerminalPtySessionHardeningTest {
 
         assertTrue(closeReturned.get())
         assertEquals("a", output.bytes.toString(Charsets.UTF_8))
+        assertEquals(1, output.closeCount.get())
+    }
+
+    @Test
+    fun `close during blocked core response write closes stream after write releases`() {
+        val terminal = TerminalBuffers.create(width = 5, height = 2)
+        val parser = object : TerminalOutputParser by NoopParser {
+            override fun accept(bytes: ByteArray, offset: Int, length: Int) {
+                terminal.requestDeviceStatusReport(mode = 5, decPrivate = false)
+            }
+        }
+        val output = BlockingOutputStream()
+        val process = TestProcess(input = ByteArrayInputStream(byteArrayOf(1)), output = output)
+        val session = testSession(terminal = terminal, process = process, parser = parser)
+
+        session.startReader()
+        assertTrue(output.writeEntered.await(1, TimeUnit.SECONDS))
+
+        val closeReturned = AtomicBoolean(false)
+        val closeThread = Thread {
+            session.close()
+            closeReturned.set(true)
+        }
+        closeThread.start()
+
+        assertFalse(
+            closeReturned.get(),
+            "close returned while core response write was still running",
+        )
+
+        output.releaseWrite.countDown()
+        closeThread.joinOrFail(1000, "close thread")
+
+        assertTrue(closeReturned.get())
+        assertTrue(process.destroyed)
+        assertEquals("\u001B[0n", output.bytes.toString(Charsets.UTF_8))
         assertEquals(1, output.closeCount.get())
     }
 

@@ -16,7 +16,8 @@ import java.util.concurrent.atomic.AtomicBoolean
  * Threading model:
  * - PTY output parsing and core mutation are serialized by terminalMutationLock.
  * - Host-bound writes are serialized by hostWriteLock.
- * - Lock order is terminalMutationLock -> hostWriteLock.
+ * - Blocking host I/O is never performed while terminalMutationLock is held.
+ * - hostWriteLock is never held while acquiring terminalMutationLock.
  * - Input methods acquire only hostWriteLock and never mutate terminal core state.
  * - Host listener callbacks are queued during parsing and dispatched after
  *   terminalMutationLock is released.
@@ -213,9 +214,9 @@ class TerminalPtySession internal constructor(
 
                 synchronized(terminalMutationLock) {
                     parser.accept(buffer, 0, read)
-                    drainCoreResponsesLocked()
                 }
 
+                drainCoreResponses()
                 dispatchPendingHostEvents()
             }
         } catch (exception: IOException) {
@@ -228,9 +229,9 @@ class TerminalPtySession internal constructor(
         } finally {
             synchronized(terminalMutationLock) {
                 parser.endOfInput()
-                drainCoreResponsesLocked()
             }
 
+            drainCoreResponses()
             dispatchPendingHostEvents()
         }
     }
@@ -248,19 +249,16 @@ class TerminalPtySession internal constructor(
         }
     }
 
-    /**
-     * Requires terminalMutationLock to be held.
-     *
-     * Lock order: terminalMutationLock -> hostWriteLock.
-     */
-    private fun drainCoreResponsesLocked() {
-        synchronized(hostWriteLock) {
-            if (closed.get()) return
+    private fun drainCoreResponses() {
+        while (!closed.get()) {
+            val read = synchronized(terminalMutationLock) {
+                terminal.readResponseBytes(responseBuffer, 0, responseBuffer.size)
+            }
 
-            while (terminal.pendingResponseBytes > 0) {
-                val read = terminal.readResponseBytes(responseBuffer, 0, responseBuffer.size)
-                if (read <= 0) return
+            if (read <= 0) return
 
+            synchronized(hostWriteLock) {
+                if (closed.get()) return
                 try {
                     hostOutput.writeBytes(responseBuffer, 0, read)
                 } catch (exception: IOException) {
