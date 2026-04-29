@@ -434,8 +434,11 @@ professional emulator needs explicit contracts for it.
   rows, stable public cell/attribute encodings, cursor visibility/blink state,
   reverse-video translation, hyperlinks ids, clusters, wrap flags, and
   generation-based row invalidation.
-- `TODO(host)`: UI-side render cache, selection, font shaping/measurement,
-  palette/default-color policy, and backend painter integrations.
+- `DONE(host)`: dependency-free primitive `TerminalRenderCache` consumer model
+  that copies frame rows, clusters, attrs, hyperlinks, wrap flags, cursor state,
+  and dirty-row metadata from `TerminalRenderFrameReader`.
+- `TODO(host)`: selection, font shaping/measurement, palette/default-color
+  policy, and backend painter integrations.
 - `TODO(host)`: font measurement policy and fallback fonts.
 - `TODO(host)`: double-width glyph display, emoji presentation, and ambiguous
   width presentation must match core width decisions.
