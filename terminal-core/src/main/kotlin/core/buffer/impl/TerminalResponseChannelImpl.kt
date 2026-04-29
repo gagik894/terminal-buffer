@@ -11,11 +11,11 @@ internal class TerminalResponseChannelImpl(
         get() = state.hostResponses.pendingByteCount
 
     override fun readResponseBytes(
-        destination: ByteArray,
+        dst: ByteArray,
         offset: Int,
         length: Int,
     ): Int {
-        return state.hostResponses.read(destination, offset, length)
+        return state.hostResponses.read(dst, offset, length)
     }
 
     override fun clearResponseBytes() {

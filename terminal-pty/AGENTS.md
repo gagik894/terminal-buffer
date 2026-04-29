@@ -1,31 +1,34 @@
 # Terminal PTY Agent Guide
 
 `terminal-pty` owns local pseudo-terminal process lifecycle and stream wiring.
-It connects PTY stdout to `terminal-parser` and connects host-bound input bytes
-from `terminal-input` plus core response bytes to PTY stdin.
+It exposes local PTY processes through `terminal-transport-api` connectors and
+convenience factories that return the shared `terminal-session` runtime.
 
 ## Boundary
 
 PTY owns:
 
 - spawning and closing PTY-backed terminal processes.
-- pumping process output bytes into `TerminalOutputParser`.
-- serializing UI input bytes and parser/core response bytes to process stdin.
-- resizing the PTY and the public terminal buffer together.
-- reporting PTY lifecycle, reader failures, BEL, and title metadata through
-  `TerminalPtyEventListener`.
+- pumping raw process output bytes to `TerminalConnectorListener`.
+- writing host-bound byte ranges to PTY stdin.
+- resizing the PTY process.
+- reporting BEL and title metadata through `TerminalPtyEventListener` when the
+  convenience session factory wires integration host events.
 
 PTY must not:
 
 - parse escape sequences or inspect parser state.
-- mutate grid/cursor state except through public `TerminalBufferApi` methods.
+- mutate grid/cursor state directly.
 - encode keyboard, paste, focus, or mouse bytes itself.
 - duplicate `terminal-integration` command mapping.
 - expose concurrent access to `DefaultTerminalInputEncoder`.
 
 ## Testing
 
-Unit tests should use fake process streams for lifecycle and wiring behavior.
+Unit tests should use fake process streams for connector lifecycle and wiring
+behavior. Session-level behavior should go through `TerminalSession` plus a
+`PtyConnector`, not a PTY-specific session class.
+
 Native PTY smoke tests are opt-in because PTY4J startup is platform-sensitive:
 
 ```text

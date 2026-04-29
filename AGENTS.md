@@ -20,9 +20,12 @@ The project is split into strict layers:
   APIs.
 - `terminal-input`: host-bound input encoding for keyboard, paste, focus, and
   future mouse reports.
-- `terminal-pty`: local PTY process lifecycle and stream wiring that connects
-  PTY stdout to parser/integration/core and serialized input/response bytes to
-  PTY stdin.
+- `terminal-transport-api`: dependency-free connector contract for byte-stream
+  transports.
+- `terminal-session`: runtime synchronization point that connects transport,
+  parser, integration, core response queues, and input encoding.
+- `terminal-testkit`: reusable public test fakes for connector/session tests.
+- `terminal-pty`: local PTY process lifecycle exposed as transport connectors.
 
 Keep these boundaries intact:
 
@@ -36,9 +39,15 @@ Keep these boundaries intact:
   internals.
 - Input encodes. It reads stable input-facing mode state and writes host-bound
   bytes without parsing terminal output or touching grid/cursor internals.
-- PTY hosts. It starts local pseudo-terminal processes, pumps raw output bytes
-  into the parser, and serializes input/core response bytes to process stdin.
-  It must not parse protocols, encode input itself, or mutate core internals.
+- Transport connects. Connectors own host I/O threads, deliver raw bytes in
+  stream order, synchronously consume host-bound write ranges, and never parse
+  terminal protocols.
+- Session serializes. It owns parser/core mutation synchronization, drains core
+  response bytes, and serializes UI input plus core responses through one
+  outbound write lock.
+- PTY hosts. It starts local pseudo-terminal processes and exposes them through
+  `TerminalConnector`. It must not parse protocols, encode input itself, or
+  mutate core internals.
 
 Width calculation belongs in core. The parser may assemble grapheme clusters,
 but it must not decide how many grid cells a cluster occupies because width
@@ -120,6 +129,8 @@ A change is not done until:
 - Parser tests: `./gradlew :terminal-parser:test`
 - Core tests: `./gradlew :terminal-core:test`
 - Integration tests: `./gradlew :terminal-integration:test`
+- Session tests: `./gradlew :terminal-session:test`
+- PTY tests: `./gradlew :terminal-pty:test`
 
 In sandboxed sessions, Gradle may need approval because wrapper/cache writes can
 leave the workspace.

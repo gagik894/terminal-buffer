@@ -21,6 +21,19 @@ class TerminalResponseChannelTest {
     }
 
     @Test
+    fun `response reader defaults are available through response channel type`() {
+        val channel: TerminalResponseChannel = TerminalBuffers.create(width = 10, height = 5)
+        val destination = ByteArray(8)
+
+        channel.requestDeviceStatusReport(mode = 5, decPrivate = false)
+
+        val count = channel.readResponseBytes(destination)
+
+        assertEquals("\u001B[0n", destination.decodeToString(0, count))
+        assertEquals(0, channel.readResponseBytes(destination, length = 0))
+    }
+
+    @Test
     fun `DSR operating status queues OK response and supports partial reads`() {
         val buffer = TerminalBuffers.create(width = 10, height = 5)
         val destination = ByteArray(8)
