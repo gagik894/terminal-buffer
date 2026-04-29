@@ -14,4 +14,5 @@ include(
     ":terminal-transport-api",
     ":terminal-session",
     ":terminal-testkit",
+    ":terminal-benchmarks",
 )
