@@ -408,6 +408,11 @@ Missing:
 Rendering is intentionally outside the current core/parser modules, but a
 professional emulator needs explicit contracts for it.
 
+- `DONE(host)`: local PTY process lifecycle scaffold:
+  - `:terminal-pty` starts PTY4J-backed processes
+  - PTY stdout feeds `TerminalOutputParser`
+  - parser/integration/core responses and UI input events serialize to PTY stdin
+  - PTY resize updates both the child PTY size and public core buffer dimensions
 - `TODO(host)`: renderer API for cell attributes, cursor shape, cursor blink,
   reverse video, selection, hyperlinks, and dirty regions.
 - `TODO(host)`: font measurement policy and fallback fonts.
