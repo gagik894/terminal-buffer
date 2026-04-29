@@ -389,7 +389,7 @@ Missing:
 - `TODO(integration/host)`: terminal-to-host output ordering contract. UI input
   events and parser/core responses such as DSR/CPR/DA/OSC/DCS replies should be
   serialized through the same terminal actor and `TerminalHostOutput`.
-- `TODO(input)`: xterm input profile matrix tests covering application
+- `DONE(input)`: xterm input profile matrix tests covering application
   cursor/keypad, bracketed paste, focus, mouse tracking/encoding combinations,
   and modifyOtherKeys off/mode1/mode2.
 - `TODO(input)`: Kitty Keyboard Protocol, after the xterm input profile is
