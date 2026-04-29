@@ -15,4 +15,5 @@ include(
     ":terminal-session",
     ":terminal-testkit",
     ":terminal-benchmarks",
+    ":terminal-render-cache",
 )

@@ -1,4 +1,9 @@
-package com.gagik.terminal.render.api
+package com.gagik.terminal.render.cache
+
+import com.gagik.terminal.render.api.TerminalRenderBufferKind
+import com.gagik.terminal.render.api.TerminalRenderClusterSink
+import com.gagik.terminal.render.api.TerminalRenderCursor
+import com.gagik.terminal.render.api.TerminalRenderFrameReader
 
 /**
  * Caller-owned primitive cache for render frames.
@@ -117,7 +122,7 @@ class TerminalRenderCache(
         private set
 
     /**
-     * Whether the cursor generation changed during the most recent [updateFrom].
+     * Whether the most recent [updateFrom] call changed the cursor generation.
      */
     var cursorChangedOnLastUpdate: Boolean = false
         private set

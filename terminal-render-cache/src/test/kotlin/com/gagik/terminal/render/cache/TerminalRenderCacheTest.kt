@@ -1,5 +1,6 @@
-package com.gagik.terminal.render.api
+package com.gagik.terminal.render.cache
 
+import com.gagik.terminal.render.api.*
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
