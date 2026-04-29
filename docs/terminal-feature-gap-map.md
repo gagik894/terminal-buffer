@@ -329,6 +329,9 @@ Missing:
   and protection commands.
 - `DONE(integration)`: OSC 8 active hyperlink metadata maps to core cell
   hyperlink ids using an integration-owned URL/id pool.
+- `DONE(integration/policy)`: OSC 8 hyperlink id pool is bounded by
+  `TerminalHostPolicy`, rejects overlong URI/id payloads, and evicts
+  least-recently-used entries instead of growing without limit.
 - `TODO(integration)`: decide whether OSC title state belongs in core,
   integration metadata, or a host callback interface.
 - `TODO(integration)`: add a host callback/event sink for bell, title, hyperlink,
@@ -436,7 +439,8 @@ professional emulator needs explicit contracts for it.
 
 - `TODO(policy)`: OSC 52 clipboard permission model.
 - `TODO(policy)`: DCS/OSC query response allowlist.
-- `TODO(policy)`: hyperlink validation and display policy.
+- `TODO(policy)`: hyperlink validation and display policy beyond integration
+  resource limits.
 - `TODO(policy)`: maximum payload sizes per protocol family.
 - `TODO(policy)`: whether title/icon updates are always accepted or host-gated.
 - `TODO(policy)`: paste sanitization and bracketed paste defaults.

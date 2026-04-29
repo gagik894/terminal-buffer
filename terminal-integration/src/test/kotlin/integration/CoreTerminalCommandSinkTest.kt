@@ -18,7 +18,11 @@ class CoreTerminalCommandSinkTest {
 
     private data class Fixture(
         val terminal: TerminalBufferApi = TerminalBuffers.create(width = 10, height = 5),
-        val sink: CoreTerminalCommandSink = CoreTerminalCommandSink(terminal),
+        val hostPolicy: TerminalHostPolicy = TerminalHostPolicy(),
+        val sink: CoreTerminalCommandSink = CoreTerminalCommandSink(
+            terminal = terminal,
+            hostPolicy = hostPolicy,
+        ),
         val parser: TerminalOutputParser = TerminalParsers.create(sink),
     ) {
         fun acceptAscii(text: String) {
@@ -561,23 +565,153 @@ class CoreTerminalCommandSinkTest {
         }
 
         @Test
-        fun `OSC hyperlink ids are bounded and do not overflow`() {
-            val f = Fixture(terminal = TerminalBuffers.create(width = 3, height = 1))
+        fun `OSC hyperlink reuses numeric id for same uri and id`() {
+            val f = Fixture(terminal = TerminalBuffers.create(width = 2, height = 1))
 
-            repeat(4096) { index ->
+            f.sink.startHyperlink(uri = "https://example.com/a", id = "same")
+            f.sink.writeCodepoint('A'.code)
+            f.sink.startHyperlink(uri = "https://example.com/a", id = "same")
+            f.sink.writeCodepoint('B'.code)
+
+            assertAll(
+                { assertEquals(1, f.terminal.getAttrAt(0, 0)?.hyperlinkId) },
+                { assertEquals(1, f.terminal.getAttrAt(1, 0)?.hyperlinkId) },
+            )
+        }
+
+        @Test
+        fun `OSC hyperlink id participates in numeric id key`() {
+            val f = Fixture(terminal = TerminalBuffers.create(width = 2, height = 1))
+
+            f.sink.startHyperlink(uri = "https://example.com/a", id = "first")
+            f.sink.writeCodepoint('A'.code)
+            f.sink.startHyperlink(uri = "https://example.com/a", id = "second")
+            f.sink.writeCodepoint('B'.code)
+
+            assertAll(
+                { assertEquals(1, f.terminal.getAttrAt(0, 0)?.hyperlinkId) },
+                { assertEquals(2, f.terminal.getAttrAt(1, 0)?.hyperlinkId) },
+            )
+        }
+
+        @Test
+        fun `OSC hyperlink uri participates in numeric id key`() {
+            val f = Fixture(terminal = TerminalBuffers.create(width = 2, height = 1))
+
+            f.sink.startHyperlink(uri = "https://example.com/a", id = "same")
+            f.sink.writeCodepoint('A'.code)
+            f.sink.startHyperlink(uri = "https://example.com/b", id = "same")
+            f.sink.writeCodepoint('B'.code)
+
+            assertAll(
+                { assertEquals(1, f.terminal.getAttrAt(0, 0)?.hyperlinkId) },
+                { assertEquals(2, f.terminal.getAttrAt(1, 0)?.hyperlinkId) },
+            )
+        }
+
+        @Test
+        fun `overlong OSC hyperlink uri is ignored`() {
+            val f = Fixture(
+                terminal = TerminalBuffers.create(width = 2, height = 1),
+                hostPolicy = TerminalHostPolicy(maxHyperlinkUriLength = 8),
+            )
+
+            f.sink.startHyperlink(uri = "https://too-long.example", id = null)
+            f.sink.writeCodepoint('A'.code)
+
+            assertAll(
+                { assertNull(f.sink.activeHyperlinkUri) },
+                { assertNull(f.sink.activeHyperlinkId) },
+                { assertEquals(0, f.terminal.getAttrAt(0, 0)?.hyperlinkId) },
+            )
+
+            f.sink.startHyperlink(uri = "short", id = null)
+            f.sink.writeCodepoint('B'.code)
+
+            assertAll(
+                { assertEquals("short", f.sink.activeHyperlinkUri) },
+                { assertNull(f.sink.activeHyperlinkId) },
+                { assertEquals(1, f.terminal.getAttrAt(1, 0)?.hyperlinkId) },
+            )
+        }
+
+        @Test
+        fun `overlong OSC hyperlink id is ignored`() {
+            val f = Fixture(
+                terminal = TerminalBuffers.create(width = 2, height = 1),
+                hostPolicy = TerminalHostPolicy(maxHyperlinkIdLength = 3),
+            )
+
+            f.sink.startHyperlink(uri = "https://example.com", id = "toolong")
+            f.sink.writeCodepoint('A'.code)
+
+            assertAll(
+                { assertNull(f.sink.activeHyperlinkUri) },
+                { assertNull(f.sink.activeHyperlinkId) },
+                { assertEquals(0, f.terminal.getAttrAt(0, 0)?.hyperlinkId) },
+            )
+
+            f.sink.startHyperlink(uri = "https://example.com", id = "ok")
+            f.sink.writeCodepoint('B'.code)
+
+            assertAll(
+                { assertEquals("https://example.com", f.sink.activeHyperlinkUri) },
+                { assertEquals("ok", f.sink.activeHyperlinkId) },
+                { assertEquals(1, f.terminal.getAttrAt(1, 0)?.hyperlinkId) },
+            )
+        }
+
+        @Test
+        fun `OSC hyperlink registry evicts least recently used entry when bounded`() {
+            val f = Fixture(
+                terminal = TerminalBuffers.create(width = 5, height = 1),
+                hostPolicy = TerminalHostPolicy(maxHyperlinkEntries = 2),
+            )
+
+            f.sink.startHyperlink(uri = "https://example.com/a", id = null)
+            f.sink.writeCodepoint('A'.code)
+            f.sink.startHyperlink(uri = "https://example.com/b", id = null)
+            f.sink.writeCodepoint('B'.code)
+            f.sink.startHyperlink(uri = "https://example.com/a", id = null)
+            f.sink.writeCodepoint('C'.code)
+            f.sink.startHyperlink(uri = "https://example.com/c", id = null)
+            f.sink.writeCodepoint('D'.code)
+            f.sink.startHyperlink(uri = "https://example.com/b", id = null)
+            f.sink.writeCodepoint('E'.code)
+
+            assertAll(
+                { assertEquals(1, f.terminal.getAttrAt(0, 0)?.hyperlinkId) },
+                { assertEquals(2, f.terminal.getAttrAt(1, 0)?.hyperlinkId) },
+                { assertEquals(1, f.terminal.getAttrAt(2, 0)?.hyperlinkId) },
+                { assertEquals(3, f.terminal.getAttrAt(3, 0)?.hyperlinkId) },
+                { assertEquals(4, f.terminal.getAttrAt(4, 0)?.hyperlinkId) },
+            )
+        }
+
+        @Test
+        fun `OSC hyperlink spam does not disable new links after registry reaches max`() {
+            val f = Fixture(
+                terminal = TerminalBuffers.create(width = 4, height = 1),
+                hostPolicy = TerminalHostPolicy(maxHyperlinkEntries = 2),
+            )
+
+            repeat(16) { index ->
                 f.sink.startHyperlink(uri = "https://example.com/$index", id = null)
             }
 
             f.sink.writeCodepoint('A'.code)
-            f.sink.startHyperlink(uri = "https://example.com/overflow", id = null)
+            f.sink.startHyperlink(uri = "https://example.com/16", id = null)
             f.sink.writeCodepoint('B'.code)
-            f.sink.startHyperlink(uri = "https://example.com/0", id = null)
+            f.sink.startHyperlink(uri = "https://example.com/15", id = null)
             f.sink.writeCodepoint('C'.code)
+            f.sink.endHyperlink()
+            f.sink.writeCodepoint('D'.code)
 
             assertAll(
-                { assertEquals(4096, f.terminal.getAttrAt(0, 0)?.hyperlinkId) },
-                { assertEquals(0, f.terminal.getAttrAt(1, 0)?.hyperlinkId) },
-                { assertEquals(1, f.terminal.getAttrAt(2, 0)?.hyperlinkId) },
+                { assertEquals(16, f.terminal.getAttrAt(0, 0)?.hyperlinkId) },
+                { assertEquals(17, f.terminal.getAttrAt(1, 0)?.hyperlinkId) },
+                { assertEquals(16, f.terminal.getAttrAt(2, 0)?.hyperlinkId) },
+                { assertEquals(0, f.terminal.getAttrAt(3, 0)?.hyperlinkId) },
             )
         }
 

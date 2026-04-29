@@ -18,10 +18,12 @@ import com.gagik.terminal.protocol.MouseTrackingMode
  *
  * @param terminal public core buffer API mutated by parser semantic commands.
  * @param hostEvents optional metadata callback sink for BEL and title changes.
+ * @param hostPolicy safety limits for integration-owned host metadata.
  */
 class CoreTerminalCommandSink(
     private val terminal: TerminalBufferApi,
     private val hostEvents: TerminalHostEventSink = TerminalHostEventSink.NONE,
+    private val hostPolicy: TerminalHostPolicy = TerminalHostPolicy(),
 ) : TerminalCommandSink {
     var windowTitle: String = ""
         private set
@@ -49,7 +51,7 @@ class CoreTerminalCommandSink(
     private var conceal: Boolean = false
     private var activeHyperlinkNumericId: Int = 0
     private var nextHyperlinkNumericId: Int = 1
-    private val hyperlinkIds = HashMap<String, Int>()
+    private val hyperlinkIds = LinkedHashMap<HyperlinkKey, Int>(256, 0.75f, true)
 
     override fun writeCodepoint(codepoint: Int) {
         terminal.writeCodepoint(codepoint)
@@ -473,6 +475,14 @@ class CoreTerminalCommandSink(
     }
 
     override fun startHyperlink(uri: String, id: String?) {
+        if (!isHyperlinkAllowed(uri, id)) {
+            activeHyperlinkUri = null
+            activeHyperlinkId = null
+            activeHyperlinkNumericId = NO_HYPERLINK_ID
+            terminal.setHyperlinkId(NO_HYPERLINK_ID)
+            return
+        }
+
         activeHyperlinkUri = uri
         activeHyperlinkId = id
         activeHyperlinkNumericId = hyperlinkIdFor(uri, id)
@@ -515,14 +525,30 @@ class CoreTerminalCommandSink(
     }
 
     private fun hyperlinkIdFor(uri: String, id: String?): Int {
-        val key = "${id ?: ""}\u0000$uri"
+        val key = HyperlinkKey(id.orEmpty(), uri)
         hyperlinkIds[key]?.let { return it }
-        if (hyperlinkIds.size == MAX_HYPERLINK_IDS) return NO_HYPERLINK_ID
+
+        if (hyperlinkIds.size >= hostPolicy.maxHyperlinkEntries) {
+            val eldest = hyperlinkIds.entries.iterator()
+            if (eldest.hasNext()) {
+                eldest.next()
+                eldest.remove()
+            }
+        }
 
         val numericId = nextHyperlinkNumericId
         hyperlinkIds[key] = numericId
-        nextHyperlinkNumericId++
+        nextHyperlinkNumericId = nextHyperlinkIdAfter(numericId)
         return numericId
+    }
+
+    private fun isHyperlinkAllowed(uri: String, id: String?): Boolean {
+        return uri.length <= hostPolicy.maxHyperlinkUriLength &&
+            (id?.length ?: 0) <= hostPolicy.maxHyperlinkIdLength
+    }
+
+    private fun nextHyperlinkIdAfter(current: Int): Int {
+        return if (current == Int.MAX_VALUE) 1 else current + 1
     }
 
     private fun applyPen() {
@@ -544,7 +570,11 @@ class CoreTerminalCommandSink(
 
     private companion object {
         const val NO_HYPERLINK_ID: Int = 0
-        const val MAX_HYPERLINK_IDS: Int = 4096
         const val MAX_TITLE_STACK_DEPTH: Int = 16
     }
+
+    private data class HyperlinkKey(
+        val id: String,
+        val uri: String,
+    )
 }
