@@ -3,7 +3,6 @@ package com.gagik.terminal.pty
 import com.gagik.terminal.protocol.host.TerminalHostOutput
 import java.io.Closeable
 import java.io.OutputStream
-import java.nio.charset.StandardCharsets
 
 /**
  * [TerminalHostOutput] backed by the PTY stdin stream.
@@ -12,9 +11,7 @@ import java.nio.charset.StandardCharsets
  * interleave byte ranges. Higher-level ordering is owned by [TerminalPtySession].
  * [writeBytes] consumes the provided range synchronously.
  *
- * [writeAscii] avoids intermediate byte-array allocation. [writeUtf8] currently
- * allocates through the JVM UTF-8 encoder; hot key paths should prefer
- * [writeByte] or [writeBytes].
+ * [writeAscii] and [writeUtf8] avoid per-call encoded byte-array allocation.
  *
  * @param output PTY stdin stream.
  * @param flushAfterWrite when true, every successful write is flushed.
@@ -23,6 +20,8 @@ class StreamTerminalHostOutput internal constructor(
     private val output: OutputStream,
     private val flushAfterWrite: Boolean = true,
 ) : TerminalHostOutput, Closeable {
+    private val utf8Buffer = ByteArray(UTF8_BUFFER_SIZE)
+
     /**
      * Writes one unsigned byte to the PTY stdin stream.
      */
@@ -67,12 +66,83 @@ class StreamTerminalHostOutput internal constructor(
     }
 
     /**
-     * Writes UTF-8 text to PTY stdin. This path allocates an encoded byte array.
+     * Writes UTF-8 text to PTY stdin.
+     *
+     * Invalid UTF-16 surrogate code units are encoded as U+FFFD, matching the
+     * replacement behavior expected by host-bound text encoding.
      */
     @Synchronized
     override fun writeUtf8(text: String) {
-        val bytes = text.toByteArray(StandardCharsets.UTF_8)
-        output.write(bytes, 0, bytes.size)
+        if (text.isEmpty()) {
+            flushIfNeeded()
+            return
+        }
+
+        var bufferOffset = 0
+        var charIndex = 0
+        val length = text.length
+
+        while (charIndex < length) {
+            val ch = text[charIndex]
+            val codepoint: Int
+
+            if (Character.isHighSurrogate(ch)) {
+                if (
+                    charIndex + 1 < length &&
+                    Character.isLowSurrogate(text[charIndex + 1])
+                ) {
+                    codepoint = Character.toCodePoint(ch, text[charIndex + 1])
+                    charIndex += 2
+                } else {
+                    codepoint = REPLACEMENT_CODEPOINT
+                    charIndex++
+                }
+            } else if (Character.isLowSurrogate(ch)) {
+                codepoint = REPLACEMENT_CODEPOINT
+                charIndex++
+            } else {
+                codepoint = ch.code
+                charIndex++
+            }
+
+            val bytesNeeded = when {
+                codepoint <= 0x7F -> 1
+                codepoint <= 0x7FF -> 2
+                codepoint <= 0xFFFF -> 3
+                else -> 4
+            }
+
+            if (bufferOffset + bytesNeeded > utf8Buffer.size) {
+                output.write(utf8Buffer, 0, bufferOffset)
+                bufferOffset = 0
+            }
+
+            when (bytesNeeded) {
+                1 -> {
+                    utf8Buffer[bufferOffset++] = codepoint.toByte()
+                }
+                2 -> {
+                    utf8Buffer[bufferOffset++] = (0xC0 or (codepoint shr 6)).toByte()
+                    utf8Buffer[bufferOffset++] = (0x80 or (codepoint and 0x3F)).toByte()
+                }
+                3 -> {
+                    utf8Buffer[bufferOffset++] = (0xE0 or (codepoint shr 12)).toByte()
+                    utf8Buffer[bufferOffset++] = (0x80 or ((codepoint shr 6) and 0x3F)).toByte()
+                    utf8Buffer[bufferOffset++] = (0x80 or (codepoint and 0x3F)).toByte()
+                }
+                else -> {
+                    utf8Buffer[bufferOffset++] = (0xF0 or (codepoint shr 18)).toByte()
+                    utf8Buffer[bufferOffset++] = (0x80 or ((codepoint shr 12) and 0x3F)).toByte()
+                    utf8Buffer[bufferOffset++] = (0x80 or ((codepoint shr 6) and 0x3F)).toByte()
+                    utf8Buffer[bufferOffset++] = (0x80 or (codepoint and 0x3F)).toByte()
+                }
+            }
+        }
+
+        if (bufferOffset > 0) {
+            output.write(utf8Buffer, 0, bufferOffset)
+        }
+
         flushIfNeeded()
     }
 
@@ -88,5 +158,10 @@ class StreamTerminalHostOutput internal constructor(
         if (flushAfterWrite) {
             output.flush()
         }
+    }
+
+    private companion object {
+        const val UTF8_BUFFER_SIZE: Int = 8192
+        const val REPLACEMENT_CODEPOINT: Int = 0xFFFD
     }
 }
