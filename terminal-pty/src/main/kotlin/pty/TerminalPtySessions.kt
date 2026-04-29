@@ -50,12 +50,13 @@ object TerminalPtySessions {
             parser = parser,
             inputEncoder = inputEncoder,
             hostOutput = hostOutput,
+            hostEventBridge = hostEventBridge,
             readBufferSize = options.readBufferSize,
             readerThreadName = options.readerThreadName,
             watcherThreadName = options.watcherThreadName,
             eventListener = options.eventListener,
         )
-        hostEventBridge.session = session
+        hostEventBridge.attach(session)
         session.startReader()
         session.startWatcher()
         return session

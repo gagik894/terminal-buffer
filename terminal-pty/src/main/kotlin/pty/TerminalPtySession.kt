@@ -11,11 +11,18 @@ import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Running PTY-backed terminal pipeline.
+ * PTY runtime session.
  *
- * This session is the serialization point for terminal-to-host bytes. Callers
- * should send UI input through this object instead of directly sharing the
- * underlying default encoder across threads.
+ * Threading model:
+ * - PTY output parsing and core mutation are serialized by terminalMutationLock.
+ * - Host-bound writes are serialized by hostWriteLock.
+ * - Lock order is terminalMutationLock -> hostWriteLock.
+ * - Input methods acquire only hostWriteLock and never mutate terminal core state.
+ * - Host listener callbacks are queued during parsing and dispatched after
+ *   terminalMutationLock is released.
+ *
+ * This class is safe for UI threads to call input methods and resize concurrently
+ * with the PTY reader thread.
  *
  * @property terminal public terminal buffer populated from PTY output.
  */
@@ -25,19 +32,29 @@ class TerminalPtySession internal constructor(
     private val parser: TerminalOutputParser,
     private val inputEncoder: TerminalInputEncoder,
     private val hostOutput: StreamTerminalHostOutput,
+    private val hostEventBridge: SessionHostEventBridge,
     private val readBufferSize: Int,
     private val readerThreadName: String,
     private val watcherThreadName: String,
     private val eventListener: TerminalPtyEventListener,
 ) : TerminalInputEncoder, AutoCloseable {
+    private val terminalMutationLock = Any()
     private val hostWriteLock = Any()
+    private val responseBuffer = ByteArray(RESPONSE_BUFFER_SIZE)
     private val closed = AtomicBoolean(false)
+
     @Volatile
     private var readerFailure: IOException? = null
+
     @Volatile
     private var processExitCode: Int? = null
+
     private lateinit var readerThread: Thread
     private lateinit var watcherThread: Thread
+
+    init {
+        require(readBufferSize > 0) { "readBufferSize must be positive, got $readBufferSize" }
+    }
 
     /**
      * Returns true while the underlying process reports that it is alive.
@@ -59,19 +76,24 @@ class TerminalPtySession internal constructor(
         get() = processExitCode
 
     internal fun startReader() {
-        readerThread = Thread(this::readProcessOutput, readerThreadName)
-        readerThread.isDaemon = true
-        readerThread.start()
+        readerThread = Thread(this::readProcessOutput, readerThreadName).apply {
+            isDaemon = true
+            start()
+        }
     }
 
     internal fun startWatcher() {
-        watcherThread = Thread(this::watchProcessExit, watcherThreadName)
-        watcherThread.isDaemon = true
-        watcherThread.start()
+        watcherThread = Thread(this::watchProcessExit, watcherThreadName).apply {
+            isDaemon = true
+            start()
+        }
     }
 
     /**
-     * Resizes both the PTY process and the public terminal buffer.
+     * Resizes both the public terminal buffer and the PTY process.
+     *
+     * Core is resized first while terminal mutation is locked so resize-reactive
+     * child output cannot race ahead of the buffer dimensions.
      *
      * @param columns new terminal width in cells.
      * @param rows new terminal height in rows.
@@ -79,8 +101,12 @@ class TerminalPtySession internal constructor(
     fun resize(columns: Int, rows: Int) {
         require(columns > 0) { "PTY columns must be positive, got $columns" }
         require(rows > 0) { "PTY rows must be positive, got $rows" }
+
+        synchronized(terminalMutationLock) {
+            terminal.resize(columns, rows)
+        }
+
         process.resize(columns, rows)
-        terminal.resize(columns, rows)
     }
 
     /**
@@ -108,7 +134,7 @@ class TerminalPtySession internal constructor(
      */
     override fun encodeKey(event: TerminalKeyEvent) {
         synchronized(hostWriteLock) {
-            inputEncoder.encodeKey(event)
+            if (!closed.get()) inputEncoder.encodeKey(event)
         }
     }
 
@@ -117,7 +143,7 @@ class TerminalPtySession internal constructor(
      */
     override fun encodePaste(event: TerminalPasteEvent) {
         synchronized(hostWriteLock) {
-            inputEncoder.encodePaste(event)
+            if (!closed.get()) inputEncoder.encodePaste(event)
         }
     }
 
@@ -126,7 +152,7 @@ class TerminalPtySession internal constructor(
      */
     override fun encodeFocus(event: TerminalFocusEvent) {
         synchronized(hostWriteLock) {
-            inputEncoder.encodeFocus(event)
+            if (!closed.get()) inputEncoder.encodeFocus(event)
         }
     }
 
@@ -135,7 +161,7 @@ class TerminalPtySession internal constructor(
      */
     override fun encodeMouse(event: TerminalMouseEvent) {
         synchronized(hostWriteLock) {
-            inputEncoder.encodeMouse(event)
+            if (!closed.get()) inputEncoder.encodeMouse(event)
         }
     }
 
@@ -144,37 +170,52 @@ class TerminalPtySession internal constructor(
      */
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
+
         try {
-            hostOutput.close()
-        } catch (_: IOException) {
-            // Closing an already-terminated PTY may race with the reader thread.
-        }
-        process.destroy()
-        if (::readerThread.isInitialized && Thread.currentThread() !== readerThread) {
-            readerThread.join(CLOSE_JOIN_MILLIS)
-        }
-        if (::watcherThread.isInitialized && Thread.currentThread() !== watcherThread) {
-            watcherThread.join(CLOSE_JOIN_MILLIS)
+            process.destroy()
+        } finally {
+            synchronized(hostWriteLock) {
+                try {
+                    hostOutput.close()
+                } catch (_: IOException) {
+                    // Ignore close failure.
+                }
+            }
+
+            joinThreads()
         }
     }
 
     private fun readProcessOutput() {
         val buffer = ByteArray(readBufferSize)
+
         try {
             while (!closed.get()) {
                 val read = process.input.read(buffer)
                 if (read < 0) break
                 if (read == 0) continue
-                parser.accept(buffer, 0, read)
-                drainCoreResponses()
+
+                synchronized(terminalMutationLock) {
+                    parser.accept(buffer, 0, read)
+                    drainCoreResponsesLocked()
+                }
+
+                dispatchPendingHostEvents()
             }
         } catch (exception: IOException) {
             if (!closed.get()) {
                 readerFailure = exception
-                eventListener.readerFailed(this, exception)
+                safeInvokeListener {
+                    eventListener.readerFailed(this@TerminalPtySession, exception)
+                }
             }
         } finally {
-            parser.endOfInput()
+            synchronized(terminalMutationLock) {
+                parser.endOfInput()
+                drainCoreResponsesLocked()
+            }
+
+            dispatchPendingHostEvents()
         }
     }
 
@@ -182,20 +223,67 @@ class TerminalPtySession internal constructor(
         try {
             val code = process.waitFor()
             processExitCode = code
-            eventListener.processExited(this, code)
+
+            safeInvokeListener {
+                eventListener.processExited(this@TerminalPtySession, code)
+            }
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
         }
     }
 
-    private fun drainCoreResponses() {
+    /**
+     * Requires terminalMutationLock to be held.
+     *
+     * Lock order: terminalMutationLock -> hostWriteLock.
+     */
+    private fun drainCoreResponsesLocked() {
         synchronized(hostWriteLock) {
-            val buffer = ByteArray(RESPONSE_BUFFER_SIZE)
+            if (closed.get()) return
+
             while (terminal.pendingResponseBytes > 0) {
-                val read = terminal.readResponseBytes(buffer, 0, buffer.size)
+                val read = terminal.readResponseBytes(responseBuffer, 0, responseBuffer.size)
                 if (read <= 0) return
-                hostOutput.writeBytes(buffer, 0, read)
+
+                try {
+                    hostOutput.writeBytes(responseBuffer, 0, read)
+                } catch (exception: IOException) {
+                    if (!closed.get()) {
+                        readerFailure = exception
+                        safeInvokeListener {
+                            eventListener.readerFailed(this@TerminalPtySession, exception)
+                        }
+                    }
+                    return
+                }
             }
+        }
+    }
+
+    private fun dispatchPendingHostEvents() {
+        hostEventBridge.drainTo { event ->
+            safeInvokeListener {
+                hostEventBridge.dispatch(event)
+            }
+        }
+    }
+
+    private fun joinThreads() {
+        if (::readerThread.isInitialized && Thread.currentThread() !== readerThread) {
+            readerThread.join(CLOSE_JOIN_MILLIS)
+        }
+
+        if (::watcherThread.isInitialized && Thread.currentThread() !== watcherThread) {
+            watcherThread.join(CLOSE_JOIN_MILLIS)
+        }
+    }
+
+    private inline fun safeInvokeListener(block: () -> Unit) {
+        try {
+            block()
+        } catch (exception: Exception) {
+            System.err.println("TerminalPtyEventListener failed: ${exception.message}")
+            exception.printStackTrace()
         }
     }
 

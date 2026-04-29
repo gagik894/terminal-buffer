@@ -6,13 +6,22 @@ import java.io.OutputStream
 import java.nio.charset.StandardCharsets
 
 /**
- * [TerminalHostOutput] implementation backed by a PTY stdin stream.
+ * [TerminalHostOutput] backed by the PTY stdin stream.
  *
- * Calls are synchronized so parser/core responses and serialized input events
- * keep byte order at the stream boundary.
+ * This class is synchronized at the stream boundary so direct callers cannot
+ * interleave byte ranges. Higher-level ordering is owned by [TerminalPtySession].
+ * [writeBytes] consumes the provided range synchronously.
+ *
+ * [writeAscii] avoids intermediate byte-array allocation. [writeUtf8] currently
+ * allocates through the JVM UTF-8 encoder; hot key paths should prefer
+ * [writeByte] or [writeBytes].
+ *
+ * @param output PTY stdin stream.
+ * @param flushAfterWrite when true, every successful write is flushed.
  */
 class StreamTerminalHostOutput internal constructor(
     private val output: OutputStream,
+    private val flushAfterWrite: Boolean = true,
 ) : TerminalHostOutput, Closeable {
     /**
      * Writes one unsigned byte to the PTY stdin stream.
@@ -20,8 +29,9 @@ class StreamTerminalHostOutput internal constructor(
     @Synchronized
     override fun writeByte(byte: Int) {
         require(byte in 0..255) { "Host byte must be in 0..255, got $byte" }
+
         output.write(byte)
-        output.flush()
+        flushIfNeeded()
     }
 
     /**
@@ -29,13 +39,15 @@ class StreamTerminalHostOutput internal constructor(
      */
     @Synchronized
     override fun writeBytes(bytes: ByteArray, offset: Int, length: Int) {
-        require(offset >= 0) { "offset must be >= 0, got $offset" }
-        require(length >= 0) { "length must be >= 0, got $length" }
-        require(offset <= bytes.size - length) {
-            "offset + length must fit bytes.size=${bytes.size}, got offset=$offset length=$length"
+        require(offset >= 0) { "offset must be non-negative, got $offset" }
+        require(length >= 0) { "length must be non-negative, got $length" }
+        require(offset <= bytes.size) { "offset $offset exceeds size ${bytes.size}" }
+        require(length <= bytes.size - offset) {
+            "offset + length exceeds size: offset=$offset length=$length size=${bytes.size}"
         }
+
         output.write(bytes, offset, length)
-        output.flush()
+        flushIfNeeded()
     }
 
     /**
@@ -43,19 +55,25 @@ class StreamTerminalHostOutput internal constructor(
      */
     @Synchronized
     override fun writeAscii(text: String) {
-        for (index in text.indices) {
-            require(text[index].code <= 0x7F) { "Non-ASCII character at index $index" }
+        var index = 0
+        while (index < text.length) {
+            val code = text[index].code
+            require(code in 0..0x7F) { "Non-ASCII character at index $index: $code" }
+            output.write(code)
+            index++
         }
-        writeBytes(text.toByteArray(StandardCharsets.US_ASCII), 0, text.length)
+
+        flushIfNeeded()
     }
 
     /**
-     * Writes UTF-8 text to PTY stdin.
+     * Writes UTF-8 text to PTY stdin. This path allocates an encoded byte array.
      */
     @Synchronized
     override fun writeUtf8(text: String) {
         val bytes = text.toByteArray(StandardCharsets.UTF_8)
-        writeBytes(bytes, 0, bytes.size)
+        output.write(bytes, 0, bytes.size)
+        flushIfNeeded()
     }
 
     /**
@@ -64,5 +82,11 @@ class StreamTerminalHostOutput internal constructor(
     @Synchronized
     override fun close() {
         output.close()
+    }
+
+    private fun flushIfNeeded() {
+        if (flushAfterWrite) {
+            output.flush()
+        }
     }
 }
