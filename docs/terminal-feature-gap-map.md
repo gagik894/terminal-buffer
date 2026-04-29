@@ -430,8 +430,12 @@ professional emulator needs explicit contracts for it.
   resize, local close, process exit codes, and large output flow through PTY4J,
   connector, session, parser, integration, and core. They are gated by
   `-Dterminal.pty.integration=true` to keep default tests deterministic.
-- `TODO(host)`: renderer API for cell attributes, cursor shape, cursor blink,
-  reverse video, selection, hyperlinks, and dirty regions.
+- `DONE(core/host)`: primitive renderer frame API and core adapter for visible
+  rows, stable public cell/attribute encodings, cursor visibility/blink state,
+  reverse-video translation, hyperlinks ids, clusters, wrap flags, and
+  generation-based row invalidation.
+- `TODO(host)`: UI-side render cache, selection, font shaping/measurement,
+  palette/default-color policy, and backend painter integrations.
 - `TODO(host)`: font measurement policy and fallback fonts.
 - `TODO(host)`: double-width glyph display, emoji presentation, and ambiguous
   width presentation must match core width decisions.

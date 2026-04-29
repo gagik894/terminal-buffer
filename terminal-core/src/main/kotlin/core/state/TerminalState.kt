@@ -123,6 +123,12 @@ internal class TerminalState(
         line.renderGeneration = frameGeneration
     }
 
+    fun markVisibleLinesChanged() {
+        for (row in 0 until dimensions.height) {
+            markLineChanged(ring[resolveRingIndex(row)])
+        }
+    }
+
     fun markStructureChanged() {
         markVisualChanged()
         structureGeneration++

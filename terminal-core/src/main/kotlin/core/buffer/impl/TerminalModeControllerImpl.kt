@@ -75,7 +75,7 @@ internal class TerminalModeControllerImpl(
 		mutateMode {
 			if (state.modes.isReverseVideo == enabled) return@mutateMode
 			state.modes.isReverseVideo = enabled
-			state.markVisualChanged()
+			state.markVisibleLinesChanged()
 		}
 	}
 

@@ -125,6 +125,45 @@ class TerminalRenderGenerationTest {
         assertNotEquals(oldStructure, state.structureGeneration)
     }
 
+    @Test
+    fun `reverse video changes visible line generations`() {
+        val buffer = TerminalBuffer(initialWidth = 4, initialHeight = 2)
+        val state = stateOf(buffer)
+        buffer.writeText("AB")
+        val row0 = lineAt(state, 0)
+        val row1 = lineAt(state, 1)
+        val oldFrame = state.frameGeneration
+        val oldRow0 = row0.renderGeneration
+        val oldRow1 = row1.renderGeneration
+
+        buffer.setReverseVideo(true)
+
+        assertAll(
+            { assertNotEquals(oldFrame, state.frameGeneration) },
+            { assertNotEquals(oldRow0, row0.renderGeneration) },
+            { assertNotEquals(oldRow1, row1.renderGeneration) },
+        )
+    }
+
+    @Test
+    fun `soft reset dirties visible lines when it disables reverse video`() {
+        val buffer = TerminalBuffer(initialWidth = 4, initialHeight = 2)
+        val state = stateOf(buffer)
+        buffer.writeText("AB")
+        buffer.setReverseVideo(true)
+        val row0 = lineAt(state, 0)
+        val row1 = lineAt(state, 1)
+        val oldRow0 = row0.renderGeneration
+        val oldRow1 = row1.renderGeneration
+
+        buffer.softReset()
+
+        assertAll(
+            { assertNotEquals(oldRow0, row0.renderGeneration) },
+            { assertNotEquals(oldRow1, row1.renderGeneration) },
+        )
+    }
+
     private fun stateOf(api: TerminalBufferApi): TerminalState {
         val componentsField = api.javaClass.getDeclaredField("components")
         componentsField.isAccessible = true
