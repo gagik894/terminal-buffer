@@ -607,5 +607,40 @@ class CoreTerminalCommandSinkTest {
                 { assertEquals("window-stays", f.sink.windowTitle) },
             )
         }
+
+        @Test
+        fun `host event sink receives bell and title metadata changes`() {
+            val events = RecordingHostEventSink()
+            val terminal = TerminalBuffers.create(width = 10, height = 5)
+            val sink = CoreTerminalCommandSink(terminal, events)
+            val parser = TerminalParsers.create(sink)
+
+            parser.accept("\u0007\u001B]0;both\u001B\\".encodeToByteArray())
+            parser.endOfInput()
+
+            assertAll(
+                { assertEquals(1, events.bells) },
+                { assertEquals(listOf("both"), events.iconTitles) },
+                { assertEquals(listOf("both"), events.windowTitles) },
+            )
+        }
+    }
+
+    private class RecordingHostEventSink : TerminalHostEventSink {
+        var bells: Int = 0
+        val iconTitles = mutableListOf<String>()
+        val windowTitles = mutableListOf<String>()
+
+        override fun bell() {
+            bells++
+        }
+
+        override fun iconTitleChanged(title: String) {
+            iconTitles += title
+        }
+
+        override fun windowTitleChanged(title: String) {
+            windowTitles += title
+        }
     }
 }

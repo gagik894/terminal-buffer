@@ -20,6 +20,9 @@ The project is split into strict layers:
   APIs.
 - `terminal-input`: host-bound input encoding for keyboard, paste, focus, and
   future mouse reports.
+- `terminal-pty`: local PTY process lifecycle and stream wiring that connects
+  PTY stdout to parser/integration/core and serialized input/response bytes to
+  PTY stdin.
 
 Keep these boundaries intact:
 
@@ -33,6 +36,9 @@ Keep these boundaries intact:
   internals.
 - Input encodes. It reads stable input-facing mode state and writes host-bound
   bytes without parsing terminal output or touching grid/cursor internals.
+- PTY hosts. It starts local pseudo-terminal processes, pumps raw output bytes
+  into the parser, and serializes input/core response bytes to process stdin.
+  It must not parse protocols, encode input itself, or mutate core internals.
 
 Width calculation belongs in core. The parser may assemble grapheme clusters,
 but it must not decide how many grid cells a cluster occupies because width

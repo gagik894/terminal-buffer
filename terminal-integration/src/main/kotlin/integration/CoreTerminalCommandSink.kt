@@ -15,9 +15,13 @@ import com.gagik.terminal.protocol.MouseTrackingMode
  * The parser owns byte/protocol decoding. The core owns grid mutation, mode state,
  * cursor physics, and width policy. This adapter is the narrow place where ANSI/DEC
  * mode ids become concrete core API calls.
+ *
+ * @param terminal public core buffer API mutated by parser semantic commands.
+ * @param hostEvents optional metadata callback sink for BEL and title changes.
  */
 class CoreTerminalCommandSink(
     private val terminal: TerminalBufferApi,
+    private val hostEvents: TerminalHostEventSink = TerminalHostEventSink.NONE,
 ) : TerminalCommandSink {
     var windowTitle: String = ""
         private set
@@ -57,6 +61,7 @@ class CoreTerminalCommandSink(
 
     override fun bell() {
         // TODO(core-gap): Add a core/UI bell hook. Do not fake this by mutating grid state.
+        hostEvents.bell()
     }
 
     override fun backspace() {
@@ -329,11 +334,11 @@ class CoreTerminalCommandSink(
     override fun popTitleStack(scope: Int) {
         when (scope) {
             0 -> {
-                popTitle(windowTitleStack)?.let { windowTitle = it }
-                popTitle(iconTitleStack)?.let { iconTitle = it }
+                popTitle(windowTitleStack)?.let { updateWindowTitle(it) }
+                popTitle(iconTitleStack)?.let { updateIconTitle(it) }
             }
-            1 -> popTitle(iconTitleStack)?.let { iconTitle = it }
-            2 -> popTitle(windowTitleStack)?.let { windowTitle = it }
+            1 -> popTitle(iconTitleStack)?.let { updateIconTitle(it) }
+            2 -> popTitle(windowTitleStack)?.let { updateWindowTitle(it) }
         }
     }
 
@@ -455,16 +460,16 @@ class CoreTerminalCommandSink(
     }
 
     override fun setWindowTitle(title: String) {
-        windowTitle = title
+        updateWindowTitle(title)
     }
 
     override fun setIconTitle(title: String) {
-        iconTitle = title
+        updateIconTitle(title)
     }
 
     override fun setIconAndWindowTitle(title: String) {
-        iconTitle = title
-        windowTitle = title
+        updateIconTitle(title)
+        updateWindowTitle(title)
     }
 
     override fun startHyperlink(uri: String, id: String?) {
@@ -497,6 +502,16 @@ class CoreTerminalCommandSink(
 
     private fun popTitle(stack: ArrayDeque<String>): String? {
         return if (stack.isEmpty()) null else stack.removeLast()
+    }
+
+    private fun updateIconTitle(title: String) {
+        iconTitle = title
+        hostEvents.iconTitleChanged(title)
+    }
+
+    private fun updateWindowTitle(title: String) {
+        windowTitle = title
+        hostEvents.windowTitleChanged(title)
     }
 
     private fun hyperlinkIdFor(uri: String, id: String?): Int {
