@@ -315,6 +315,20 @@ interface TerminalWriter {
     fun setHyperlinkId(hyperlinkId: Int)
 
     /**
+     * Sets the xterm window title.
+     *
+     * Changes to the title advance [TerminalReader.frameGeneration].
+     */
+    fun setWindowTitle(title: String)
+
+    /**
+     * Sets the xterm icon title.
+     *
+     * Changes to the title advance [TerminalReader.frameGeneration].
+     */
+    fun setIconTitle(title: String)
+
+    /**
      * Enables or disables selective-erase protection on future printed cells (DECSCA).
      *
      * This affects DECSEL/DECSED only. Normal writes still overwrite protected cells.

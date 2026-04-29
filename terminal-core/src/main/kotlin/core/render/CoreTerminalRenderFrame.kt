@@ -11,42 +11,76 @@ internal class CoreTerminalRenderFrame(
 ) : TerminalRenderFrame {
     private val attrTranslator = RenderAttrTranslator()
     private val clusterScratch = RenderClusterScratch()
+    private var isValid: Boolean = false
+
+    internal fun <T> use(block: () -> T): T {
+        isValid = true
+        try {
+            return block()
+        } finally {
+            isValid = false
+        }
+    }
+
+    private fun checkValid() {
+        check(isValid) { "TerminalRenderFrame is only valid inside the readRenderFrame callback" }
+    }
 
     override val columns: Int
-        get() = state.dimensions.width
+        get() {
+            checkValid()
+            return state.dimensions.width
+        }
 
     override val rows: Int
-        get() = state.dimensions.height
+        get() {
+            checkValid()
+            return state.dimensions.height
+        }
 
     override val frameGeneration: Long
-        get() = state.frameGeneration
+        get() {
+            checkValid()
+            return state.frameGeneration
+        }
 
     override val structureGeneration: Long
-        get() = state.structureGeneration
+        get() {
+            checkValid()
+            return state.structureGeneration
+        }
 
     override val activeBuffer: TerminalRenderBufferKind
-        get() = if (state.isAltScreenActive) {
-            TerminalRenderBufferKind.ALTERNATE
-        } else {
-            TerminalRenderBufferKind.PRIMARY
+        get() {
+            checkValid()
+            return if (state.isAltScreenActive) {
+                TerminalRenderBufferKind.ALTERNATE
+            } else {
+                TerminalRenderBufferKind.PRIMARY
+            }
         }
 
     override val cursor: TerminalRenderCursor
-        get() = TerminalRenderCursor(
-            column = state.cursor.col,
-            row = state.cursor.row,
-            visible = state.modes.isCursorVisible,
-            blinking = state.modes.isCursorBlinking,
-            shape = TerminalRenderCursorShape.BLOCK,
-            generation = state.cursorGeneration,
-        )
+        get() {
+            checkValid()
+            return TerminalRenderCursor(
+                column = state.cursor.col,
+                row = state.cursor.row,
+                visible = state.modes.isCursorVisible,
+                blinking = state.modes.isCursorBlinking,
+                shape = TerminalRenderCursorShape.BLOCK,
+                generation = state.cursorGeneration,
+            )
+        }
 
     override fun lineGeneration(row: Int): Long {
+        checkValid()
         checkRow(row)
         return visibleLineAt(row).renderGeneration
     }
 
     override fun lineWrapped(row: Int): Boolean {
+        checkValid()
         checkRow(row)
         return visibleLineAt(row).wrapped
     }
@@ -65,6 +99,7 @@ internal class CoreTerminalRenderFrame(
         hyperlinkOffset: Int,
         clusterSink: TerminalRenderClusterSink?,
     ) {
+        checkValid()
         checkRow(row)
         checkCapacity(codeWords, codeOffset, columns, "codeWords")
         checkCapacity(attrWords, attrOffset, columns, "attrWords")

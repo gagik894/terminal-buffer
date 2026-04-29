@@ -26,6 +26,20 @@ internal class TerminalState(
     val hostResponses = HostResponseQueue()
     var windowPixelWidth: Int = 0
     var windowPixelHeight: Int = 0
+    var windowTitle: String = ""
+        set(value) {
+            if (field != value) {
+                field = value
+                markVisualChanged()
+            }
+        }
+    var iconTitle: String = ""
+        set(value) {
+            if (field != value) {
+                field = value
+                markVisualChanged()
+            }
+        }
 
     var frameGeneration: Long = 0L
         private set

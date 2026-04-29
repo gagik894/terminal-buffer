@@ -49,7 +49,9 @@ internal class TerminalBuffer private constructor(
      * `terminal-session` is the intended synchronization point for UI code.
      */
     override fun readRenderFrame(consumer: TerminalRenderFrameConsumer) {
-        consumer.accept(renderFrame)
+        renderFrame.use {
+            consumer.accept(renderFrame)
+        }
     }
 
     /**

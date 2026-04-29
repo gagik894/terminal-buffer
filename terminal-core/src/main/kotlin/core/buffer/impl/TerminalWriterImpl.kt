@@ -200,6 +200,14 @@ internal class TerminalWriterImpl(
         state.pen.setHyperlinkId(hyperlinkId)
     }
 
+    override fun setWindowTitle(title: String) {
+        state.windowTitle = title
+    }
+
+    override fun setIconTitle(title: String) {
+        state.iconTitle = title
+    }
+
     override fun setSelectiveEraseProtection(enabled: Boolean) {
         state.pen.setSelectiveEraseProtection(enabled)
     }

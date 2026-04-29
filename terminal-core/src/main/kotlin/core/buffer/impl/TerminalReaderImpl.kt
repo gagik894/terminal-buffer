@@ -12,6 +12,8 @@ internal class TerminalReaderImpl(
 
 	override val width: Int get() = state.dimensions.width
 	override val height: Int get() = state.dimensions.height
+	override val windowTitle: String get() = state.windowTitle
+	override val iconTitle: String get() = state.iconTitle
 	override val cursorCol: Int get() = state.cursor.col
 	override val cursorRow: Int get() = state.cursor.row
 	override val historySize: Int
