@@ -10,12 +10,6 @@ package com.gagik.core.api
 interface TerminalResponseChannel : TerminalHostResponseReader {
     val pendingResponseBytes: Int
 
-    override fun readResponseBytes(
-        dst: ByteArray,
-        offset: Int,
-        length: Int,
-    ): Int
-
     fun clearResponseBytes()
 
     fun requestDeviceStatusReport(mode: Int, decPrivate: Boolean)

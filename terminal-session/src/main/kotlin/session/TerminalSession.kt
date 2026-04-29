@@ -52,6 +52,14 @@ class TerminalSession(
         private set
 
     /**
+     * Transport failure reported by [onError], or `null` when the remote closed
+     * normally or the session was locally closed.
+     */
+    @Volatile
+    var failure: Throwable? = null
+        private set
+
+    /**
      * Starts the connector after resizing core and transport to [columns] x
      * [rows].
      */
@@ -164,10 +172,13 @@ class TerminalSession(
     }
 
     /**
-     * Treats transport errors as remote closure without a process exit code.
+     * Records transport failure and treats it as remote closure without a
+     * process exit code.
      */
     override fun onError(error: Throwable) {
-        onClosed(null)
+        if (!remoteClosed.compareAndSet(false, true)) return
+        failure = error
+        cleanupParser()
     }
 
     /**

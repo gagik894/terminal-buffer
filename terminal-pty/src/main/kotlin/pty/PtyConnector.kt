@@ -162,11 +162,6 @@ class PtyConnector internal constructor(
                 listenerOrThrow().onError(exception)
                 notifyClosed(null)
             }
-        } finally {
-            if (!localCloseRequested.get()) {
-                waitBrieflyForWatcher()
-                notifyClosed(null)
-            }
         }
     }
 
@@ -185,17 +180,6 @@ class PtyConnector internal constructor(
     private fun notifyClosed(code: Int?) {
         if (closedNotified.compareAndSet(false, true)) {
             listenerOrThrow().onClosed(code)
-        }
-    }
-
-    private fun waitBrieflyForWatcher() {
-        val watcher = watcherThread ?: return
-        if (Thread.currentThread() === watcher || !watcher.isAlive) return
-
-        try {
-            watcher.join(WATCHER_EXIT_GRACE_MILLIS)
-        } catch (_: InterruptedException) {
-            Thread.currentThread().interrupt()
         }
     }
 
@@ -229,6 +213,5 @@ class PtyConnector internal constructor(
         const val DEFAULT_READER_THREAD_NAME: String = "terminal-pty-reader"
         const val DEFAULT_WATCHER_THREAD_NAME: String = "terminal-pty-watcher"
         const val CLOSE_JOIN_MILLIS: Long = 250
-        const val WATCHER_EXIT_GRACE_MILLIS: Long = 25
     }
 }

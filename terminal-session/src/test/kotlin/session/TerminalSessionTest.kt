@@ -62,6 +62,19 @@ class TerminalSessionTest {
     }
 
     @Test
+    fun `remote error records failure and does not fake exit code`() {
+        val connector = MockConnector()
+        val session = createStartedSession(connector)
+        val failure = IllegalStateException("transport failed")
+
+        connector.simulateCrash(failure)
+
+        assertEquals(failure, session.failure)
+        assertNull(session.exitCode)
+        assertEquals(0, connector.closeCount)
+    }
+
+    @Test
     fun `onClosed does not recursively close connector`() {
         val connector = MockConnector()
         createStartedSession(connector)

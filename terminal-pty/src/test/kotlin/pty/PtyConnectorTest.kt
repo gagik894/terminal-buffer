@@ -157,6 +157,27 @@ class PtyConnectorTest {
     }
 
     @Test
+    fun `reader eof waits for watcher instead of emitting null close`() {
+        val process = TestProcess(
+            input = ByteArrayInputStream(ByteArray(0)),
+            exitCode = 7,
+            waitForRelease = CountDownLatch(1),
+        )
+        val connector = PtyConnector(process)
+        val listener = RecordingListener()
+
+        connector.start(listener)
+
+        assertTrue(connector.joinReader(1000), "reader did not stop")
+        assertEquals(emptyList<Int?>(), listener.closed)
+
+        process.releaseWaitFor()
+
+        assertTrue(connector.joinWatcher(1000), "watcher did not stop")
+        assertEquals(listOf<Int?>(7), listener.closed)
+    }
+
+    @Test
     fun `close can be called from reader callback without joining itself`() {
         lateinit var connector: PtyConnector
         val process = TestProcess(input = ByteArrayInputStream("x".ascii()))
@@ -198,6 +219,7 @@ class PtyConnectorTest {
         override val output: OutputStream = RecordingOutputStream(),
         private val exitCode: Int = 0,
         private val blockWaitFor: Boolean = false,
+        private val waitForRelease: CountDownLatch? = null,
     ) : TerminalProcess {
         var destroyed: Boolean = false
             private set
@@ -210,6 +232,7 @@ class PtyConnectorTest {
                     Thread.sleep(10)
                 }
             }
+            waitForRelease?.await(1, TimeUnit.SECONDS)
             return exitCode
         }
         override fun destroy() {
@@ -220,6 +243,10 @@ class PtyConnectorTest {
         }
         override fun resize(columns: Int, rows: Int) {
             sizes += columns to rows
+        }
+
+        fun releaseWaitFor() {
+            waitForRelease?.countDown()
         }
     }
 
