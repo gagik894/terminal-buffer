@@ -87,6 +87,7 @@ class TerminalSessionTest {
         lateinit var session: TerminalSession
         val connector = SlowFirstWriteConnector {
             Thread {
+                it.countDown()
                 session.encodeKey(TerminalKeyEvent.codepoint('a'.code))
             }.apply {
                 name = "terminal-session-ordering-test"
@@ -101,6 +102,59 @@ class TerminalSessionTest {
         assertTrue(connector.awaitWrites(2), "key write did not complete")
         assertEquals("\u001B[0na", connector.writtenBytes.asciiText())
         session.close()
+    }
+
+    @Test
+    fun `start can only be called once`() {
+        val connector = MockConnector()
+        val session = createStartedSession(connector)
+
+        val error = assertThrows(IllegalStateException::class.java) {
+            session.start(columns = 10, rows = 3)
+        }
+
+        assertEquals("session already started", error.message)
+        assertEquals(1, connector.startCount)
+        session.close()
+    }
+
+    @Test
+    fun `input before start is ignored`() {
+        val connector = MockConnector()
+        val terminal = TerminalBuffers.create(width = 10, height = 3)
+        val session = TerminalSession.create(terminal, connector)
+
+        session.encodeKey(TerminalKeyEvent.codepoint('a'.code))
+
+        assertEquals("", connector.writtenBytes.asciiText())
+        session.close()
+    }
+
+    @Test
+    fun `onBytes rejects invalid ranges`() {
+        val connector = MockConnector()
+        val session = createStartedSession(connector)
+        val bytes = ByteArray(4)
+
+        assertThrows(IllegalArgumentException::class.java) {
+            session.onBytes(bytes, offset = 3, length = 2)
+        }
+
+        session.close()
+    }
+
+    @Test
+    fun `mock connector ignores writes and host feed after local close`() {
+        val connector = MockConnector()
+        val session = createStartedSession(connector)
+
+        session.close()
+        connector.write("a".ascii())
+
+        assertEquals("", connector.writtenBytes.asciiText())
+        assertThrows(IllegalStateException::class.java) {
+            connector.feedFromHost("b".ascii())
+        }
     }
 
     @Test
@@ -192,10 +246,11 @@ class TerminalSessionTest {
     }
 
     private class SlowFirstWriteConnector(
-        private val onFirstWriteStarted: () -> Thread,
+        private val startSecondWriter: (CountDownLatch) -> Thread,
     ) : TerminalConnector {
         private val writesDone = CountDownLatch(2)
         private val triggeredWriter = CountDownLatch(1)
+        private val secondWriterAttempted = CountDownLatch(1)
         private val bytes = ArrayList<Byte>()
         private var listener: TerminalConnectorListener? = null
         private var writes: Int = 0
@@ -217,9 +272,11 @@ class TerminalSessionTest {
             }
 
             if (currentWrite == 1) {
-                writerThread = onFirstWriteStarted()
+                writerThread = startSecondWriter(secondWriterAttempted)
                 triggeredWriter.countDown()
-                Thread.sleep(50)
+                check(secondWriterAttempted.await(1, TimeUnit.SECONDS)) {
+                    "second writer did not attempt to write"
+                }
             }
 
             synchronized(this.bytes) {

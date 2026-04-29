@@ -21,6 +21,10 @@ class MockConnector : TerminalConnector {
     var closeCount: Int = 0
         private set
 
+    /** True after local [close] has been requested. */
+    var isClosed: Boolean = false
+        private set
+
     /** Resize calls in the order they were received. */
     val resizeCalls: MutableList<Pair<Int, Int>> = mutableListOf()
 
@@ -42,6 +46,8 @@ class MockConnector : TerminalConnector {
             "offset + length exceeds size: offset=$offset length=$length size=${bytes.size}"
         }
 
+        if (isClosed) return
+
         var index = 0
         while (index < length) {
             capturedWrites += bytes[offset + index]
@@ -50,10 +56,12 @@ class MockConnector : TerminalConnector {
     }
 
     override fun resize(columns: Int, rows: Int) {
+        if (isClosed) return
         resizeCalls += columns to rows
     }
 
     override fun close() {
+        isClosed = true
         closeCount++
     }
 
@@ -61,6 +69,7 @@ class MockConnector : TerminalConnector {
      * Delivers host output to the session.
      */
     fun feedFromHost(bytes: ByteArray, offset: Int = 0, length: Int = bytes.size) {
+        check(!isClosed) { "connector is locally closed" }
         listenerOrThrow().onBytes(bytes, offset, length)
     }
 

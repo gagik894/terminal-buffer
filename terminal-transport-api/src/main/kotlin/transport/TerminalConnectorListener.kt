@@ -9,6 +9,8 @@ interface TerminalConnectorListener {
      *
      * The listener must consume the byte range synchronously before returning.
      * Connectors may reuse [bytes] after this callback returns.
+     * Connectors must invoke this callback serially and in stream order for one
+     * started listener.
      */
     fun onBytes(bytes: ByteArray, offset: Int, length: Int)
 

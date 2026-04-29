@@ -38,7 +38,9 @@ class TerminalSession(
     private val localCloseRequested = AtomicBoolean(false)
     private val remoteClosed = AtomicBoolean(false)
     private val parserClosed = AtomicBoolean(false)
+    private val started = AtomicBoolean(false)
 
+    private val inboundLock = Any()
     private val mutationLock = Any()
     private val responseScratch = ByteArray(RESPONSE_BUFFER_SIZE)
 
@@ -54,6 +56,10 @@ class TerminalSession(
      * [rows].
      */
     fun start(columns: Int, rows: Int) {
+        require(columns > 0) { "columns must be positive, got $columns" }
+        require(rows > 0) { "rows must be positive, got $rows" }
+        check(started.compareAndSet(false, true)) { "session already started" }
+
         synchronized(mutationLock) {
             terminal.resize(columns, rows)
         }
@@ -65,6 +71,9 @@ class TerminalSession(
      * Resizes both core and the active connector.
      */
     fun resize(columns: Int, rows: Int) {
+        require(columns > 0) { "columns must be positive, got $columns" }
+        require(rows > 0) { "rows must be positive, got $rows" }
+
         synchronized(mutationLock) {
             terminal.resize(columns, rows)
         }
@@ -73,10 +82,12 @@ class TerminalSession(
 
     /**
      * Encodes a key event and writes it to the connector unless closed.
+     *
+     * Input before [start] is ignored.
      */
     override fun encodeKey(event: TerminalKeyEvent) {
         synchronized(outboundWriteLock) {
-            if (!isClosed()) {
+            if (isAcceptingInput()) {
                 inputEncoder.encodeKey(event)
             }
         }
@@ -84,10 +95,12 @@ class TerminalSession(
 
     /**
      * Encodes a paste event and writes it to the connector unless closed.
+     *
+     * Input before [start] is ignored.
      */
     override fun encodePaste(event: TerminalPasteEvent) {
         synchronized(outboundWriteLock) {
-            if (!isClosed()) {
+            if (isAcceptingInput()) {
                 inputEncoder.encodePaste(event)
             }
         }
@@ -95,10 +108,12 @@ class TerminalSession(
 
     /**
      * Encodes a focus event and writes it to the connector unless closed.
+     *
+     * Input before [start] is ignored.
      */
     override fun encodeFocus(event: TerminalFocusEvent) {
         synchronized(outboundWriteLock) {
-            if (!isClosed()) {
+            if (isAcceptingInput()) {
                 inputEncoder.encodeFocus(event)
             }
         }
@@ -106,10 +121,12 @@ class TerminalSession(
 
     /**
      * Encodes a mouse event and writes it to the connector unless closed.
+     *
+     * Input before [start] is ignored.
      */
     override fun encodeMouse(event: TerminalMouseEvent) {
         synchronized(outboundWriteLock) {
-            if (!isClosed()) {
+            if (isAcceptingInput()) {
                 inputEncoder.encodeMouse(event)
             }
         }
@@ -119,13 +136,22 @@ class TerminalSession(
      * Consumes host bytes synchronously, mutating parser/core before returning.
      */
     override fun onBytes(bytes: ByteArray, offset: Int, length: Int) {
-        if (isClosed()) return
-
-        synchronized(mutationLock) {
-            parser.accept(bytes, offset, length)
+        require(offset >= 0) { "offset must be non-negative, got $offset" }
+        require(length >= 0) { "length must be non-negative, got $length" }
+        require(offset <= bytes.size) { "offset $offset exceeds size ${bytes.size}" }
+        require(length <= bytes.size - offset) {
+            "offset + length exceeds size: offset=$offset length=$length size=${bytes.size}"
         }
 
-        drainResponses()
+        synchronized(inboundLock) {
+            if (isClosed()) return
+
+            synchronized(mutationLock) {
+                parser.accept(bytes, offset, length)
+            }
+
+            drainResponses()
+        }
     }
 
     /**
@@ -180,6 +206,10 @@ class TerminalSession(
 
     private fun isClosed(): Boolean {
         return localCloseRequested.get() || remoteClosed.get()
+    }
+
+    private fun isAcceptingInput(): Boolean {
+        return started.get() && !isClosed()
     }
 
     companion object {
