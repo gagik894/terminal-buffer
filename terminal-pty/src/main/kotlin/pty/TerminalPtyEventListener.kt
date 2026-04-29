@@ -1,12 +1,12 @@
 package com.gagik.terminal.pty
 
-import java.io.IOException
+import com.gagik.terminal.session.TerminalSession
 
 /**
- * Host callbacks for a running PTY session.
+ * Host callbacks for a running PTY-backed terminal session.
  *
- * Implementations should return quickly. Callbacks are delivered from the PTY
- * reader or process-watcher threads, not from a UI thread.
+ * Implementations should return quickly. Metadata callbacks are delivered from
+ * the connector reader thread as parser output is handled.
  */
 interface TerminalPtyEventListener {
     /**
@@ -14,7 +14,7 @@ interface TerminalPtyEventListener {
      *
      * @param session session that received the event.
      */
-    fun bell(session: TerminalPtySession)
+    fun bell(session: TerminalSession)
 
     /**
      * Called after the OSC icon title changes.
@@ -22,7 +22,7 @@ interface TerminalPtyEventListener {
      * @param session session that received the event.
      * @param title new icon title.
      */
-    fun iconTitleChanged(session: TerminalPtySession, title: String)
+    fun iconTitleChanged(session: TerminalSession, title: String)
 
     /**
      * Called after the OSC window title changes.
@@ -30,23 +30,7 @@ interface TerminalPtyEventListener {
      * @param session session that received the event.
      * @param title new window title.
      */
-    fun windowTitleChanged(session: TerminalPtySession, title: String)
-
-    /**
-     * Called when the PTY reader fails before the session is closed.
-     *
-     * @param session session whose reader failed.
-     * @param exception read failure.
-     */
-    fun readerFailed(session: TerminalPtySession, exception: IOException)
-
-    /**
-     * Called after the child process exits.
-     *
-     * @param session session whose child process exited.
-     * @param exitCode child process exit code.
-     */
-    fun processExited(session: TerminalPtySession, exitCode: Int)
+    fun windowTitleChanged(session: TerminalSession, title: String)
 
     /**
      * Called when another listener callback throws.
@@ -57,7 +41,7 @@ interface TerminalPtyEventListener {
      * @param session session whose listener callback failed.
      * @param exception exception thrown by another listener callback.
      */
-    fun listenerFailed(session: TerminalPtySession, exception: Exception)
+    fun listenerFailed(session: TerminalSession, exception: Exception)
 
     companion object {
         /**
@@ -65,12 +49,10 @@ interface TerminalPtyEventListener {
          */
         @JvmField
         val NONE: TerminalPtyEventListener = object : TerminalPtyEventListener {
-            override fun bell(session: TerminalPtySession) = Unit
-            override fun iconTitleChanged(session: TerminalPtySession, title: String) = Unit
-            override fun windowTitleChanged(session: TerminalPtySession, title: String) = Unit
-            override fun readerFailed(session: TerminalPtySession, exception: IOException) = Unit
-            override fun processExited(session: TerminalPtySession, exitCode: Int) = Unit
-            override fun listenerFailed(session: TerminalPtySession, exception: Exception) = Unit
+            override fun bell(session: TerminalSession) = Unit
+            override fun iconTitleChanged(session: TerminalSession, title: String) = Unit
+            override fun windowTitleChanged(session: TerminalSession, title: String) = Unit
+            override fun listenerFailed(session: TerminalSession, exception: Exception) = Unit
         }
     }
 }

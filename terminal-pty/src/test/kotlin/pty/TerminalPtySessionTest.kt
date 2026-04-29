@@ -1,16 +1,21 @@
 package com.gagik.terminal.pty
 
 import com.gagik.terminal.input.event.TerminalKeyEvent
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertTrue
+import com.gagik.terminal.session.TerminalSession
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
-import java.io.*
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
+import java.io.OutputStream
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 class TerminalPtySessionTest {
     @Test
-    fun `pty stdout is parsed into terminal core`() {
-        val process = FakeTerminalProcess(inputBytes = "hello".toByteArray(StandardCharsets.UTF_8))
+    fun `pty stdout is parsed into terminal core through shared session`() {
+        val process = FakeTerminalProcess(inputBytes = "hello\u001B[5n".ascii())
         val session = TerminalPtySessions.start(
             options = TerminalPtyOptions(
                 command = listOf("fake"),
@@ -21,28 +26,28 @@ class TerminalPtySessionTest {
             processFactory = FixedProcessFactory(process),
         )
 
-        session.waitForReader()
+        waitUntil { session.terminal.getLineAsString(0) == "hello" }
 
         assertEquals("hello", session.terminal.getLineAsString(0))
     }
 
     @Test
     fun `parser core responses are written back to pty stdin`() {
-        val bytes = "\u001B[6n".toByteArray(StandardCharsets.US_ASCII)
-        val process = FakeTerminalProcess(inputBytes = bytes)
+        val process = FakeTerminalProcess(inputBytes = "\u001B[6n".ascii())
         val session = TerminalPtySessions.start(
             options = TerminalPtyOptions(command = listOf("fake"), columns = 10, rows = 3),
             processFactory = FixedProcessFactory(process),
         )
 
-        session.waitForReader()
+        waitUntil { process.outputText() == "\u001B[1;1R" }
 
         assertEquals("\u001B[1;1R", process.outputText())
+        assertEquals(0, session.terminal.pendingResponseBytes)
     }
 
     @Test
     fun `input events are encoded to pty stdin through session serialization point`() {
-        val process = FakeTerminalProcess(inputBytes = ByteArray(0))
+        val process = FakeTerminalProcess.running()
         val session = TerminalPtySessions.start(
             options = TerminalPtyOptions(command = listOf("fake"), columns = 10, rows = 3),
             processFactory = FixedProcessFactory(process),
@@ -55,7 +60,7 @@ class TerminalPtySessionTest {
 
     @Test
     fun `resize updates process and terminal dimensions`() {
-        val process = FakeTerminalProcess(inputBytes = ByteArray(0))
+        val process = FakeTerminalProcess.running()
         val session = TerminalPtySessions.start(
             options = TerminalPtyOptions(command = listOf("fake"), columns = 10, rows = 3),
             processFactory = FixedProcessFactory(process),
@@ -65,12 +70,12 @@ class TerminalPtySessionTest {
 
         assertEquals(20, session.terminal.width)
         assertEquals(5, session.terminal.height)
-        assertEquals(20 to 5, process.lastSize)
+        assertEquals(listOf(10 to 3, 20 to 5), process.sizes)
     }
 
     @Test
-    fun `close destroys process`() {
-        val process = FakeTerminalProcess(inputBytes = ByteArray(0))
+    fun `close destroys process and does not fake an exit code`() {
+        val process = FakeTerminalProcess.running()
         val session = TerminalPtySessions.start(
             options = TerminalPtyOptions(command = listOf("fake"), columns = 10, rows = 3),
             processFactory = FixedProcessFactory(process),
@@ -79,14 +84,48 @@ class TerminalPtySessionTest {
         session.close()
 
         assertTrue(process.destroyed)
+        assertNull(session.exitCode)
     }
 
     @Test
-    fun `bell and title changes are delivered to listener from parsed host output`() {
-        val listener = RecordingPtyEventListener()
-        val input = "\u0007\u001B]0;both\u001B\\".toByteArray(StandardCharsets.US_ASCII)
-        val process = FakeTerminalProcess(inputBytes = input)
+    fun `process exit is captured on shared session`() {
+        val process = FakeTerminalProcess(inputBytes = ByteArray(0), exitCode = 7)
         val session = TerminalPtySessions.start(
+            options = TerminalPtyOptions(command = listOf("fake"), columns = 10, rows = 3),
+            processFactory = FixedProcessFactory(process),
+        )
+
+        waitUntil { session.exitCode == 7 }
+
+        assertEquals(7, session.exitCode)
+    }
+
+    @Test
+    fun `large output is parsed without losing bytes across connector chunks`() {
+        val text = "x".repeat(20_000) + "\n"
+        val process = FakeTerminalProcess(inputBytes = text.ascii())
+        val session = TerminalPtySessions.start(
+            options = TerminalPtyOptions(
+                command = listOf("fake"),
+                columns = 200,
+                rows = 120,
+                maxHistory = 200,
+                readBufferSize = 17,
+            ),
+            processFactory = FixedProcessFactory(process),
+        )
+
+        waitUntil { session.terminal.getAllAsString().count { it == 'x' } == 20_000 }
+
+        assertEquals(20_000, session.terminal.getAllAsString().count { it == 'x' })
+    }
+
+    @Test
+    fun `bell and title changes are delivered to PTY listener`() {
+        val listener = RecordingPtyEventListener()
+        val input = "\u0007\u001B]0;both\u001B\\".ascii()
+        val process = FakeTerminalProcess(inputBytes = input)
+        TerminalPtySessions.start(
             options = TerminalPtyOptions(
                 command = listOf("fake"),
                 columns = 10,
@@ -96,7 +135,7 @@ class TerminalPtySessionTest {
             processFactory = FixedProcessFactory(process),
         )
 
-        session.waitForReader()
+        waitUntil { listener.bells == 1 && listener.iconTitles == listOf("both") }
 
         assertEquals(1, listener.bells)
         assertEquals(listOf("both"), listener.iconTitles)
@@ -104,52 +143,27 @@ class TerminalPtySessionTest {
     }
 
     @Test
-    fun `reader failure is captured and delivered to listener`() {
-        val listener = RecordingPtyEventListener()
-        val failure = IOException("read failed")
-        val process = FakeTerminalProcess(inputStream = FailingInputStream(failure))
-        val session = TerminalPtySessions.start(
-            options = TerminalPtyOptions(
-                command = listOf("fake"),
-                columns = 10,
-                rows = 3,
-                eventListener = listener,
-            ),
+    fun `listener exception is reported through listenerFailed`() {
+        val listener = object : TerminalPtyEventListener by TerminalPtyEventListener.NONE {
+            val failures = mutableListOf<Exception>()
+
+            override fun bell(session: TerminalSession) {
+                throw IllegalStateException("bell failed")
+            }
+
+            override fun listenerFailed(session: TerminalSession, exception: Exception) {
+                failures += exception
+            }
+        }
+        val process = FakeTerminalProcess(inputBytes = "\u0007".ascii())
+        TerminalPtySessions.start(
+            options = TerminalPtyOptions(command = listOf("fake"), eventListener = listener),
             processFactory = FixedProcessFactory(process),
         )
 
-        session.waitForReader()
+        waitUntil { listener.failures.isNotEmpty() }
 
-        assertEquals(failure, session.failure)
-        assertEquals(listOf(failure), listener.readerFailures)
-    }
-
-    @Test
-    fun `process exit is captured and delivered to listener`() {
-        val listener = RecordingPtyEventListener()
-        val process = FakeTerminalProcess(inputBytes = ByteArray(0), exitCode = 7)
-        val session = TerminalPtySessions.start(
-            options = TerminalPtyOptions(
-                command = listOf("fake"),
-                columns = 10,
-                rows = 3,
-                eventListener = listener,
-            ),
-            processFactory = FixedProcessFactory(process),
-        )
-
-        session.waitForWatcher()
-
-        assertEquals(7, session.exitCode)
-        assertEquals(listOf(7), listener.exitCodes)
-    }
-
-    private fun TerminalPtySession.waitForReader() {
-        assertTrue(joinReader(1000), "reader thread did not stop")
-    }
-
-    private fun TerminalPtySession.waitForWatcher() {
-        assertTrue(joinWatcher(1000), "watcher thread did not stop")
+        assertEquals(listOf("bell failed"), listener.failures.map { it.message })
     }
 
     private class FixedProcessFactory(
@@ -160,51 +174,85 @@ class TerminalPtySessionTest {
 
     private class FakeTerminalProcess private constructor(
         override val input: InputStream,
+        private val inputDrained: CountDownLatch?,
         private val exitCode: Int,
-        @Suppress("UNUSED_PARAMETER")
         marker: Unit,
     ) : TerminalProcess {
         constructor(
             inputBytes: ByteArray,
             exitCode: Int = 0,
-        ) : this(ByteArrayInputStream(inputBytes), exitCode, Unit)
-
-        constructor(
-            inputStream: InputStream,
-            exitCode: Int = 0,
-        ) : this(inputStream, exitCode, Unit)
+        ) : this(DrainingByteArrayInputStream(inputBytes), null, exitCode, Unit)
 
         private val capturedOutput = ByteArrayOutputStream()
         override val output: OutputStream = capturedOutput
         var destroyed: Boolean = false
             private set
-        var lastSize: Pair<Int, Int>? = null
-            private set
+        val sizes = mutableListOf<Pair<Int, Int>>()
 
         override fun isAlive(): Boolean = !destroyed
 
-        override fun waitFor(): Int = exitCode
+        override fun waitFor(): Int {
+            inputDrained?.await(1, TimeUnit.SECONDS)
+            if (input is DrainingByteArrayInputStream) {
+                input.drained.await(1, TimeUnit.SECONDS)
+            }
+            return exitCode
+        }
 
         override fun destroy() {
             destroyed = true
+            if (input is BlockingInputStream) {
+                input.release()
+            }
         }
 
         override fun resize(columns: Int, rows: Int) {
-            lastSize = columns to rows
+            sizes += columns to rows
         }
 
         fun outputText(): String = capturedOutput.toString(StandardCharsets.UTF_8)
+
+        companion object {
+            fun running(exitCode: Int = 0): FakeTerminalProcess {
+                val input = BlockingInputStream()
+                return FakeTerminalProcess(input, input.released, exitCode, Unit)
+            }
+        }
     }
 
-    private class FailingInputStream(
-        private val failure: IOException,
-    ) : InputStream() {
+    private class DrainingByteArrayInputStream(
+        bytes: ByteArray,
+    ) : ByteArrayInputStream(bytes) {
+        val drained = CountDownLatch(1)
+
         override fun read(): Int {
-            throw failure
+            val value = super.read()
+            if (value < 0) drained.countDown()
+            return value
         }
 
         override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-            throw failure
+            val count = super.read(buffer, offset, length)
+            if (count < 0) drained.countDown()
+            return count
+        }
+    }
+
+    private class BlockingInputStream : InputStream() {
+        val released = CountDownLatch(1)
+
+        override fun read(): Int {
+            released.await(1, TimeUnit.SECONDS)
+            return -1
+        }
+
+        override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+            released.await(1, TimeUnit.SECONDS)
+            return -1
+        }
+
+        fun release() {
+            released.countDown()
         }
     }
 
@@ -212,29 +260,33 @@ class TerminalPtySessionTest {
         var bells: Int = 0
         val iconTitles = mutableListOf<String>()
         val windowTitles = mutableListOf<String>()
-        val readerFailures = mutableListOf<IOException>()
-        val exitCodes = mutableListOf<Int>()
 
-        override fun bell(session: TerminalPtySession) {
+        override fun bell(session: TerminalSession) {
             bells++
         }
 
-        override fun iconTitleChanged(session: TerminalPtySession, title: String) {
+        override fun iconTitleChanged(session: TerminalSession, title: String) {
             iconTitles += title
         }
 
-        override fun windowTitleChanged(session: TerminalPtySession, title: String) {
+        override fun windowTitleChanged(session: TerminalSession, title: String) {
             windowTitles += title
         }
 
-        override fun readerFailed(session: TerminalPtySession, exception: IOException) {
-            readerFailures += exception
-        }
+        override fun listenerFailed(session: TerminalSession, exception: Exception) = Unit
+    }
 
-        override fun processExited(session: TerminalPtySession, exitCode: Int) {
-            exitCodes += exitCode
-        }
+    private fun String.ascii(): ByteArray = toByteArray(StandardCharsets.US_ASCII)
 
-        override fun listenerFailed(session: TerminalPtySession, exception: Exception) = Unit
+    private fun waitUntil(
+        timeoutMillis: Long = 1000,
+        condition: () -> Boolean,
+    ) {
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
+        while (System.nanoTime() < deadline) {
+            if (condition()) return
+            Thread.sleep(10)
+        }
+        assertTrue(condition(), "condition was not met within ${timeoutMillis}ms")
     }
 }

@@ -16,7 +16,8 @@ import java.nio.file.Path
  * @param readBufferSize buffer size used by the PTY stdout reader thread.
  * @param readerThreadName name for the daemon PTY stdout reader thread.
  * @param watcherThreadName name for the daemon process exit watcher thread.
- * @param eventListener host callbacks for PTY lifecycle and metadata events.
+ * @param eventListener host callbacks for parser-discovered PTY metadata
+ * events such as BEL and title changes.
  */
 data class TerminalPtyOptions(
     val command: List<String> = defaultCommand(),

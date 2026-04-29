@@ -10,11 +10,11 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":terminal-protocol"))
     implementation(project(":terminal-core"))
-    implementation(project(":terminal-parser"))
     implementation(project(":terminal-integration"))
     implementation(project(":terminal-input"))
+    implementation(project(":terminal-session"))
+    implementation(project(":terminal-transport-api"))
     implementation("org.jetbrains.pty4j:pty4j:0.13.12")
 
     testImplementation(kotlin("test"))

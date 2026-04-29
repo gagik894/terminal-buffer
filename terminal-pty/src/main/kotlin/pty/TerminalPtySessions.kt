@@ -1,9 +1,7 @@
 package com.gagik.terminal.pty
 
 import com.gagik.core.TerminalBuffers
-import com.gagik.integration.CoreTerminalCommandSink
-import com.gagik.parser.api.TerminalParsers
-import com.gagik.terminal.input.impl.DefaultTerminalInputEncoder
+import com.gagik.terminal.session.TerminalSession
 import java.io.IOException
 
 /**
@@ -16,7 +14,7 @@ object TerminalPtySessions {
      *
      * PTY stdout is consumed on a daemon reader thread and fed to the parser.
      * Parser/core response bytes and UI input events are serialized onto PTY
-     * stdin by the returned [TerminalPtySession].
+     * stdin by the returned [TerminalSession].
      *
      * @param options PTY process and terminal dimensions.
      * @return running terminal session.
@@ -24,41 +22,28 @@ object TerminalPtySessions {
      */
     @JvmStatic
     @Throws(IOException::class)
-    fun start(options: TerminalPtyOptions = TerminalPtyOptions()): TerminalPtySession {
+    fun start(options: TerminalPtyOptions = TerminalPtyOptions()): TerminalSession {
         return start(options, Pty4jTerminalProcessFactory)
     }
 
     internal fun start(
         options: TerminalPtyOptions,
         processFactory: TerminalProcessFactory,
-    ): TerminalPtySession {
-        val process = processFactory.start(options)
+    ): TerminalSession {
+        val connector = PtyConnectors.create(options, processFactory)
         val terminal = TerminalBuffers.create(
             width = options.columns,
             height = options.rows,
             maxHistory = options.maxHistory,
         )
-        val hostOutput = StreamTerminalHostOutput(process.output)
         val hostEventBridge = SessionHostEventBridge(options.eventListener)
-        val sink = CoreTerminalCommandSink(terminal, hostEventBridge)
-        val parser = TerminalParsers.create(sink)
-        val inputEncoder = DefaultTerminalInputEncoder(terminal, hostOutput)
-
-        val session = TerminalPtySession(
+        val session = TerminalSession.create(
             terminal = terminal,
-            process = process,
-            parser = parser,
-            inputEncoder = inputEncoder,
-            hostOutput = hostOutput,
-            hostEventBridge = hostEventBridge,
-            readBufferSize = options.readBufferSize,
-            readerThreadName = options.readerThreadName,
-            watcherThreadName = options.watcherThreadName,
-            eventListener = options.eventListener,
+            connector = connector,
+            hostEvents = hostEventBridge,
         )
         hostEventBridge.attach(session)
-        session.startReader()
-        session.startWatcher()
+        session.start(options.columns, options.rows)
         return session
     }
 }

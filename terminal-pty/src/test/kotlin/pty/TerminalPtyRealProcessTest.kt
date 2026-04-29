@@ -1,21 +1,19 @@
 package com.gagik.terminal.pty
 
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import java.nio.file.Path
+import java.util.concurrent.TimeUnit
 
 class TerminalPtyRealProcessTest {
     @Test
-    fun `real PTY process output reaches terminal core`() {
-        assumeTrue(
-            System.getProperty("terminal.pty.integration") == "true",
-            "Set -Dterminal.pty.integration=true to run native PTY smoke tests",
-        )
+    fun `real PTY echo output reaches terminal core`() {
+        assumeNativePty()
 
         val session = TerminalPtySessions.start(
             TerminalPtyOptions(
-                command = smokeCommand(),
+                command = printCommand("hello"),
                 workingDirectory = Path.of(System.getProperty("user.home")),
                 columns = 40,
                 rows = 5,
@@ -23,23 +21,153 @@ class TerminalPtyRealProcessTest {
             ),
         )
 
-        val exitCode = session.waitFor()
-        assertTrue(session.joinReader(2000), "reader thread did not stop")
+        waitUntil { session.exitCode == 0 && session.terminal.getAllAsString().contains("hello") }
+
+        assertEquals(0, session.exitCode)
+        assertTrue(session.terminal.getAllAsString().contains("hello"))
+    }
+
+    @Test
+    fun `real PTY resize mutates session without deadlock`() {
+        assumeNativePty()
+
+        val session = TerminalPtySessions.start(
+            TerminalPtyOptions(
+                command = sleepCommand(seconds = 2),
+                columns = 40,
+                rows = 5,
+            ),
+        )
+
+        session.resize(columns = 100, rows = 30)
         session.close()
 
-        assertTrue(exitCode == 0, "expected smoke process to exit successfully")
-        assertTrue(
-            session.terminal.getAllAsString().contains("PTY_READY"),
-            "expected PTY_READY to be parsed into terminal core",
+        assertEquals(100, session.terminal.width)
+        assertEquals(30, session.terminal.height)
+    }
+
+    @Test
+    fun `real PTY close requests local shutdown without fake exit code`() {
+        assumeNativePty()
+
+        val session = TerminalPtySessions.start(
+            TerminalPtyOptions(
+                command = sleepCommand(seconds = 5),
+                columns = 40,
+                rows = 5,
+            ),
+        )
+
+        session.close()
+
+        assertNull(session.exitCode)
+    }
+
+    @Test
+    fun `real PTY process exit sets session exit code`() {
+        assumeNativePty()
+
+        val session = TerminalPtySessions.start(
+            TerminalPtyOptions(
+                command = exitCommand(7),
+                columns = 40,
+                rows = 5,
+            ),
+        )
+
+        waitUntil { session.exitCode == 7 }
+
+        assertEquals(7, session.exitCode)
+    }
+
+    @Test
+    fun `real PTY large output does not lose bytes`() {
+        assumeNativePty()
+
+        val expectedCount = 12_000
+        val session = TerminalPtySessions.start(
+            TerminalPtyOptions(
+                command = repeatCommand('x', expectedCount),
+                columns = 200,
+                rows = 80,
+                maxHistory = 200,
+                readBufferSize = 257,
+            ),
+        )
+
+        waitUntil(timeoutMillis = 5000) {
+            session.exitCode == 0 &&
+                session.terminal.getAllAsString().count { it == 'x' } == expectedCount
+        }
+
+        assertEquals(expectedCount, session.terminal.getAllAsString().count { it == 'x' })
+    }
+
+    private fun assumeNativePty() {
+        assumeTrue(
+            System.getProperty("terminal.pty.integration") == "true",
+            "Set -Dterminal.pty.integration=true to run native PTY integration tests",
         )
     }
 
-    private fun smokeCommand(): List<String> {
-        val osName = System.getProperty("os.name").lowercase()
-        return if (osName.contains("windows")) {
-            listOf("cmd.exe", "/c", "echo PTY_READY")
+    private fun printCommand(text: String): List<String> {
+        return if (isWindows()) {
+            listOf("cmd.exe", "/c", "echo $text")
         } else {
-            listOf("/bin/sh", "-lc", "printf PTY_READY")
+            listOf("/bin/sh", "-lc", "printf '$text\n'")
         }
+    }
+
+    private fun sleepCommand(seconds: Int): List<String> {
+        return if (isWindows()) {
+            listOf("cmd.exe", "/c", "ping -n ${seconds + 1} 127.0.0.1 > nul")
+        } else {
+            listOf("/bin/sh", "-lc", "sleep $seconds")
+        }
+    }
+
+    private fun exitCommand(code: Int): List<String> {
+        return if (isWindows()) {
+            listOf("cmd.exe", "/c", "exit $code")
+        } else {
+            listOf("/bin/sh", "-lc", "exit $code")
+        }
+    }
+
+    private fun repeatCommand(char: Char, count: Int): List<String> {
+        return if (isWindows()) {
+            listOf(
+                "powershell.exe",
+                "-NoProfile",
+                "-Command",
+                "[Console]::Out.Write(('$char' * $count) + \"`n\")",
+            )
+        } else {
+            listOf("/bin/sh", "-lc", "printf '%*s\n' $count '' | tr ' ' '$char'")
+        }
+    }
+
+    private fun shellCommand(script: String): List<String> {
+        return if (isWindows()) {
+            listOf("cmd.exe", "/c", script)
+        } else {
+            listOf("/bin/sh", "-lc", script)
+        }
+    }
+
+    private fun isWindows(): Boolean {
+        return System.getProperty("os.name").lowercase().contains("windows")
+    }
+
+    private fun waitUntil(
+        timeoutMillis: Long = 3000,
+        condition: () -> Boolean,
+    ) {
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
+        while (System.nanoTime() < deadline) {
+            if (condition()) return
+            Thread.sleep(20)
+        }
+        assertTrue(condition(), "condition was not met within ${timeoutMillis}ms")
     }
 }

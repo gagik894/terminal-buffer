@@ -1,24 +1,18 @@
 package com.gagik.terminal.pty
 
 import com.gagik.core.TerminalBuffers
-import com.gagik.parser.api.TerminalOutputParser
-import com.gagik.terminal.input.api.TerminalInputEncoder
-import com.gagik.terminal.input.event.TerminalFocusEvent
-import com.gagik.terminal.input.event.TerminalKeyEvent
-import com.gagik.terminal.input.event.TerminalMouseEvent
-import com.gagik.terminal.input.event.TerminalPasteEvent
+import com.gagik.terminal.session.TerminalSession
+import com.gagik.terminal.transport.TerminalConnector
+import com.gagik.terminal.transport.TerminalConnectorListener
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.io.IOException
 
 class SessionHostEventBridgeTest {
     @Test
     fun `attach twice fails`() {
         val bridge = SessionHostEventBridge(RecordingListener())
-        val session = testSession(bridge)
+        val session = testSession()
 
         bridge.attach(session)
 
@@ -37,74 +31,84 @@ class SessionHostEventBridgeTest {
     }
 
     @Test
-    fun `queued events dispatch in order`() {
+    fun `events dispatch in order after attach`() {
         val listener = RecordingListener()
         val bridge = SessionHostEventBridge(listener)
-        bridge.attach(testSession(bridge, listener))
+        bridge.attach(testSession())
 
         bridge.bell()
         bridge.iconTitleChanged("icon")
         bridge.windowTitleChanged("window")
-        bridge.drainTo { bridge.dispatch(it) }
 
         assertEquals(listOf("bell", "icon:icon", "window:window"), listener.events)
     }
 
-    private fun testSession(
-        bridge: SessionHostEventBridge,
-        listener: TerminalPtyEventListener = TerminalPtyEventListener.NONE,
-    ): TerminalPtySession {
+    @Test
+    fun `listener failures are reported and isolated`() {
+        val listener = object : TerminalPtyEventListener by TerminalPtyEventListener.NONE {
+            val failures = mutableListOf<String?>()
+
+            override fun bell(session: TerminalSession) {
+                throw IllegalStateException("bell failed")
+            }
+
+            override fun listenerFailed(session: TerminalSession, exception: Exception) {
+                failures += exception.message
+            }
+        }
+        val bridge = SessionHostEventBridge(listener)
+        bridge.attach(testSession())
+
+        bridge.bell()
+
+        assertEquals(listOf("bell failed"), listener.failures)
+    }
+
+    @Test
+    fun `listenerFailed failures are ignored`() {
+        val listener = object : TerminalPtyEventListener by TerminalPtyEventListener.NONE {
+            override fun bell(session: TerminalSession) {
+                throw IllegalStateException("bell failed")
+            }
+
+            override fun listenerFailed(session: TerminalSession, exception: Exception) {
+                throw IllegalStateException("listenerFailed failed")
+            }
+        }
+        val bridge = SessionHostEventBridge(listener)
+        bridge.attach(testSession())
+
+        bridge.bell()
+    }
+
+    private fun testSession(): TerminalSession {
         val terminal = TerminalBuffers.create(width = 5, height = 2)
-        return TerminalPtySession(
-            terminal = terminal,
-            process = TestProcess(),
-            parser = NoopParser,
-            inputEncoder = NoopInputEncoder,
-            hostOutput = StreamTerminalHostOutput(ByteArrayOutputStream()),
-            hostEventBridge = bridge,
-            readBufferSize = 16,
-            readerThreadName = "bridge-test-reader",
-            watcherThreadName = "bridge-test-watcher",
-            eventListener = listener,
-        )
+        return TerminalSession.create(terminal = terminal, connector = NoopConnector)
     }
 
     private class RecordingListener : TerminalPtyEventListener {
         val events = mutableListOf<String>()
-        override fun bell(session: TerminalPtySession) {
+
+        override fun bell(session: TerminalSession) {
             events += "bell"
         }
-        override fun iconTitleChanged(session: TerminalPtySession, title: String) {
+
+        override fun iconTitleChanged(session: TerminalSession, title: String) {
             events += "icon:$title"
         }
-        override fun windowTitleChanged(session: TerminalPtySession, title: String) {
+
+        override fun windowTitleChanged(session: TerminalSession, title: String) {
             events += "window:$title"
         }
-        override fun readerFailed(session: TerminalPtySession, exception: IOException) = Unit
-        override fun processExited(session: TerminalPtySession, exitCode: Int) = Unit
-        override fun listenerFailed(session: TerminalPtySession, exception: Exception) = Unit
+
+        override fun listenerFailed(session: TerminalSession, exception: Exception) = Unit
     }
 
-    private class TestProcess : TerminalProcess {
-        override val input = ByteArrayInputStream(ByteArray(0))
-        override val output = ByteArrayOutputStream()
-        override fun isAlive(): Boolean = true
-        override fun waitFor(): Int = 0
-        override fun destroy() = Unit
+    private object NoopConnector : TerminalConnector {
+        override fun start(listener: TerminalConnectorListener) = Unit
+        override fun write(bytes: ByteArray, offset: Int, length: Int) = Unit
         override fun resize(columns: Int, rows: Int) = Unit
+        override fun close() = Unit
     }
 
-    private object NoopParser : TerminalOutputParser {
-        override fun accept(bytes: ByteArray, offset: Int, length: Int) = Unit
-        override fun acceptByte(byteValue: Int) = Unit
-        override fun endOfInput() = Unit
-        override fun reset() = Unit
-    }
-
-    private object NoopInputEncoder : TerminalInputEncoder {
-        override fun encodeKey(event: TerminalKeyEvent) = Unit
-        override fun encodePaste(event: TerminalPasteEvent) = Unit
-        override fun encodeFocus(event: TerminalFocusEvent) = Unit
-        override fun encodeMouse(event: TerminalMouseEvent) = Unit
-    }
 }
