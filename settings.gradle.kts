@@ -3,9 +3,14 @@ plugins {
 }
 
 rootProject.name = "Lattice"
-include(":terminal-protocol")
-include(":terminal-core")
-include(":terminal-parser")
-include(":terminal-integration")
-include(":terminal-input")
-include(":terminal-pty")
+include(
+    ":terminal-core",
+    ":terminal-parser",
+    ":terminal-protocol",
+    ":terminal-input",
+    ":terminal-integration",
+    ":terminal-pty",
+    ":terminal-transport-api",
+    ":terminal-session",
+    ":terminal-testkit",
+)
