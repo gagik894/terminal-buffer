@@ -8,6 +8,7 @@ import com.gagik.terminal.input.event.TerminalKeyEvent
 import com.gagik.terminal.input.event.TerminalMouseEvent
 import com.gagik.terminal.input.event.TerminalPasteEvent
 import com.gagik.terminal.render.api.*
+import com.gagik.terminal.render.cache.TerminalRenderPublisher
 import com.gagik.terminal.testkit.MockConnector
 import com.gagik.terminal.transport.TerminalConnector
 import com.gagik.terminal.transport.TerminalConnectorListener
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.Test
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 class TerminalSessionTest {
     @Test
@@ -205,6 +207,7 @@ class TerminalSessionTest {
         val parser = RecordingParser()
         val session = TerminalSession(
             terminal = terminal,
+            publisher = TerminalRenderPublisher(terminal.width, terminal.height),
             renderReader = terminal as TerminalRenderFrameReader,
             responseReader = terminal,
             connector = connector,
@@ -236,12 +239,51 @@ class TerminalSessionTest {
     }
 
     @Test
+    fun `notifyRenderDirty coalesces renders while worker is busy`() {
+        val terminal = TerminalBuffers.create(width = 10, height = 3)
+        val connector = MockConnector()
+        val renderReader = BlockingFirstRenderReader()
+        val dirtyCalls = AtomicInteger(0)
+        val twoDirtyCalls = CountDownLatch(2)
+        val session = TerminalSession(
+            terminal = terminal,
+            publisher = TerminalRenderPublisher(terminal.width, terminal.height),
+            renderReader = renderReader,
+            responseReader = terminal,
+            connector = connector,
+            parser = RecordingParser(),
+            inputEncoder = NoOpInputEncoder,
+        )
+        session.onDirty = {
+            dirtyCalls.incrementAndGet()
+            twoDirtyCalls.countDown()
+        }
+
+        session.notifyRenderDirty()
+        assertTrue(renderReader.awaitFirstRead(), "first render did not start")
+
+        repeat(5) {
+            session.notifyRenderDirty()
+        }
+
+        renderReader.releaseFirstRead()
+
+        assertTrue(twoDirtyCalls.await(1, TimeUnit.SECONDS), "coalesced render did not complete")
+        Thread.sleep(100)
+
+        assertEquals(2, dirtyCalls.get())
+        assertEquals(2, renderReader.readCalls)
+        session.close()
+    }
+
+    @Test
     fun `readRenderFrame blocks host byte mutation until callback returns`() {
         val terminal = TerminalBuffers.create(width = 10, height = 3)
         val connector = MockConnector()
         val parser = RecordingParser()
         val session = TerminalSession(
             terminal = terminal,
+            publisher = TerminalRenderPublisher(terminal.width, terminal.height),
             renderReader = terminal as TerminalRenderFrameReader,
             responseReader = terminal,
             connector = connector,
@@ -338,6 +380,7 @@ class TerminalSessionTest {
         val feedCompleted = CountDownLatch(1)
         val session = TerminalSession(
             terminal = terminal,
+            publisher = TerminalRenderPublisher(terminal.width, terminal.height),
             renderReader = BlockingCopyRenderReader(copyEntered, releaseCopy),
             responseReader = terminal,
             connector = connector,
@@ -393,6 +436,7 @@ class TerminalSessionTest {
         val parser = HalfRowParser(terminal, firstWriteDone, releaseSecondWrite)
         val session = TerminalSession(
             terminal = terminal,
+            publisher = TerminalRenderPublisher(terminal.width, terminal.height),
             renderReader = terminal as TerminalRenderFrameReader,
             responseReader = terminal,
             connector = connector,
@@ -544,6 +588,79 @@ class TerminalSessionTest {
                     flags[flagOffset] = TerminalRenderCellFlags.CODEPOINT
                 }
             })
+        }
+    }
+
+    private class BlockingFirstRenderReader : TerminalRenderFrameReader {
+        private val firstReadEntered = CountDownLatch(1)
+        private val releaseFirstRead = CountDownLatch(1)
+        private val calls = AtomicInteger(0)
+
+        val readCalls: Int
+            get() = calls.get()
+
+        override fun readRenderFrame(consumer: TerminalRenderFrameConsumer) {
+            val call = calls.incrementAndGet()
+            if (call == 1) {
+                firstReadEntered.countDown()
+                check(releaseFirstRead.await(1, TimeUnit.SECONDS)) {
+                    "first render was not released"
+                }
+            }
+            consumer.accept(SimpleRenderFrame)
+        }
+
+        fun awaitFirstRead(): Boolean {
+            return firstReadEntered.await(1, TimeUnit.SECONDS)
+        }
+
+        fun releaseFirstRead() {
+            releaseFirstRead.countDown()
+        }
+    }
+
+    private object SimpleRenderFrame : TerminalRenderFrame {
+        override val columns: Int = 10
+        override val rows: Int = 3
+        override val frameGeneration: Long = 1
+        override val structureGeneration: Long = 1
+        override val activeBuffer: TerminalRenderBufferKind = TerminalRenderBufferKind.PRIMARY
+        override val cursor: TerminalRenderCursor = TerminalRenderCursor(
+            column = 0,
+            row = 0,
+            visible = true,
+            blinking = false,
+            shape = TerminalRenderCursorShape.BLOCK,
+            generation = 1,
+        )
+
+        override fun lineGeneration(row: Int): Long = 1
+
+        override fun lineWrapped(row: Int): Boolean = false
+
+        override fun copyLine(
+            row: Int,
+            codeWords: IntArray,
+            codeOffset: Int,
+            attrWords: LongArray,
+            attrOffset: Int,
+            flags: IntArray,
+            flagOffset: Int,
+            extraAttrWords: LongArray?,
+            extraAttrOffset: Int,
+            hyperlinkIds: IntArray?,
+            hyperlinkOffset: Int,
+            clusterSink: TerminalRenderClusterSink?,
+        ) {
+            var column = 0
+            while (column < columns) {
+                codeWords[codeOffset + column] = 0
+                attrWords[attrOffset + column] = TerminalRenderAttrs.DEFAULT
+                flags[flagOffset + column] = TerminalRenderCellFlags.EMPTY
+                extraAttrWords?.set(extraAttrOffset + column, TerminalRenderExtraAttrs.DEFAULT)
+                hyperlinkIds?.set(hyperlinkOffset + column, 0)
+                column++
+            }
         }
     }
 

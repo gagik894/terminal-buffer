@@ -21,6 +21,9 @@ class TerminalRenderCache(
     columns: Int,
     rows: Int,
 ) {
+    @Volatile
+    private var ownerThread: Thread? = null
+
     /**
      * Cached visible width in cells.
      */
@@ -157,6 +160,42 @@ class TerminalRenderCache(
     }
 
     /**
+     * Asserts that this cache is owned by the current thread.
+     *
+     * The first thread to call this method becomes the owner. Subsequent calls
+     * from other threads will throw [IllegalStateException].
+     */
+    fun assertOwnership() {
+        val current = Thread.currentThread()
+        val owner = ownerThread
+        if (owner == null) {
+            ownerThread = current
+            return
+        }
+        check(owner == current) {
+            "TerminalRenderCache accessed from $current but owned by $owner"
+        }
+    }
+
+    /**
+     * Resizes the primitive storage to [columns] x [rows].
+     */
+    fun resize(columns: Int, rows: Int) {
+        resizeStorage(columns, rows)
+    }
+
+    /**
+     * Clears thread ownership after external lifecycle changes.
+     *
+     * Only [TerminalRenderPublisher] should call this after resizing all
+     * buffers under its publish lock. The render worker will acquire ownership
+     * again on the next [updateFrom].
+     */
+    internal fun resetOwnership() {
+        ownerThread = null
+    }
+
+    /**
      * Copies changed rows and cursor state from [reader].
      *
      * The read callback is used only to copy primitive frame data into this
@@ -166,6 +205,7 @@ class TerminalRenderCache(
      * @param reader source of the short-lived render frame.
      */
     fun updateFrom(reader: TerminalRenderFrameReader) {
+        assertOwnership()
         reader.readRenderFrame { frame ->
             resizedOnLastUpdate = false
 

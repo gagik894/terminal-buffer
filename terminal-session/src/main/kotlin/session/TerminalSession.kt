@@ -16,8 +16,11 @@ import com.gagik.terminal.input.impl.DefaultTerminalInputEncoder
 import com.gagik.terminal.input.policy.TerminalInputPolicy
 import com.gagik.terminal.render.api.TerminalRenderFrameConsumer
 import com.gagik.terminal.render.api.TerminalRenderFrameReader
+import com.gagik.terminal.render.cache.TerminalRenderPublisher
 import com.gagik.terminal.transport.TerminalConnector
 import com.gagik.terminal.transport.TerminalConnectorListener
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -31,6 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 class TerminalSession(
     val terminal: TerminalBufferApi,
+    val publisher: TerminalRenderPublisher,
     private val renderReader: TerminalRenderFrameReader,
     private val responseReader: TerminalHostResponseReader,
     private val connector: TerminalConnector,
@@ -42,10 +46,24 @@ class TerminalSession(
     private val remoteClosed = AtomicBoolean(false)
     private val parserClosed = AtomicBoolean(false)
     private val started = AtomicBoolean(false)
+    private val renderPending = AtomicBoolean(false)
 
     private val inboundLock = Any()
     private val mutationLock = Any()
     private val responseScratch = ByteArray(RESPONSE_BUFFER_SIZE)
+
+    private val renderWorker = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "terminal-render-worker").apply { isDaemon = true }
+    }
+
+    /**
+     * Optional callback invoked after a render frame is published.
+     *
+     * UI components should use this to trigger a repaint. The callback is
+     * invoked from the [renderWorker] thread.
+     */
+    @Volatile
+    var onDirty: (() -> Unit)? = null
 
     /**
      * Remote process exit code after [onClosed] receives one.
@@ -73,13 +91,14 @@ class TerminalSession(
 
         synchronized(mutationLock) {
             terminal.resize(columns, rows)
+            publisher.resize(columns, rows)
         }
         connector.resize(columns, rows)
         connector.start(this)
     }
 
     /**
-     * Resizes both core and the active connector.
+     * Resizes core, publisher, and the active connector.
      */
     fun resize(columns: Int, rows: Int) {
         require(columns > 0) { "columns must be positive, got $columns" }
@@ -87,6 +106,7 @@ class TerminalSession(
 
         synchronized(mutationLock) {
             terminal.resize(columns, rows)
+            publisher.resize(columns, rows)
         }
         connector.resize(columns, rows)
     }
@@ -162,6 +182,21 @@ class TerminalSession(
             }
 
             drainResponses()
+            notifyRenderDirty()
+        }
+    }
+
+    /**
+     * Submits a render task to the worker thread.
+     */
+    fun notifyRenderDirty() {
+        if (isClosed()) return
+        if (renderPending.compareAndSet(false, true)) {
+            renderWorker.execute {
+                renderPending.set(false)
+                publisher.updateAndPublish(this)
+                onDirty?.invoke()
+            }
         }
     }
 
@@ -206,6 +241,8 @@ class TerminalSession(
             connector.close()
         }
         cleanupParser()
+        renderWorker.shutdown()
+        renderWorker.awaitTermination(500, TimeUnit.MILLISECONDS)
     }
 
     private fun drainResponses() {
@@ -262,8 +299,12 @@ class TerminalSession(
             val renderReader = terminal as? TerminalRenderFrameReader
                 ?: error("terminal must implement TerminalRenderFrameReader")
 
+            // Create a publisher with initial dimensions
+            val publisher = TerminalRenderPublisher(terminal.width, terminal.height)
+
             return TerminalSession(
                 terminal = terminal,
+                publisher = publisher,
                 renderReader = renderReader,
                 responseReader = terminal,
                 connector = connector,
