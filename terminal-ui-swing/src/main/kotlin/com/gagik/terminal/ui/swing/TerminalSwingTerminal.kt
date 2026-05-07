@@ -7,6 +7,8 @@ import com.gagik.terminal.render.api.TerminalRenderUnderline
 import com.gagik.terminal.render.cache.TerminalRenderCache
 import com.gagik.terminal.session.TerminalSession
 import java.awt.*
+import java.awt.event.KeyAdapter
+import java.awt.event.KeyEvent
 import javax.swing.JComponent
 import javax.swing.SwingUtilities
 import javax.swing.Timer
@@ -35,11 +37,27 @@ class TerminalSwingTerminal(
         repaint()
     }
 
+    private val inputKeyListener = object : KeyAdapter() {
+        override fun keyPressed(event: KeyEvent) {
+            val keyEvent = TerminalSwingKeyMapper.keyPressed(event) ?: return
+            session?.encodeKey(keyEvent)
+            event.consume()
+        }
+
+        override fun keyTyped(event: KeyEvent) {
+            val keyEvent = TerminalSwingKeyMapper.keyTyped(event) ?: return
+            session?.encodeKey(keyEvent)
+            event.consume()
+        }
+    }
+
     init {
         font = settings.font
         background = Color(settings.palette.defaultBackground, true)
         foreground = Color(settings.palette.defaultForeground, true)
         isFocusable = true
+        focusTraversalKeysEnabled = false
+        addKeyListener(inputKeyListener)
         preferredSize = preferredGridSize(settings.columns, settings.rows)
         cursorTimer.isRepeats = true
     }
