@@ -50,7 +50,7 @@ internal class TerminalGridPainter {
         cursorBlinkVisible: Boolean,
     ) {
         val palette = settings.palette
-        fontCache.update(settings.font, settings.fallbackFonts)
+        fontCache.update(settings.font, settings.fallbackFonts, settings.useSystemFallbackFonts)
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, settings.textAntialiasing)
         g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, settings.fractionalMetrics)
         g.font = fontCache.font(Font.PLAIN)

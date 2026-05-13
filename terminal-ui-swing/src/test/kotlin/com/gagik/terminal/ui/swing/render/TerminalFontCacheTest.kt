@@ -12,7 +12,7 @@ class TerminalFontCacheTest {
         val base = Font(Font.MONOSPACED, Font.PLAIN, 14)
         val cache = TerminalFontCache()
 
-        cache.update(base, emptyList())
+        cache.update(base, emptyList(), useSystemFallbackFonts = false)
 
         assertSame(base, cache.font(Font.PLAIN))
         assertSame(cache.font(Font.BOLD), cache.font(Font.BOLD))
@@ -28,7 +28,7 @@ class TerminalFontCacheTest {
         assumeTrue(fallback.canDisplayUpTo(thai) < 0)
 
         val cache = TerminalFontCache()
-        cache.update(primary, listOf(fallback))
+        cache.update(primary, listOf(fallback), useSystemFallbackFonts = false)
 
         val resolved = cache.fontForText(thai, Font.BOLD)
 

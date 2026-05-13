@@ -39,6 +39,7 @@ class TerminalSwingSettingsTest {
         assertEquals(RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB, settings.textAntialiasing)
         assertEquals(RenderingHints.VALUE_FRACTIONALMETRICS_OFF, settings.fractionalMetrics)
         assertTrue(settings.fallbackFonts.isNotEmpty())
+        assertTrue(settings.useSystemFallbackFonts)
     }
 
     @Test

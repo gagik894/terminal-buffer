@@ -19,10 +19,13 @@ import java.awt.RenderingHints
  * @property fractionalMetrics fractional font metrics hint used during painting.
  * @property fallbackFonts ordered fonts used by the complex-text renderer when
  * [font] cannot display a non-ASCII cluster.
+ * @property useSystemFallbackFonts whether the complex-text renderer may scan
+ * installed system fonts after [fallbackFonts] fail.
  */
 data class TerminalSwingSettings(
     val font: Font = Font(Font.MONOSPACED, Font.PLAIN, 14),
     val fallbackFonts: List<Font> = defaultFallbackFonts(),
+    val useSystemFallbackFonts: Boolean = true,
     val palette: TerminalColorPalette = TerminalColorPalette(),
     val columns: Int = 80,
     val rows: Int = 24,
@@ -50,8 +53,14 @@ data class TerminalSwingSettings(
             Font(Font.SANS_SERIF, Font.PLAIN, 14),
             Font("Segoe UI", Font.PLAIN, 14),
             Font("Segoe UI Symbol", Font.PLAIN, 14),
+            Font("Segoe UI Historic", Font.PLAIN, 14),
+            Font("Ebrima", Font.PLAIN, 14),
             Font("Leelawadee UI", Font.PLAIN, 14),
+            Font("Nyala", Font.PLAIN, 14),
+            Font("Abyssinica SIL", Font.PLAIN, 14),
             Font("Noto Sans Thai", Font.PLAIN, 14),
+            Font("Noto Sans Ethiopic", Font.PLAIN, 14),
+            Font("Noto Sans Runic", Font.PLAIN, 14),
             Font("Noto Sans CJK SC", Font.PLAIN, 14),
             Font("Noto Color Emoji", Font.PLAIN, 14),
         )
