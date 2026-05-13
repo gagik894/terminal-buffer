@@ -280,6 +280,44 @@ internal class TerminalGridPainter {
                 g.fillRect(x, y, metrics.cursorStrokeWidth, metrics.cellHeight)
             }
         }
+
+        if (cursor.shape == TerminalRenderCursorShape.BLOCK) {
+            paintCursorForeground(g, cache, palette, metrics, cursor.column, cursor.row)
+        }
+    }
+
+    private fun paintCursorForeground(
+        g: Graphics2D,
+        cache: TerminalRenderCache,
+        palette: TerminalColorPalette,
+        metrics: TerminalSwingMetrics,
+        column: Int,
+        row: Int,
+    ) {
+        val flags = cache.flags[row][column]
+        if (!hasDrawableText(flags)) return
+
+        val attr = cache.attrWords[row][column]
+        val oldClip = g.clip
+        try {
+            g.clipRect(column * metrics.cellWidth, row * metrics.cellHeight, metrics.cellWidth, metrics.cellHeight)
+            g.font = fontCache.font(fontStyle(attr))
+            g.color = colorCache.color(palette.cursorForeground)
+
+            val baselineY = row * metrics.cellHeight + metrics.baseline
+            if (flags and TerminalRenderCellFlags.CLUSTER != 0) {
+                val cluster = cache.clusters[row][column]
+                if (cluster != null) {
+                    g.drawString(cluster, column * metrics.cellWidth, baselineY)
+                }
+            } else {
+                textRun.clear()
+                textRun.appendCodePoint(cache.codeWords[row][column])
+                g.drawChars(textRun.chars, 0, textRun.length, column * metrics.cellWidth, baselineY)
+            }
+        } finally {
+            g.clip = oldClip
+        }
     }
 
     private fun hasDrawableText(flags: Int): Boolean {

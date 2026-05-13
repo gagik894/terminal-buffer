@@ -1,6 +1,5 @@
 package com.gagik.terminal.ui.swing.api
 
-import com.gagik.terminal.render.cache.TerminalRenderCache
 import com.gagik.terminal.session.TerminalSession
 import com.gagik.terminal.ui.swing.input.TerminalSwingKeyMapper
 import com.gagik.terminal.ui.swing.render.TerminalGridPainter
@@ -144,21 +143,26 @@ class TerminalSwingTerminal(
 
         val g = graphics.create() as Graphics2D
         try {
-            val cache: TerminalRenderCache? = session?.publisher?.current()
-            if (cache == null) {
+            val publisher = session?.publisher
+            if (publisher == null) {
                 painter.clear(g, settings.palette, width, height)
                 return
             }
 
-            painter.paint(
-                g = g,
-                cache = cache,
-                settings = settings,
-                metrics = metrics,
-                width = width,
-                height = height,
-                cursorBlinkVisible = cursorBlinkVisible,
-            )
+            val painted = publisher.readCurrent { cache ->
+                painter.paint(
+                    g = g,
+                    cache = cache,
+                    settings = settings,
+                    metrics = metrics,
+                    width = width,
+                    height = height,
+                    cursorBlinkVisible = cursorBlinkVisible,
+                )
+            }
+            if (painted == null) {
+                painter.clear(g, settings.palette, width, height)
+            }
         } finally {
             g.dispose()
         }
