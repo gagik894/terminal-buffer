@@ -8,7 +8,7 @@ import com.gagik.terminal.ui.swing.settings.TerminalSwingSettings
 import java.awt.Font
 import java.awt.Graphics2D
 import java.awt.RenderingHints
-import java.awt.font.TextLayout
+import java.awt.font.FontRenderContext
 
 /**
  * Java2D renderer for cached primitive terminal frames.
@@ -20,6 +20,7 @@ import java.awt.font.TextLayout
 internal class TerminalGridPainter {
     private val colorCache = AwtColorCache()
     private val fontCache = TerminalFontCache()
+    private val complexTextLayouts = TerminalComplexTextLayoutCache()
     private val textRun = TerminalTextRunBuffer(INITIAL_TEXT_RUN_CAPACITY)
 
     /**
@@ -47,10 +48,13 @@ internal class TerminalGridPainter {
         cursorBlinkVisible: Boolean,
     ) {
         val palette = settings.palette
-        fontCache.update(settings.font, settings.fallbackFonts, settings.useSystemFallbackFonts)
+        if (fontCache.update(settings.font, settings.fallbackFonts, settings.useSystemFallbackFonts)) {
+            complexTextLayouts.clear()
+        }
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, settings.textAntialiasing)
         g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, settings.fractionalMetrics)
         g.font = fontCache.font(Font.PLAIN)
+        val fontRenderContext = g.fontRenderContext
 
         val rows = minOf(cache.rows, height / metrics.cellHeight + 1)
         fill(g, 0, 0, width, height, palette.defaultBackground)
@@ -58,11 +62,11 @@ internal class TerminalGridPainter {
         var row = 0
         while (row < rows) {
             paintRowBackgrounds(g, cache, palette, metrics, row)
-            paintRowText(g, cache, palette, metrics, row)
+            paintRowText(g, cache, palette, metrics, row, fontRenderContext)
             row++
         }
 
-        paintCursor(g, cache, palette, metrics, cursorBlinkVisible)
+        paintCursor(g, cache, palette, metrics, cursorBlinkVisible, fontRenderContext)
     }
 
     private fun paintRowBackgrounds(
@@ -101,6 +105,7 @@ internal class TerminalGridPainter {
         palette: TerminalColorPalette,
         metrics: TerminalSwingMetrics,
         row: Int,
+        fontRenderContext: FontRenderContext,
     ) {
         val flagsRow = cache.flags[row]
         val attrRow = cache.attrWords[row]
@@ -125,6 +130,7 @@ internal class TerminalGridPainter {
                     row = row,
                     column = column,
                     baselineY = baselineY,
+                    fontRenderContext = fontRenderContext,
                 )
                 continue
             }
@@ -195,6 +201,7 @@ internal class TerminalGridPainter {
         row: Int,
         column: Int,
         baselineY: Int,
+        fontRenderContext: FontRenderContext,
     ): Int {
         val flags = cache.flags[row][column]
         val attr = cache.attrWords[row][column]
@@ -209,17 +216,16 @@ internal class TerminalGridPainter {
         if (flags and TerminalRenderCellFlags.CLUSTER != 0) {
             val cluster = cache.clusters[row][column]
             if (cluster != null) {
-                drawComplexText(g, cluster, fontStyle, column * metrics.cellWidth, baselineY)
+                drawComplexCluster(g, cluster, fontStyle, column * metrics.cellWidth, baselineY, fontRenderContext)
             }
         } else {
-            textRun.clear()
-            textRun.appendCodePoint(cache.codeWords[row][column])
-            drawComplexText(
+            drawComplexCodePoint(
                 g = g,
-                text = String(textRun.chars, 0, textRun.length),
+                codePoint = cache.codeWords[row][column],
                 fontStyle = fontStyle,
                 x = column * metrics.cellWidth,
                 baselineY = baselineY,
+                fontRenderContext = fontRenderContext,
             )
         }
 
@@ -276,6 +282,7 @@ internal class TerminalGridPainter {
         palette: TerminalColorPalette,
         metrics: TerminalSwingMetrics,
         cursorBlinkVisible: Boolean,
+        fontRenderContext: FontRenderContext,
     ) {
         val cursor = cache.cursor ?: return
         if (!cursor.visible || (cursor.blinking && !cursorBlinkVisible)) return
@@ -301,7 +308,7 @@ internal class TerminalGridPainter {
         }
 
         if (cursor.shape == TerminalRenderCursorShape.BLOCK) {
-            paintCursorForeground(g, cache, palette, metrics, cursor.column, cursor.row)
+            paintCursorForeground(g, cache, palette, metrics, cursor.column, cursor.row, fontRenderContext)
         }
     }
 
@@ -312,6 +319,7 @@ internal class TerminalGridPainter {
         metrics: TerminalSwingMetrics,
         column: Int,
         row: Int,
+        fontRenderContext: FontRenderContext,
     ) {
         val flags = cache.flags[row][column]
         if (!hasDrawableText(flags)) return
@@ -327,17 +335,23 @@ internal class TerminalGridPainter {
             if (flags and TerminalRenderCellFlags.CLUSTER != 0) {
                 val cluster = cache.clusters[row][column]
                 if (cluster != null) {
-                    drawComplexText(g, cluster, fontStyle(attr), column * metrics.cellWidth, baselineY)
+                    drawComplexCluster(
+                        g,
+                        cluster,
+                        fontStyle(attr),
+                        column * metrics.cellWidth,
+                        baselineY,
+                        fontRenderContext,
+                    )
                 }
             } else {
-                textRun.clear()
-                textRun.appendCodePoint(cache.codeWords[row][column])
-                drawComplexText(
+                drawComplexCodePoint(
                     g = g,
-                    text = String(textRun.chars, 0, textRun.length),
+                    codePoint = cache.codeWords[row][column],
                     fontStyle = fontStyle(attr),
                     x = column * metrics.cellWidth,
                     baselineY = baselineY,
+                    fontRenderContext = fontRenderContext,
                 )
             }
         } finally {
@@ -371,16 +385,30 @@ internal class TerminalGridPainter {
         }
     }
 
-    private fun drawComplexText(
+    private fun drawComplexCluster(
         g: Graphics2D,
         text: String,
         fontStyle: Int,
         x: Int,
         baselineY: Int,
+        fontRenderContext: FontRenderContext,
     ) {
-        val font = fontCache.fontForText(text, fontStyle)
-        g.font = font
-        TextLayout(text, font, g.fontRenderContext).draw(g, x.toFloat(), baselineY.toFloat())
+        complexTextLayouts
+            .clusterLayout(text, fontStyle, fontRenderContext, fontCache)
+            .draw(g, x.toFloat(), baselineY.toFloat())
+    }
+
+    private fun drawComplexCodePoint(
+        g: Graphics2D,
+        codePoint: Int,
+        fontStyle: Int,
+        x: Int,
+        baselineY: Int,
+        fontRenderContext: FontRenderContext,
+    ) {
+        complexTextLayouts
+            .codePointLayout(codePoint, fontStyle, fontRenderContext, fontCache)
+            .draw(g, x.toFloat(), baselineY.toFloat())
     }
 
     private fun hasDrawableText(flags: Int): Boolean {

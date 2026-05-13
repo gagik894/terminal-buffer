@@ -19,14 +19,15 @@ internal class TerminalFontCache {
      * Rebuilds cached style variants when [font] changes.
      *
      * @param font base terminal font.
+     * @return `true` when cached font state changed.
      */
-    fun update(font: Font, fallbackFonts: List<Font>, useSystemFallbackFonts: Boolean) {
+    fun update(font: Font, fallbackFonts: List<Font>, useSystemFallbackFonts: Boolean): Boolean {
         if (
             font == baseFont &&
             fallbackFonts == fallbackBaseFonts &&
             useSystemFallbackFonts == this.useSystemFallbackFonts
         ) {
-            return
+            return false
         }
 
         baseFont = font
@@ -43,6 +44,7 @@ internal class TerminalFontCache {
         for (cache in resolvedTextFonts) {
             cache.clear()
         }
+        return true
     }
 
     /**

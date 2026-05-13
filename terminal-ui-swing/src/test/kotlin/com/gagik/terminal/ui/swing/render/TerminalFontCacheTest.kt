@@ -1,7 +1,6 @@
 package com.gagik.terminal.ui.swing.render
 
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertSame
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import java.awt.Font
@@ -16,6 +15,18 @@ class TerminalFontCacheTest {
 
         assertSame(base, cache.font(Font.PLAIN))
         assertSame(cache.font(Font.BOLD), cache.font(Font.BOLD))
+    }
+
+    @Test
+    fun `update reports whether font settings changed`() {
+        val base = Font(Font.MONOSPACED, Font.PLAIN, 14)
+        val fallback = Font("Dialog", Font.PLAIN, 14)
+        val cache = TerminalFontCache()
+
+        assertTrue(cache.update(base, emptyList(), useSystemFallbackFonts = false))
+        assertFalse(cache.update(base, emptyList(), useSystemFallbackFonts = false))
+        assertTrue(cache.update(base, listOf(fallback), useSystemFallbackFonts = false))
+        assertTrue(cache.update(base, listOf(fallback), useSystemFallbackFonts = true))
     }
 
     @Test

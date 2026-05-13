@@ -83,6 +83,84 @@ class TerminalGridPainterTest {
     }
 
     @Test
+    fun `complex code point paints with foreground color`() {
+        val image = BufferedImage(40, 30, BufferedImage.TYPE_INT_ARGB)
+        val g = image.createGraphics()
+        val settings = TerminalSwingSettings(
+            font = Font(Font.MONOSPACED, Font.PLAIN, 14),
+            palette = TerminalColorPalette(
+                defaultForeground = RED,
+                defaultBackground = BLACK,
+            ),
+            textAntialiasing = RenderingHints.VALUE_TEXT_ANTIALIAS_OFF,
+        )
+        val metrics = TerminalSwingMetrics.from(g.getFontMetrics(settings.font))
+        val cache = TerminalRenderCache(columns = 1, rows = 1)
+        cache.updateFrom(TextFrame(text = "\u03A9", cursorVisible = false))
+
+        TerminalGridPainter().paint(
+            g = g,
+            cache = cache,
+            settings = settings,
+            metrics = metrics,
+            width = image.width,
+            height = image.height,
+            cursorBlinkVisible = true,
+        )
+        TerminalGridPainter().paint(
+            g = g,
+            cache = cache,
+            settings = settings,
+            metrics = metrics,
+            width = image.width,
+            height = image.height,
+            cursorBlinkVisible = true,
+        )
+        g.dispose()
+
+        assertTrue(
+            image.containsColor(RED, metrics.cellWidth, metrics.cellHeight),
+            "complex code point was not painted with the foreground color",
+        )
+    }
+
+    @Test
+    fun `block cursor redraws covered complex code point with cursor foreground`() {
+        val image = BufferedImage(40, 30, BufferedImage.TYPE_INT_ARGB)
+        val g = image.createGraphics()
+        val settings = TerminalSwingSettings(
+            font = Font(Font.MONOSPACED, Font.PLAIN, 14),
+            palette = TerminalColorPalette(
+                defaultForeground = WHITE,
+                defaultBackground = BLACK,
+                cursorForeground = GREEN,
+                cursorBackground = BLUE,
+            ),
+            textAntialiasing = RenderingHints.VALUE_TEXT_ANTIALIAS_OFF,
+        )
+        val metrics = TerminalSwingMetrics.from(g.getFontMetrics(settings.font))
+        val cache = TerminalRenderCache(columns = 1, rows = 1)
+        cache.updateFrom(TextFrame(text = "\u03A9", cursorVisible = true))
+
+        TerminalGridPainter().paint(
+            g = g,
+            cache = cache,
+            settings = settings,
+            metrics = metrics,
+            width = image.width,
+            height = image.height,
+            cursorBlinkVisible = true,
+        )
+        g.dispose()
+
+        assertEquals(BLUE, image.getRGB(1, 1))
+        assertTrue(
+            image.containsColor(GREEN, metrics.cellWidth, metrics.cellHeight),
+            "complex code point was not redrawn over the block cursor",
+        )
+    }
+
+    @Test
     fun `decorations use extra attributes for underline color and overline`() {
         val image = BufferedImage(80, 30, BufferedImage.TYPE_INT_ARGB)
         val g = image.createGraphics()
