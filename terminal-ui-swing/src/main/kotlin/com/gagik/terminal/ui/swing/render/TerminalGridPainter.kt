@@ -11,6 +11,7 @@ import com.gagik.terminal.ui.swing.settings.TerminalSwingSettings
 import java.awt.Font
 import java.awt.Graphics2D
 import java.awt.RenderingHints
+import java.awt.font.TextLayout
 
 /**
  * Java2D renderer for cached primitive terminal frames.
@@ -49,7 +50,7 @@ internal class TerminalGridPainter {
         cursorBlinkVisible: Boolean,
     ) {
         val palette = settings.palette
-        fontCache.update(settings.font)
+        fontCache.update(settings.font, settings.fallbackFonts)
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, settings.textAntialiasing)
         g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, settings.fractionalMetrics)
         g.font = fontCache.font(Font.PLAIN)
@@ -207,12 +208,18 @@ internal class TerminalGridPainter {
         if (flags and TerminalRenderCellFlags.CLUSTER != 0) {
             val cluster = cache.clusters[row][column]
             if (cluster != null) {
-                g.drawString(cluster, column * metrics.cellWidth, baselineY)
+                drawComplexText(g, cluster, fontStyle, column * metrics.cellWidth, baselineY)
             }
         } else {
             textRun.clear()
             textRun.appendCodePoint(cache.codeWords[row][column])
-            g.drawChars(textRun.chars, 0, textRun.length, column * metrics.cellWidth, baselineY)
+            drawComplexText(
+                g = g,
+                text = String(textRun.chars, 0, textRun.length),
+                fontStyle = fontStyle,
+                x = column * metrics.cellWidth,
+                baselineY = baselineY,
+            )
         }
 
         paintDecorations(g, attr, foreground, column, endColumn, row, metrics)
@@ -309,12 +316,18 @@ internal class TerminalGridPainter {
             if (flags and TerminalRenderCellFlags.CLUSTER != 0) {
                 val cluster = cache.clusters[row][column]
                 if (cluster != null) {
-                    g.drawString(cluster, column * metrics.cellWidth, baselineY)
+                    drawComplexText(g, cluster, fontStyle(attr), column * metrics.cellWidth, baselineY)
                 }
             } else {
                 textRun.clear()
                 textRun.appendCodePoint(cache.codeWords[row][column])
-                g.drawChars(textRun.chars, 0, textRun.length, column * metrics.cellWidth, baselineY)
+                drawComplexText(
+                    g = g,
+                    text = String(textRun.chars, 0, textRun.length),
+                    fontStyle = fontStyle(attr),
+                    x = column * metrics.cellWidth,
+                    baselineY = baselineY,
+                )
             }
         } finally {
             g.clip = oldClip
@@ -345,6 +358,18 @@ internal class TerminalGridPainter {
             )
             index++
         }
+    }
+
+    private fun drawComplexText(
+        g: Graphics2D,
+        text: String,
+        fontStyle: Int,
+        x: Int,
+        baselineY: Int,
+    ) {
+        val font = fontCache.fontForText(text, fontStyle)
+        g.font = font
+        TextLayout(text, font, g.fontRenderContext).draw(g, x.toFloat(), baselineY.toFloat())
     }
 
     private fun hasDrawableText(flags: Int): Boolean {

@@ -17,9 +17,12 @@ import java.awt.RenderingHints
  * @property cursorBlinkMillis cursor blink period in milliseconds.
  * @property textAntialiasing text antialiasing hint used during painting.
  * @property fractionalMetrics fractional font metrics hint used during painting.
+ * @property fallbackFonts ordered fonts used by the complex-text renderer when
+ * [font] cannot display a non-ASCII cluster.
  */
 data class TerminalSwingSettings(
     val font: Font = Font(Font.MONOSPACED, Font.PLAIN, 14),
+    val fallbackFonts: List<Font> = defaultFallbackFonts(),
     val palette: TerminalColorPalette = TerminalColorPalette(),
     val columns: Int = 80,
     val rows: Int = 24,
@@ -33,6 +36,25 @@ data class TerminalSwingSettings(
         require(cursorBlinkMillis > 0) {
             "cursorBlinkMillis must be > 0, was $cursorBlinkMillis"
         }
+    }
+
+    companion object {
+        /**
+         * Returns conservative logical and common platform fonts for complex
+         * script fallback. Hosts can replace this list with their own font
+         * resolver policy.
+         */
+        @JvmStatic
+        fun defaultFallbackFonts(): List<Font> = listOf(
+            Font("Dialog", Font.PLAIN, 14),
+            Font(Font.SANS_SERIF, Font.PLAIN, 14),
+            Font("Segoe UI", Font.PLAIN, 14),
+            Font("Segoe UI Symbol", Font.PLAIN, 14),
+            Font("Leelawadee UI", Font.PLAIN, 14),
+            Font("Noto Sans Thai", Font.PLAIN, 14),
+            Font("Noto Sans CJK SC", Font.PLAIN, 14),
+            Font("Noto Color Emoji", Font.PLAIN, 14),
+        )
     }
 }
 
