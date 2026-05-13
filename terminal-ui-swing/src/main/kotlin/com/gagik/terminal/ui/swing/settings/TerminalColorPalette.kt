@@ -20,20 +20,29 @@ import com.gagik.terminal.render.api.TerminalRenderColorKind
  * @property boldAsBright whether indexed ANSI 0..7 foreground colors should use
  * bright variants 8..15 when bold is active.
  */
-data class TerminalColorPalette(
+class TerminalColorPalette(
     val defaultForeground: Int = 0xFFE6E8EF.toInt(),
     val defaultBackground: Int = 0xFF111318.toInt(),
     val selectionForeground: Int = 0xFFFFFFFF.toInt(),
     val selectionBackground: Int = 0xFF2F6FEB.toInt(),
     val cursorForeground: Int = 0xFF111318.toInt(),
     val cursorBackground: Int = 0xFFE6E8EF.toInt(),
-    val indexedColors: IntArray = defaultIndexedColors(),
+    indexedColors: IntArray = defaultIndexedColors(),
     val boldAsBright: Boolean = true,
 ) {
+    private val indexedColorStorage: IntArray
+
+    /**
+     * 256-entry indexed palette in packed ARGB form.
+     */
+    val indexedColors: IntArray
+        get() = indexedColorStorage.copyOf()
+
     init {
         require(indexedColors.size == INDEXED_COLOR_COUNT) {
             "indexedColors must contain $INDEXED_COLOR_COUNT colors, got ${indexedColors.size}"
         }
+        indexedColorStorage = indexedColors.copyOf()
     }
 
     /**
@@ -76,6 +85,55 @@ data class TerminalColorPalette(
         }
     }
 
+    /**
+     * Returns an indexed palette color without exposing mutable palette storage.
+     *
+     * @param index ANSI indexed color in `0..255`.
+     * @return packed ARGB color.
+     */
+    fun indexedColor(index: Int): Int {
+        require(index in 0 until INDEXED_COLOR_COUNT) {
+            "indexed color index out of range: $index"
+        }
+        return indexedColorStorage[index]
+    }
+
+    /**
+     * Creates a palette with selected properties replaced.
+     *
+     * @param defaultForeground default foreground ARGB color.
+     * @param defaultBackground default background ARGB color.
+     * @param selectionForeground selection foreground ARGB color.
+     * @param selectionBackground selection background ARGB color.
+     * @param cursorForeground cursor foreground ARGB color.
+     * @param cursorBackground cursor background ARGB color.
+     * @param indexedColors 256-entry indexed palette in packed ARGB form.
+     * @param boldAsBright whether indexed ANSI 0..7 foreground colors should use
+     * bright variants 8..15 when bold is active.
+     * @return immutable palette copy.
+     */
+    fun copy(
+        defaultForeground: Int = this.defaultForeground,
+        defaultBackground: Int = this.defaultBackground,
+        selectionForeground: Int = this.selectionForeground,
+        selectionBackground: Int = this.selectionBackground,
+        cursorForeground: Int = this.cursorForeground,
+        cursorBackground: Int = this.cursorBackground,
+        indexedColors: IntArray = indexedColorStorage,
+        boldAsBright: Boolean = this.boldAsBright,
+    ): TerminalColorPalette {
+        return TerminalColorPalette(
+            defaultForeground = defaultForeground,
+            defaultBackground = defaultBackground,
+            selectionForeground = selectionForeground,
+            selectionBackground = selectionBackground,
+            cursorForeground = cursorForeground,
+            cursorBackground = cursorBackground,
+            indexedColors = indexedColors,
+            boldAsBright = boldAsBright,
+        )
+    }
+
     private fun foregroundWithoutInverse(attrWord: Long): Int {
         val color = resolveColor(
             kind = TerminalRenderAttrs.foregroundKind(attrWord),
@@ -112,7 +170,7 @@ data class TerminalColorPalette(
                 } else {
                     value
                 }
-                indexedColors[index]
+                indexedColorStorage[index]
             }
             TerminalRenderColorKind.RGB -> 0xFF000000.toInt() or value
             else -> defaultColor
@@ -139,7 +197,7 @@ data class TerminalColorPalette(
             selectionBackground == other.selectionBackground &&
             cursorForeground == other.cursorForeground &&
             cursorBackground == other.cursorBackground &&
-            indexedColors.contentEquals(other.indexedColors) &&
+            indexedColorStorage.contentEquals(other.indexedColorStorage) &&
             boldAsBright == other.boldAsBright
     }
 
@@ -150,9 +208,22 @@ data class TerminalColorPalette(
         result = 31 * result + selectionBackground
         result = 31 * result + cursorForeground
         result = 31 * result + cursorBackground
-        result = 31 * result + indexedColors.contentHashCode()
+        result = 31 * result + indexedColorStorage.contentHashCode()
         result = 31 * result + boldAsBright.hashCode()
         return result
+    }
+
+    override fun toString(): String {
+        return "TerminalColorPalette(" +
+            "defaultForeground=$defaultForeground, " +
+            "defaultBackground=$defaultBackground, " +
+            "selectionForeground=$selectionForeground, " +
+            "selectionBackground=$selectionBackground, " +
+            "cursorForeground=$cursorForeground, " +
+            "cursorBackground=$cursorBackground, " +
+            "indexedColors=${indexedColorStorage.contentToString()}, " +
+            "boldAsBright=$boldAsBright" +
+            ")"
     }
 
     companion object {

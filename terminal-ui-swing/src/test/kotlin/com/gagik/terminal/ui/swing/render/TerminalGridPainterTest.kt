@@ -82,6 +82,103 @@ class TerminalGridPainterTest {
         )
     }
 
+    @Test
+    fun `decorations use extra attributes for underline color and overline`() {
+        val image = BufferedImage(80, 30, BufferedImage.TYPE_INT_ARGB)
+        val g = image.createGraphics()
+        val settings = TerminalSwingSettings(
+            font = Font(Font.MONOSPACED, Font.PLAIN, 14),
+            palette = TerminalColorPalette(
+                defaultForeground = WHITE,
+                defaultBackground = BLACK,
+            ),
+            textAntialiasing = RenderingHints.VALUE_TEXT_ANTIALIAS_OFF,
+        )
+        val metrics = TerminalSwingMetrics.from(g.getFontMetrics(settings.font))
+        val cache = TerminalRenderCache(columns = 2, rows = 1)
+        cache.updateFrom(
+            TextFrame(
+                text = "AB",
+                cursorVisible = false,
+                attrs = longArrayOf(
+                    TerminalRenderAttrs.pack(underlineStyle = TerminalRenderUnderline.SINGLE),
+                    TerminalRenderAttrs.DEFAULT,
+                ),
+                extraAttrs = longArrayOf(
+                    TerminalRenderExtraAttrs.pack(
+                        underlineColorKind = TerminalRenderColorKind.RGB,
+                        underlineColorValue = 0x00FF00,
+                    ),
+                    TerminalRenderExtraAttrs.pack(overline = true),
+                ),
+            ),
+        )
+
+        TerminalGridPainter().paint(
+            g = g,
+            cache = cache,
+            settings = settings,
+            metrics = metrics,
+            width = image.width,
+            height = image.height,
+            cursorBlinkVisible = true,
+        )
+        g.dispose()
+
+        assertEquals(GREEN, image.getRGB(1, metrics.underlineY))
+        assertEquals(WHITE, image.getRGB(metrics.cellWidth + 1, metrics.overlineY))
+    }
+
+    @Test
+    fun `extra decoration attributes split ascii runs`() {
+        val image = BufferedImage(80, 30, BufferedImage.TYPE_INT_ARGB)
+        val g = image.createGraphics()
+        val settings = TerminalSwingSettings(
+            font = Font(Font.MONOSPACED, Font.PLAIN, 14),
+            palette = TerminalColorPalette(
+                defaultForeground = WHITE,
+                defaultBackground = BLACK,
+            ),
+            textAntialiasing = RenderingHints.VALUE_TEXT_ANTIALIAS_OFF,
+        )
+        val metrics = TerminalSwingMetrics.from(g.getFontMetrics(settings.font))
+        val cache = TerminalRenderCache(columns = 2, rows = 1)
+        cache.updateFrom(
+            TextFrame(
+                text = "AB",
+                cursorVisible = false,
+                attrs = longArrayOf(
+                    TerminalRenderAttrs.pack(underlineStyle = TerminalRenderUnderline.SINGLE),
+                    TerminalRenderAttrs.pack(underlineStyle = TerminalRenderUnderline.SINGLE),
+                ),
+                extraAttrs = longArrayOf(
+                    TerminalRenderExtraAttrs.pack(
+                        underlineColorKind = TerminalRenderColorKind.RGB,
+                        underlineColorValue = 0x00FF00,
+                    ),
+                    TerminalRenderExtraAttrs.pack(
+                        underlineColorKind = TerminalRenderColorKind.RGB,
+                        underlineColorValue = 0x0000FF,
+                    ),
+                ),
+            ),
+        )
+
+        TerminalGridPainter().paint(
+            g = g,
+            cache = cache,
+            settings = settings,
+            metrics = metrics,
+            width = image.width,
+            height = image.height,
+            cursorBlinkVisible = true,
+        )
+        g.dispose()
+
+        assertEquals(GREEN, image.getRGB(1, metrics.underlineY))
+        assertEquals(BLUE, image.getRGB(metrics.cellWidth + 1, metrics.underlineY))
+    }
+
     private fun BufferedImage.containsColorInRange(argb: Int, xStart: Int, xEnd: Int): Boolean {
         var y = 0
         while (y < height) {
@@ -111,6 +208,8 @@ class TerminalGridPainterTest {
     private class TextFrame(
         private val text: String,
         private val cursorVisible: Boolean,
+        private val attrs: LongArray = LongArray(text.length) { TerminalRenderAttrs.DEFAULT },
+        private val extraAttrs: LongArray = LongArray(text.length) { TerminalRenderExtraAttrs.DEFAULT },
     ) : TerminalRenderFrameReader, TerminalRenderFrame {
         override val columns: Int = text.length
         override val rows: Int = 1
@@ -151,9 +250,9 @@ class TerminalGridPainterTest {
             var column = 0
             while (column < columns) {
                 codeWords[codeOffset + column] = text[column].code
-                attrWords[attrOffset + column] = TerminalRenderAttrs.DEFAULT
+                attrWords[attrOffset + column] = attrs[column]
                 flags[flagOffset + column] = TerminalRenderCellFlags.CODEPOINT
-                extraAttrWords?.set(extraAttrOffset + column, TerminalRenderExtraAttrs.DEFAULT)
+                extraAttrWords?.set(extraAttrOffset + column, extraAttrs[column])
                 hyperlinkIds?.set(hyperlinkOffset + column, 0)
                 column++
             }
@@ -164,6 +263,7 @@ class TerminalGridPainterTest {
         private const val BLACK = 0xFF000000.toInt()
         private const val WHITE = 0xFFFFFFFF.toInt()
         private const val RED = 0xFFFF0000.toInt()
+        private const val GREEN = 0xFF00FF00.toInt()
         private const val BLUE = 0xFF0000FF.toInt()
     }
 }

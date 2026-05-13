@@ -1,9 +1,6 @@
 package com.gagik.terminal.ui.swing.render
 
-import com.gagik.terminal.render.api.TerminalRenderAttrs
-import com.gagik.terminal.render.api.TerminalRenderCellFlags
-import com.gagik.terminal.render.api.TerminalRenderCursorShape
-import com.gagik.terminal.render.api.TerminalRenderUnderline
+import com.gagik.terminal.render.api.*
 import com.gagik.terminal.render.cache.TerminalRenderCache
 import com.gagik.terminal.ui.swing.settings.TerminalColorPalette
 import com.gagik.terminal.ui.swing.settings.TerminalSwingMetrics
@@ -155,11 +152,13 @@ internal class TerminalGridPainter {
     ): Int {
         val flagsRow = cache.flags[row]
         val attrRow = cache.attrWords[row]
+        val extraAttrRow = cache.extraAttrWords[row]
         val codeWordRow = cache.codeWords[row]
         val attr = attrRow[startColumn]
+        val extraAttr = extraAttrRow[startColumn]
         val foreground = palette.foreground(attr)
         val fontStyle = fontStyle(attr)
-        val decoration = decorationKey(attr)
+        val decoration = decorationKey(attr, extraAttr)
         var column = startColumn
 
         textRun.clear()
@@ -167,11 +166,12 @@ internal class TerminalGridPainter {
             val flags = flagsRow[column]
             val codeWord = codeWordRow[column]
             val currentAttr = attrRow[column]
+            val currentExtraAttr = extraAttrRow[column]
             if (
                 !isFastAsciiCell(flags, codeWord) ||
                 palette.foreground(currentAttr) != foreground ||
                 fontStyle(currentAttr) != fontStyle ||
-                decorationKey(currentAttr) != decoration
+                decorationKey(currentAttr, currentExtraAttr) != decoration
             ) {
                 break
             }
@@ -183,7 +183,7 @@ internal class TerminalGridPainter {
         g.font = fontCache.font(fontStyle)
         g.color = colorCache.color(foreground)
         drawAsciiRun(g, metrics, startColumn, baselineY)
-        paintDecorations(g, attr, foreground, startColumn, column, row, metrics)
+        paintDecorations(g, palette, attr, extraAttr, foreground, startColumn, column, row, metrics)
         return column
     }
 
@@ -198,6 +198,7 @@ internal class TerminalGridPainter {
     ): Int {
         val flags = cache.flags[row][column]
         val attr = cache.attrWords[row][column]
+        val extraAttr = cache.extraAttrWords[row][column]
         val foreground = palette.foreground(attr)
         val fontStyle = fontStyle(attr)
         val endColumn = minOf(cache.columns, column + cellSpan(flags))
@@ -222,13 +223,15 @@ internal class TerminalGridPainter {
             )
         }
 
-        paintDecorations(g, attr, foreground, column, endColumn, row, metrics)
+        paintDecorations(g, palette, attr, extraAttr, foreground, column, endColumn, row, metrics)
         return endColumn
     }
 
     private fun paintDecorations(
         g: Graphics2D,
+        palette: TerminalColorPalette,
         attr: Long,
+        extraAttr: Long,
         foreground: Int,
         startColumn: Int,
         endColumn: Int,
@@ -237,14 +240,15 @@ internal class TerminalGridPainter {
     ) {
         val underline = TerminalRenderAttrs.underlineStyle(attr)
         val strikethrough = TerminalRenderAttrs.isStrikethrough(attr)
-        if (underline == TerminalRenderUnderline.NONE && !strikethrough) return
+        val overline = TerminalRenderExtraAttrs.isOverline(extraAttr)
+        if (underline == TerminalRenderUnderline.NONE && !strikethrough && !overline) return
 
-        g.color = colorCache.color(foreground)
         val x = startColumn * metrics.cellWidth
         val width = (endColumn - startColumn) * metrics.cellWidth
         val rowY = row * metrics.cellHeight
 
         if (underline != TerminalRenderUnderline.NONE) {
+            g.color = colorCache.color(underlineColor(palette, extraAttr, foreground))
             val y = rowY + metrics.underlineY
             g.drawLine(x, y, x + width, y)
             if (underline == TerminalRenderUnderline.DOUBLE) {
@@ -254,7 +258,14 @@ internal class TerminalGridPainter {
         }
 
         if (strikethrough) {
+            g.color = colorCache.color(foreground)
             val y = rowY + metrics.strikethroughY
+            g.drawLine(x, y, x + width, y)
+        }
+
+        if (overline) {
+            g.color = colorCache.color(foreground)
+            val y = rowY + metrics.overlineY
             g.drawLine(x, y, x + width, y)
         }
     }
@@ -392,9 +403,24 @@ internal class TerminalGridPainter {
         return style
     }
 
-    private fun decorationKey(attr: Long): Int {
-        return TerminalRenderAttrs.underlineStyle(attr) or
-            (if (TerminalRenderAttrs.isStrikethrough(attr)) STRIKETHROUGH_KEY else 0)
+    private fun decorationKey(attr: Long, extraAttr: Long): Long {
+        return TerminalRenderAttrs.underlineStyle(attr).toLong() or
+            (if (TerminalRenderAttrs.isStrikethrough(attr)) STRIKETHROUGH_KEY else 0L) or
+            (extraAttr shl EXTRA_ATTR_KEY_SHIFT)
+    }
+
+    private fun underlineColor(
+        palette: TerminalColorPalette,
+        extraAttr: Long,
+        defaultColor: Int,
+    ): Int {
+        val value = TerminalRenderExtraAttrs.underlineColorValue(extraAttr)
+        return when (TerminalRenderExtraAttrs.underlineColorKind(extraAttr)) {
+            TerminalRenderColorKind.DEFAULT -> defaultColor
+            TerminalRenderColorKind.INDEXED -> palette.indexedColor(value)
+            TerminalRenderColorKind.RGB -> 0xFF000000.toInt() or value
+            else -> defaultColor
+        }
     }
 
     private fun fill(g: Graphics2D, x: Int, y: Int, width: Int, height: Int, argb: Int) {
@@ -404,6 +430,7 @@ internal class TerminalGridPainter {
 
     private companion object {
         private const val INITIAL_TEXT_RUN_CAPACITY = 256
-        private const val STRIKETHROUGH_KEY = 1 shl 8
+        private const val STRIKETHROUGH_KEY = 1L shl 8
+        private const val EXTRA_ATTR_KEY_SHIFT = 9
     }
 }

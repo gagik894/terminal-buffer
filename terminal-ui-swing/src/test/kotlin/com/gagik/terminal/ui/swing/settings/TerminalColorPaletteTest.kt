@@ -37,6 +37,19 @@ class TerminalColorPaletteTest {
     }
 
     @Test
+    fun copiesIndexedColorsOnConstructionAndAccess() {
+        val colors = IntArray(256) { 0xFF000000.toInt() or it }
+        val palette = TerminalColorPalette(indexedColors = colors)
+
+        colors[4] = 0xFFFF0000.toInt()
+        val exposed = palette.indexedColors
+        exposed[4] = 0xFF00FF00.toInt()
+
+        assertEquals(0xFF000004.toInt(), palette.indexedColor(4))
+        assertEquals(0xFF000004.toInt(), palette.indexedColors[4])
+    }
+
+    @Test
     fun inverseSwapsForegroundAndBackground() {
         val palette = TerminalColorPalette(
             defaultForeground = 0xFF111111.toInt(),

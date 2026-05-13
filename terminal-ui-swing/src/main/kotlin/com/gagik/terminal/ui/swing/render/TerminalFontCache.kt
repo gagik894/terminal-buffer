@@ -13,7 +13,7 @@ internal class TerminalFontCache {
     private val styleFonts = arrayOfNulls<Font>(STYLE_COUNT)
     private var fallbackStyleFonts: Array<Array<Font?>> = emptyArray()
     private var systemStyleFonts: Array<Array<Font?>> = emptyArray()
-    private val resolvedTextFonts = HashMap<String, Font>()
+    private val resolvedTextFonts = Array(STYLE_COUNT) { HashMap<String, Font>() }
 
     /**
      * Rebuilds cached style variants when [font] changes.
@@ -40,7 +40,9 @@ internal class TerminalFontCache {
         } else {
             emptyArray()
         }
-        resolvedTextFonts.clear()
+        for (cache in resolvedTextFonts) {
+            cache.clear()
+        }
     }
 
     /**
@@ -66,17 +68,19 @@ internal class TerminalFontCache {
      * [text], falling back to [font] when no configured fallback covers it.
      */
     fun fontForText(text: String, style: Int): Font {
-        val primary = font(style)
+        val normalizedStyle = style and STYLE_MASK
+        val primary = font(normalizedStyle)
         if (primary.canDisplayUpTo(text) < 0) return primary
 
-        val cached = resolvedTextFonts[text]
+        val styleResolvedTextFonts = resolvedTextFonts[normalizedStyle]
+        val cached = styleResolvedTextFonts[text]
         if (cached != null) return cached
 
         var index = 0
         while (index < fallbackBaseFonts.size) {
-            val fallback = fallbackFont(index, style)
+            val fallback = fallbackFont(index, normalizedStyle)
             if (fallback.canDisplayUpTo(text) < 0) {
-                resolvedTextFonts[text] = fallback
+                styleResolvedTextFonts[text] = fallback
                 return fallback
             }
             index++
@@ -85,9 +89,9 @@ internal class TerminalFontCache {
         if (useSystemFallbackFonts) {
             index = 0
             while (index < systemFallbackFonts.size) {
-                val fallback = systemFallbackFont(index, style)
+                val fallback = systemFallbackFont(index, normalizedStyle)
                 if (fallback.canDisplayUpTo(text) < 0) {
-                    resolvedTextFonts[text] = fallback
+                    styleResolvedTextFonts[text] = fallback
                     return fallback
                 }
                 index++
