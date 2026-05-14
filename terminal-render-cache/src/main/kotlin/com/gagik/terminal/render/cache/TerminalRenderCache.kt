@@ -49,37 +49,37 @@ class TerminalRenderCache(
     /**
      * Copied row code words. See [TerminalRenderFrame.copyLine].
      */
-    var codeWords: Array<IntArray> = emptyIntRows()
+    var codeWords: Array<IntArray> = EMPTY_INT_ROWS
         private set
 
     /**
      * Copied primary public render attribute words.
      */
-    var attrWords: Array<LongArray> = emptyLongRows()
+    var attrWords: Array<LongArray> = EMPTY_LONG_ROWS
         private set
 
     /**
      * Copied public render cell flags.
      */
-    var flags: Array<IntArray> = emptyIntRows()
+    var flags: Array<IntArray> = EMPTY_INT_ROWS
         private set
 
     /**
      * Copied optional public extra-attribute words.
      */
-    var extraAttrWords: Array<LongArray> = emptyLongRows()
+    var extraAttrWords: Array<LongArray> = EMPTY_LONG_ROWS
         private set
 
     /**
      * Copied optional hyperlink identifiers. Zero means no hyperlink.
      */
-    var hyperlinkIds: Array<IntArray> = emptyIntRows()
+    var hyperlinkIds: Array<IntArray> = EMPTY_INT_ROWS
         private set
 
     /**
      * Copied cluster text by row and column. Non-cluster cells contain `null`.
      */
-    var clusters: Array<Array<String?>> = emptyClusterRows()
+    var clusters: Array<Array<String?>> = EMPTY_CLUSTER_ROWS
         private set
 
     /**
@@ -141,7 +141,7 @@ class TerminalRenderCache(
         private set
 
     private var clusterSinkRow: Int = NO_CLUSTER_SINK_ROW
-    private var clusterSinkClusters: Array<Array<String?>> = emptyClusterRows()
+    private var clusterSinkClusters: Array<Array<String?>> = EMPTY_CLUSTER_ROWS
 
     /**
      * Reused sink to avoid allocating one capturing lambda per copied row.
@@ -273,7 +273,7 @@ class TerminalRenderCache(
                         )
                     } finally {
                         clusterSinkRow = NO_CLUSTER_SINK_ROW
-                        clusterSinkClusters = emptyClusterRows()
+                        clusterSinkClusters = EMPTY_CLUSTER_ROWS
                     }
 
                     lineGenerations[row] = lineGeneration
@@ -326,7 +326,7 @@ class TerminalRenderCache(
         activeBuffer = TerminalRenderBufferKind.PRIMARY
         cursorChangedOnLastUpdate = false
         clusterSinkRow = NO_CLUSTER_SINK_ROW
-        clusterSinkClusters = emptyClusterRows()
+        clusterSinkClusters = EMPTY_CLUSTER_ROWS
     }
 
     private fun clearAllClusters() {
@@ -345,10 +345,10 @@ class TerminalRenderCache(
         private const val UNINITIALIZED_GENERATION = -1L
         private const val NO_CLUSTER_SINK_ROW = -1
 
-        private fun emptyIntRows(): Array<IntArray> = emptyArray()
+        private val EMPTY_INT_ROWS: Array<IntArray> = emptyArray()
 
-        private fun emptyLongRows(): Array<LongArray> = emptyArray()
+        private val EMPTY_LONG_ROWS: Array<LongArray> = emptyArray()
 
-        private fun emptyClusterRows(): Array<Array<String?>> = emptyArray()
+        private val EMPTY_CLUSTER_ROWS: Array<Array<String?>> = emptyArray()
     }
 }

@@ -104,11 +104,20 @@ class TerminalRenderPublisher(
      * @return [block]'s result, or `null` when no frame is available.
      */
     fun <T> readCurrent(block: (TerminalRenderCache) -> T): T? {
-        val lease = acquireFrontLease() ?: return null
+        val index = publishLock.withLock {
+            val i = frontIndex
+            if (i != NO_FRONT) {
+                readerCounts[i]++
+            }
+            i
+        }
+
+        if (index == NO_FRONT) return null
+
         try {
-            return block(lease.cache)
+            return block(buffers[index])
         } finally {
-            releaseFrontLease(lease.index)
+            releaseFrontLease(index)
         }
     }
 
@@ -143,16 +152,6 @@ class TerminalRenderPublisher(
         }
     }
 
-    private fun acquireFrontLease(): FrontLease? {
-        publishLock.withLock {
-            val index = frontIndex
-            if (index == NO_FRONT) return null
-
-            readerCounts[index]++
-            return FrontLease(index, buffers[index])
-        }
-    }
-
     private fun releaseFrontLease(index: Int) {
         publishLock.withLock {
             readerCounts[index]--
@@ -172,11 +171,6 @@ class TerminalRenderPublisher(
             bufferAvailable.signalAll()
         }
     }
-
-    private data class FrontLease(
-        val index: Int,
-        val cache: TerminalRenderCache,
-    )
 
     private companion object {
         private const val BUFFER_COUNT = 3
