@@ -58,7 +58,7 @@ internal class TerminalComplexTextLayoutCache(
         if (cached != null) return cached
 
         val text = String(Character.toChars(codePoint))
-        val layout = TextLayout(text, fontCache.fontForText(text, normalizedStyle), fontRenderContext)
+        val layout = TextLayout(text, fontCache.fontForCodePoint(codePoint, normalizedStyle), fontRenderContext)
         codePointLayouts.put(key, layout)
         return layout
     }

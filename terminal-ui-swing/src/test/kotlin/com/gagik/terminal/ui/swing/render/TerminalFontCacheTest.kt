@@ -99,7 +99,7 @@ class TerminalFontCacheTest {
         val resolved = cache.fontForText(missing, Font.PLAIN)
 
         assertSame(primary, resolved)
-        assertSame(primary, cache.resolvedFontCache(Font.PLAIN)[missing])
+        assertSame(primary, cache.resolvedTextFontCache(Font.PLAIN)[missing])
     }
 
     @Test
@@ -115,15 +115,72 @@ class TerminalFontCacheTest {
         val resolved = cache.fontForText(missing, Font.BOLD)
 
         assertEquals(Font.BOLD, resolved.style)
-        assertSame(resolved, cache.resolvedFontCache(Font.BOLD)[missing])
-        assertNull(cache.resolvedFontCache(Font.PLAIN)[missing])
+        assertSame(resolved, cache.resolvedTextFontCache(Font.BOLD)[missing])
+        assertNull(cache.resolvedTextFontCache(Font.PLAIN)[missing])
+    }
+
+    @Test
+    fun `fontForText evicts old cluster fallback entries`() {
+        val primary = Font(Font.MONOSPACED, Font.PLAIN, 14)
+        val cache = TerminalFontCache(textFallbackCapacityPerStyle = 2)
+        cache.update(primary, emptyList(), useSystemFallbackFonts = false)
+
+        cache.fontForText(String(Character.toChars(0x10FFFF)), Font.PLAIN)
+        cache.fontForText(String(Character.toChars(0x10FFFE)), Font.PLAIN)
+        cache.fontForText(String(Character.toChars(0x10FFFD)), Font.PLAIN)
+
+        assertEquals(2, cache.resolvedTextFontCache(Font.PLAIN).size)
+    }
+
+    @Test
+    fun `fontForCodePoint uses primitive bounded cache`() {
+        val primary = Font(Font.MONOSPACED, Font.PLAIN, 14)
+        val codePoint = 0x10FFFF
+
+        assumeTrue(!primary.canDisplay(codePoint))
+
+        val cache = TerminalFontCache(codePointFallbackCapacityPerStyle = 2)
+        cache.update(primary, emptyList(), useSystemFallbackFonts = false)
+
+        val resolved = cache.fontForCodePoint(codePoint, Font.BOLD)
+
+        assertEquals(Font.BOLD, resolved.style)
+        assertEquals(1, cache.resolvedCodePointFontCacheSize(Font.BOLD))
+        assertTrue(cache.resolvedTextFontCache(Font.BOLD).isEmpty())
+    }
+
+    @Test
+    fun `fontForCodePoint evicts old primitive fallback entries`() {
+        val primary = Font(Font.MONOSPACED, Font.PLAIN, 14)
+        assumeTrue(!primary.canDisplay(0x10FFFF))
+        assumeTrue(!primary.canDisplay(0x10FFFE))
+        assumeTrue(!primary.canDisplay(0x10FFFD))
+
+        val cache = TerminalFontCache(codePointFallbackCapacityPerStyle = 2)
+        cache.update(primary, emptyList(), useSystemFallbackFonts = false)
+
+        cache.fontForCodePoint(0x10FFFF, Font.PLAIN)
+        cache.fontForCodePoint(0x10FFFE, Font.PLAIN)
+        cache.fontForCodePoint(0x10FFFD, Font.PLAIN)
+
+        assertEquals(2, cache.resolvedCodePointFontCacheSize(Font.PLAIN))
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun TerminalFontCache.resolvedFontCache(style: Int): Map<String, Font> {
+    private fun TerminalFontCache.resolvedTextFontCache(style: Int): Map<String, Font> {
         val field = TerminalFontCache::class.java.getDeclaredField("resolvedTextFonts")
         field.isAccessible = true
-        val caches = field.get(this) as Array<HashMap<String, Font>>
+        val caches = field.get(this) as Array<Map<String, Font>>
         return caches[style and (Font.BOLD or Font.ITALIC)]
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun TerminalFontCache.resolvedCodePointFontCacheSize(style: Int): Int {
+        val field = TerminalFontCache::class.java.getDeclaredField("resolvedCodePointFonts")
+        field.isAccessible = true
+        val caches = field.get(this) as Array<Any>
+        val sizeField = caches[style and (Font.BOLD or Font.ITALIC)].javaClass.getDeclaredField("size")
+        sizeField.isAccessible = true
+        return sizeField.getInt(caches[style and (Font.BOLD or Font.ITALIC)])
     }
 }
