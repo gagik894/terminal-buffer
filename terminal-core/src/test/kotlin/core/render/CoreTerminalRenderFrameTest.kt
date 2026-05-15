@@ -267,6 +267,29 @@ class CoreTerminalRenderFrameTest {
     }
 
     @Test
+    fun `scrollback cursor row is translated into render viewport and clipped`() {
+        val buffer = TerminalBuffer(initialWidth = 4, initialHeight = 3, maxHistory = 5)
+        val reader = buffer as TerminalRenderFrameReader
+        repeat(6) { buffer.writeLogicalLine("L$it") }
+        buffer.positionCursor(col = 1, row = 0)
+
+        reader.readRenderFrame(scrollbackOffset = 1) { frame ->
+            assertAll(
+                { assertEquals(1, frame.cursor.column) },
+                { assertEquals(1, frame.cursor.row) },
+                { assertTrue(frame.cursor.visible) },
+            )
+        }
+
+        reader.readRenderFrame(scrollbackOffset = 3) { frame ->
+            assertAll(
+                { assertEquals(3, frame.cursor.row) },
+                { assertFalse(frame.cursor.visible) },
+            )
+        }
+    }
+
+    @Test
     fun `scrollback render viewport can expose one overscan row`() {
         val buffer = TerminalBuffer(initialWidth = 4, initialHeight = 3, maxHistory = 5)
         val reader = buffer as TerminalRenderFrameReader
@@ -276,6 +299,8 @@ class CoreTerminalRenderFrameTest {
             assertAll(
                 { assertEquals(4, frame.rows) },
                 { assertEquals(1, frame.scrollbackOffset) },
+                { assertEquals(3, frame.cursor.row) },
+                { assertTrue(frame.cursor.visible) },
                 { assertEquals("L3", rowText(frame, 0)) },
                 { assertEquals("L4", rowText(frame, 1)) },
                 { assertEquals("L5", rowText(frame, 2)) },
