@@ -47,7 +47,7 @@ internal class TerminalShadeTextureCache {
     }
 
     private fun textureWidth(kind: Int): Int {
-        return if (kind == SHADE_LIGHT) 4 else 4
+        return if (kind == SHADE_MEDIUM) 2 else 4
     }
 
     private fun textureHeight(kind: Int): Int {

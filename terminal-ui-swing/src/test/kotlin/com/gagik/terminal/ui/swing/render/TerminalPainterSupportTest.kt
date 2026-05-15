@@ -1,0 +1,60 @@
+package com.gagik.terminal.ui.swing.render
+
+import com.gagik.terminal.render.api.TerminalRenderAttrs
+import com.gagik.terminal.render.api.TerminalRenderCellFlags
+import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Test
+import java.awt.Font
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+
+class TerminalPainterSupportTest {
+
+    @Nested
+    inner class FontStyleResolution {
+        @Test
+        fun `terminalFontStyle extracts bold and italic combinations`() {
+            assertEquals(Font.PLAIN, terminalFontStyle(TerminalRenderAttrs.DEFAULT))
+            assertEquals(Font.BOLD, terminalFontStyle(TerminalRenderAttrs.pack(bold = true)))
+            assertEquals(Font.ITALIC, terminalFontStyle(TerminalRenderAttrs.pack(italic = true)))
+            assertEquals(Font.BOLD or Font.ITALIC, terminalFontStyle(TerminalRenderAttrs.pack(bold = true, italic = true)))
+        }
+    }
+
+    @Nested
+    inner class CellFlagEvaluation {
+        @Test
+        fun `hasDrawableText identifies codepoints and clusters but ignores structural blanks`() {
+            assertFalse(hasDrawableText(TerminalRenderCellFlags.EMPTY))
+            assertFalse(hasDrawableText(TerminalRenderCellFlags.WIDE_TRAILING))
+
+            assertTrue(hasDrawableText(TerminalRenderCellFlags.CODEPOINT))
+            assertTrue(hasDrawableText(TerminalRenderCellFlags.CLUSTER))
+            assertTrue(hasDrawableText(TerminalRenderCellFlags.CODEPOINT or TerminalRenderCellFlags.WIDE_LEADING))
+        }
+
+        @Test
+        fun `isFastAsciiCell strictly filters to printable ascii range`() {
+            // Boundary values
+            assertTrue(isFastAsciiCell(TerminalRenderCellFlags.CODEPOINT, 0x20)) // Space
+            assertTrue(isFastAsciiCell(TerminalRenderCellFlags.CODEPOINT, 0x7E)) // Tilde
+
+            // Out of bounds (Control chars and extended ASCII)
+            assertFalse(isFastAsciiCell(TerminalRenderCellFlags.CODEPOINT, 0x1F))
+            assertFalse(isFastAsciiCell(TerminalRenderCellFlags.CODEPOINT, 0x7F)) // DEL
+
+            // Invalid flags (Must be purely CODEPOINT, no CLUSTER or WIDE flags)
+            assertFalse(isFastAsciiCell(TerminalRenderCellFlags.CLUSTER, 0x41))
+            assertFalse(isFastAsciiCell(TerminalRenderCellFlags.CODEPOINT or TerminalRenderCellFlags.WIDE_LEADING, 0x41))
+        }
+
+        @Test
+        fun `cellSpan computes grid span for wide cells`() {
+            assertEquals(1, cellSpan(TerminalRenderCellFlags.EMPTY))
+            assertEquals(1, cellSpan(TerminalRenderCellFlags.CODEPOINT))
+            assertEquals(2, cellSpan(TerminalRenderCellFlags.CODEPOINT or TerminalRenderCellFlags.WIDE_LEADING))
+            assertEquals(2, cellSpan(TerminalRenderCellFlags.CLUSTER or TerminalRenderCellFlags.WIDE_LEADING))
+        }
+    }
+}
