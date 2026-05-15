@@ -10,10 +10,14 @@ import java.awt.event.KeyEvent
  *
  * Printable text is emitted from `KEY_TYPED` events. Navigation, function, and
  * control/meta modified printable keys are emitted from `KEY_PRESSED` events.
+ * Numeric keypad keys are emitted from `KEY_PRESSED` so application-keypad mode
+ * can be applied by the input encoder; their follow-up `KEY_TYPED` event is
+ * suppressed to avoid emitting the normal-mode character twice.
  */
 internal class TerminalSwingKeyMapper {
     private var pendingHighSurrogate: Char = NO_PENDING_SURROGATE
     private var pendingHighSurrogateModifiers: Int = TerminalModifiers.NONE
+    private var suppressNextKeypadTyped: Boolean = false
 
     /**
      * Converts a `KEY_PRESSED` event to terminal input when the event should
@@ -27,9 +31,11 @@ internal class TerminalSwingKeyMapper {
         val modifiers = modifiers(event)
         val key = terminalKey(event.keyCode)
         if (key != null) {
+            suppressNextKeypadTyped = isPrintableKeypadKey(key)
             return TerminalKeyEvent.key(key, modifiers)
         }
 
+        suppressNextKeypadTyped = false
         if (!TerminalModifiers.hasCtrl(modifiers) && !TerminalModifiers.hasMeta(modifiers)) {
             return null
         }
@@ -51,6 +57,12 @@ internal class TerminalSwingKeyMapper {
 
         val eventModifiers = modifiers(event)
         val codepoint = typedCodepoint(char, eventModifiers) ?: return null
+        if (suppressNextKeypadTyped) {
+            suppressNextKeypadTyped = false
+            pendingHighSurrogate = NO_PENDING_SURROGATE
+            pendingHighSurrogateModifiers = TerminalModifiers.NONE
+            return null
+        }
         if (codepoint in 0x00..0x1f || codepoint == 0x7f) return null
         return TerminalKeyEvent.codepoint(codepoint, eventModifiersFor(codepoint, eventModifiers))
     }
@@ -134,6 +146,32 @@ internal class TerminalSwingKeyMapper {
         KeyEvent.VK_SUBTRACT -> TerminalKey.NUMPAD_SUBTRACT
         KeyEvent.VK_ADD -> TerminalKey.NUMPAD_ADD
         else -> null
+    }
+
+    private fun isPrintableKeypadKey(key: TerminalKey): Boolean = when (key) {
+        TerminalKey.NUMPAD_SPACE,
+        TerminalKey.NUMPAD_TAB,
+        TerminalKey.NUMPAD_DIVIDE,
+        TerminalKey.NUMPAD_MULTIPLY,
+        TerminalKey.NUMPAD_SUBTRACT,
+        TerminalKey.NUMPAD_ADD,
+        TerminalKey.NUMPAD_COMMA,
+        TerminalKey.NUMPAD_SEPARATOR,
+        TerminalKey.NUMPAD_EQUALS,
+        TerminalKey.NUMPAD_BEGIN,
+        TerminalKey.NUMPAD_DECIMAL,
+        TerminalKey.NUMPAD_0,
+        TerminalKey.NUMPAD_1,
+        TerminalKey.NUMPAD_2,
+        TerminalKey.NUMPAD_3,
+        TerminalKey.NUMPAD_4,
+        TerminalKey.NUMPAD_5,
+        TerminalKey.NUMPAD_6,
+        TerminalKey.NUMPAD_7,
+        TerminalKey.NUMPAD_8,
+        TerminalKey.NUMPAD_9 -> true
+
+        else -> false
     }
 
     private fun controlShortcutCodepoint(event: KeyEvent): Int? {

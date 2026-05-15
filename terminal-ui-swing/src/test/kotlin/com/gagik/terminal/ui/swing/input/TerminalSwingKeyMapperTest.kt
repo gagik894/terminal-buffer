@@ -62,6 +62,33 @@ class TerminalSwingKeyMapperTest {
     }
 
     @Test
+    fun mapsNumpadPressedKeyAndSuppressesFollowingTypedCharacter() {
+        val mapped = mapper.keyPressed(pressed(KeyEvent.VK_NUMPAD1))
+
+        assertEquals(TerminalKey.NUMPAD_1, mapped?.key)
+        assertEquals(TerminalModifiers.NONE, mapped?.modifiers)
+        assertNull(mapper.keyTyped(typed('1')))
+    }
+
+    @Test
+    fun suppressesNumpadTypedCharacterWhenTypedCharacterDiffersFromDefaultEncoding() {
+        val mapped = mapper.keyPressed(pressed(KeyEvent.VK_DECIMAL))
+
+        assertEquals(TerminalKey.NUMPAD_DECIMAL, mapped?.key)
+        assertNull(mapper.keyTyped(typed(',')))
+    }
+
+    @Test
+    fun clearsPendingNumpadTypedSuppressionWhenAnotherKeyIsPressedFirst() {
+        assertEquals(TerminalKey.NUMPAD_1, mapper.keyPressed(pressed(KeyEvent.VK_NUMPAD1))?.key)
+        assertNull(mapper.keyPressed(pressed(KeyEvent.VK_A)))
+
+        val mapped = mapper.keyTyped(typed('a'))
+
+        assertEquals('a'.code, mapped?.codepoint)
+    }
+
+    @Test
     fun mapsCtrlLetterAsPrintableShortcut() {
         val mapped = mapper.keyPressed(
             pressed(KeyEvent.VK_C, modifiers = KeyEvent.CTRL_DOWN_MASK),

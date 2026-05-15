@@ -1,6 +1,11 @@
 package com.gagik.terminal.ui.swing.render
 
 import com.gagik.terminal.render.cache.TerminalRenderCache
+import com.gagik.terminal.ui.swing.render.cache.AwtColorCache
+import com.gagik.terminal.ui.swing.render.painter.TerminalBackgroundPainter
+import com.gagik.terminal.ui.swing.render.painter.TerminalCursorPainter
+import com.gagik.terminal.ui.swing.render.painter.TerminalDecorationPainter
+import com.gagik.terminal.ui.swing.render.painter.TerminalTextPainter
 import com.gagik.terminal.ui.swing.settings.TerminalColorPalette
 import com.gagik.terminal.ui.swing.settings.TerminalSwingMetrics
 import com.gagik.terminal.ui.swing.settings.TerminalSwingSettings
@@ -55,6 +60,11 @@ internal class TerminalGridPainter {
         val palette = settings.palette
         textPainter.updateSettings(settings)
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, settings.textAntialiasing)
+        g.setRenderingHint(RenderingHints.KEY_TEXT_LCD_CONTRAST, TEXT_LCD_CONTRAST)
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_NORMALIZE)
+        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
+        g.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY)
         g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, settings.fractionalMetrics)
         g.font = textPainter.font(Font.PLAIN)
         val fontRenderContext = g.fontRenderContext
@@ -102,5 +112,9 @@ internal class TerminalGridPainter {
         if (clipBottom <= 0) return 0
         val clippedRows = ceil((clipBottom - contentYOffset) / metrics.cellHeight).toInt()
         return clippedRows.coerceIn(0, visibleRows)
+    }
+
+    private companion object {
+        private const val TEXT_LCD_CONTRAST = 140
     }
 }

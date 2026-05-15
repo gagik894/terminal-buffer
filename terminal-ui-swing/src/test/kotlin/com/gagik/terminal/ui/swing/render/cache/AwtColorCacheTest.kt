@@ -1,4 +1,4 @@
-package com.gagik.terminal.ui.swing.render
+package com.gagik.terminal.ui.swing.render.cache
 
 import kotlin.test.*
 

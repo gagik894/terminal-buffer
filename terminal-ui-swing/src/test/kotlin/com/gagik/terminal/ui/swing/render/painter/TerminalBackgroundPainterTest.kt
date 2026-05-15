@@ -1,7 +1,9 @@
-package com.gagik.terminal.ui.swing.render
+package com.gagik.terminal.ui.swing.render.painter
 
 import com.gagik.terminal.render.api.TerminalRenderAttrs
 import com.gagik.terminal.render.api.TerminalRenderColorKind
+import com.gagik.terminal.ui.swing.render.*
+import com.gagik.terminal.ui.swing.render.cache.AwtColorCache
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.awt.image.BufferedImage

@@ -1,11 +1,16 @@
-package com.gagik.terminal.ui.swing.render
+package com.gagik.terminal.ui.swing.render.painter
 
 import com.gagik.terminal.render.api.TerminalRenderAttrs
 import com.gagik.terminal.render.api.TerminalRenderColorKind
 import com.gagik.terminal.render.api.TerminalRenderExtraAttrs
 import com.gagik.terminal.render.api.TerminalRenderUnderline
+import com.gagik.terminal.ui.swing.render.*
+import com.gagik.terminal.ui.swing.render.cache.AwtColorCache
+import com.gagik.terminal.ui.swing.settings.TerminalSwingMetrics
+import com.gagik.terminal.ui.swing.settings.TerminalSwingSettings
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import java.awt.Graphics2D
 import java.awt.image.BufferedImage
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -139,9 +144,9 @@ class TerminalDecorationPainterTest {
 
     private data class Fixture(
         val image: BufferedImage,
-        val g: java.awt.Graphics2D,
-        val settings: com.gagik.terminal.ui.swing.settings.TerminalSwingSettings,
-        val metrics: com.gagik.terminal.ui.swing.settings.TerminalSwingMetrics,
+        val g: Graphics2D,
+        val settings: TerminalSwingSettings,
+        val metrics: TerminalSwingMetrics,
         val painter: TerminalDecorationPainter,
     )
 

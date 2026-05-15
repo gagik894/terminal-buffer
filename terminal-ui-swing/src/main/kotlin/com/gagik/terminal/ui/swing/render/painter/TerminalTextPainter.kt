@@ -1,8 +1,15 @@
-package com.gagik.terminal.ui.swing.render
+package com.gagik.terminal.ui.swing.render.painter
 
 import com.gagik.terminal.render.api.TerminalRenderAttrs
 import com.gagik.terminal.render.api.TerminalRenderCellFlags
 import com.gagik.terminal.render.cache.TerminalRenderCache
+import com.gagik.terminal.ui.swing.render.cache.*
+import com.gagik.terminal.ui.swing.render.cellSpan
+import com.gagik.terminal.ui.swing.render.font.TerminalTextRunBuffer
+import com.gagik.terminal.ui.swing.render.hasDrawableText
+import com.gagik.terminal.ui.swing.render.isFastAsciiCell
+import com.gagik.terminal.ui.swing.render.primitives.TerminalCellPrimitivePainter
+import com.gagik.terminal.ui.swing.render.terminalFontStyle
 import com.gagik.terminal.ui.swing.settings.TerminalColorPalette
 import com.gagik.terminal.ui.swing.settings.TerminalSwingMetrics
 import com.gagik.terminal.ui.swing.settings.TerminalSwingSettings
@@ -21,6 +28,7 @@ internal class TerminalTextPainter(
     private val complexTextLayouts = TerminalComplexTextLayoutCache()
     private val asciiGlyphVectors = TerminalAsciiGlyphVectorCache()
     private val asciiDrawChars = TerminalAsciiDrawCharsCache()
+    private val cellPrimitives = TerminalCellPrimitivePainter()
     private val textRun = TerminalTextRunBuffer(INITIAL_TEXT_RUN_CAPACITY)
 
     /**
@@ -113,7 +121,10 @@ internal class TerminalTextPainter(
             g.color = colorCache.color(foreground)
 
             val baselineY = row * metrics.cellHeight + metrics.baseline
-            if (flags and TerminalRenderCellFlags.CLUSTER != 0) {
+            val codeWord = cache.codeWords[row][column]
+            if (flags and TerminalRenderCellFlags.CLUSTER == 0 && cellPrimitives.canPaint(codeWord)) {
+                cellPrimitives.paint(g, codeWord, column, row, metrics)
+            } else if (flags and TerminalRenderCellFlags.CLUSTER != 0) {
                 val cluster = cache.clusters[row][column]
                 if (cluster != null) {
                     drawComplexCluster(
@@ -128,7 +139,7 @@ internal class TerminalTextPainter(
             } else {
                 drawComplexCodePoint(
                     g = g,
-                    codePoint = cache.codeWords[row][column],
+                    codePoint = codeWord,
                     fontStyle = terminalFontStyle(attr),
                     x = column * metrics.cellWidth,
                     baselineY = baselineY,
@@ -207,7 +218,10 @@ internal class TerminalTextPainter(
         g.font = fontCache.font(fontStyle)
         g.color = colorCache.color(foreground)
 
-        if (flags and TerminalRenderCellFlags.CLUSTER != 0) {
+        val codeWord = cache.codeWords[row][column]
+        if (flags and TerminalRenderCellFlags.CLUSTER == 0 && cellPrimitives.canPaint(codeWord)) {
+            cellPrimitives.paint(g, codeWord, column, row, metrics)
+        } else if (flags and TerminalRenderCellFlags.CLUSTER != 0) {
             val cluster = cache.clusters[row][column]
             if (cluster != null) {
                 drawComplexCluster(g, cluster, fontStyle, column * metrics.cellWidth, baselineY, fontRenderContext)
@@ -215,7 +229,7 @@ internal class TerminalTextPainter(
         } else {
             drawComplexCodePoint(
                 g = g,
-                codePoint = cache.codeWords[row][column],
+                codePoint = codeWord,
                 fontStyle = fontStyle,
                 x = column * metrics.cellWidth,
                 baselineY = baselineY,

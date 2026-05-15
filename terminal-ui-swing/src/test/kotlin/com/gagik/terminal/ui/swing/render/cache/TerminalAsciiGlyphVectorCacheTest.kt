@@ -1,4 +1,4 @@
-package com.gagik.terminal.ui.swing.render
+package com.gagik.terminal.ui.swing.render.cache
 
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Nested

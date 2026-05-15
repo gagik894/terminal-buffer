@@ -1,4 +1,4 @@
-package com.gagik.terminal.ui.swing.render
+package com.gagik.terminal.ui.swing.render.cache
 
 import java.awt.Color
 
@@ -8,6 +8,9 @@ import java.awt.Color
  * Rendering resolves colors as packed integers in hot paths. This cache avoids
  * per-cell boxing for recently used colors while bounding retained [Color]
  * instances for truecolor streams such as gradients, images, and animations.
+ *
+ * **Thread Safety:** Not thread-safe. This cache must only be accessed
+ * from the Swing Event Dispatch Thread (EDT).
  */
 internal class AwtColorCache(
     private val capacity: Int = DEFAULT_CAPACITY,

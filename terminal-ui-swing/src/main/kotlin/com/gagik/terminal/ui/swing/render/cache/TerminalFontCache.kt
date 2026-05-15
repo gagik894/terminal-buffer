@@ -1,9 +1,17 @@
-package com.gagik.terminal.ui.swing.render
+package com.gagik.terminal.ui.swing.render.cache
 
+import com.gagik.terminal.ui.swing.render.font.TerminalSystemFallbackFonts
 import java.awt.Font
+import java.util.*
 
 /**
- * Caches terminal font style variants for one settings snapshot.
+ * Caches terminal font style variants and resolved fallbacks for one settings snapshot.
+ *
+ * Single code points use a primitive-keyed bounded cache to prevent hostile streams
+ * of unique Unicode cells from retaining unbounded strings in memory.
+ *
+ * **Thread Safety:** Not thread-safe. This cache must only be accessed
+ * from the Swing Event Dispatch Thread (EDT).
  */
 internal class TerminalFontCache(
     codePointFallbackCapacityPerStyle: Int = DEFAULT_CODE_POINT_FALLBACK_CAPACITY_PER_STYLE,
@@ -40,10 +48,17 @@ internal class TerminalFontCache(
         get() = fontGeneration
 
     /**
-     * Rebuilds cached style variants when [font] changes.
+     * Rebuilds the primary and fallback font pipelines for a new settings snapshot.
      *
-     * @param font base terminal font.
-     * @return `true` when cached font state changed.
+     * This method evaluates whether the core typography configuration has changed.
+     * If so, it discards all cached style variants, reallocates the fallback
+     * arrays, and invalidates all dynamically resolved glyphs.
+     *
+     * @param font The primary base font for the terminal grid.
+     * @param fallbackFonts A prioritized list of fallback fonts for missing glyphs.
+     * @param useSystemFallbackFonts Whether to query the host OS for additional fonts.
+     * @return `true` if the configuration changed and caches were invalidated;
+     * `false` if the provided configuration perfectly matches the current state.
      */
     fun update(font: Font, fallbackFonts: List<Font>, useSystemFallbackFonts: Boolean): Boolean {
         if (
@@ -57,22 +72,19 @@ internal class TerminalFontCache(
         baseFont = font
         fallbackBaseFonts = fallbackFonts
         this.useSystemFallbackFonts = useSystemFallbackFonts
+
         styleFonts.fill(null)
         styleFonts[font.style and STYLE_MASK] = font
         fallbackStyleFonts = Array(fallbackFonts.size) { arrayOfNulls(STYLE_COUNT) }
+
         systemFallbackBaseFonts = if (useSystemFallbackFonts) {
             TerminalSystemFallbackFonts.fontsOrStartLoading()
         } else {
             emptyList()
         }
         systemStyleFonts = Array(systemFallbackBaseFonts.size) { arrayOfNulls(STYLE_COUNT) }
-        for (cache in resolvedCodePointFonts) {
-            cache.clear()
-        }
-        for (cache in resolvedTextFonts) {
-            cache.clear()
-        }
-        fontGeneration++
+
+        invalidateResolvedCaches()
         return true
     }
 
@@ -181,9 +193,15 @@ internal class TerminalFontCache(
     }
 
     /**
-     * Refreshes asynchronously loaded system fallback fonts, if enabled.
+     * Refreshes asynchronously loaded system fallback fonts.
      *
-     * @return `true` when font resolution changed.
+     * This method polls the background font-loading thread. If new system fonts
+     * have finished loading since the last check, it integrates them into the
+     * fallback pipeline and aggressively invalidates all dynamically resolved
+     * text caches to force a re-layout on the next frame.
+     *
+     * @return `true` if the system font list changed and caches were invalidated;
+     * `false` if system fonts are disabled, still loading, or unchanged.
      */
     fun refreshSystemFallbackFonts(): Boolean {
         if (!useSystemFallbackFonts) return false
@@ -193,6 +211,18 @@ internal class TerminalFontCache(
 
         systemFallbackBaseFonts = loadedFonts
         systemStyleFonts = Array(loadedFonts.size) { arrayOfNulls(STYLE_COUNT) }
+        invalidateResolvedCaches()
+        return true
+    }
+
+    /**
+     * Clears all dynamically resolved glyphs and increments the cache generation.
+     * * This must be called exclusively when the base configuration or system
+     * fallbacks change. Incrementing the generation counter signals dependent
+     * layout caches (e.g., `TerminalComplexTextLayoutCache`) that they must
+     * also flush their state to prevent rendering stale font metrics.
+     */
+    private fun invalidateResolvedCaches() {
         for (cache in resolvedCodePointFonts) {
             cache.clear()
         }
@@ -200,8 +230,8 @@ internal class TerminalFontCache(
             cache.clear()
         }
         fontGeneration++
-        return true
     }
+
 
     private fun fallbackFont(index: Int, style: Int): Font {
         val normalizedStyle = style and STYLE_MASK
@@ -238,7 +268,7 @@ internal class TerminalFontCache(
             return size > capacity
         }
     }
-
+    @Suppress("DuplicatedCode")
     private class IntFontLru(capacity: Int) {
         private val entryKeys = IntArray(capacity)
         private val entryFonts = arrayOfNulls<Font>(capacity)
@@ -283,10 +313,10 @@ internal class TerminalFontCache(
         }
 
         fun clear() {
-            java.util.Arrays.fill(entryFonts, null)
-            java.util.Arrays.fill(previous, EMPTY)
-            java.util.Arrays.fill(next, EMPTY)
-            java.util.Arrays.fill(hashEntries, EMPTY)
+            Arrays.fill(entryFonts, null)
+            Arrays.fill(previous, EMPTY)
+            Arrays.fill(next, EMPTY)
+            Arrays.fill(hashEntries, EMPTY)
             size = 0
             head = EMPTY
             tail = EMPTY

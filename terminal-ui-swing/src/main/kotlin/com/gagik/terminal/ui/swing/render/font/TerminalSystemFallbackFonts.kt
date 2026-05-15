@@ -1,4 +1,4 @@
-package com.gagik.terminal.ui.swing.render
+package com.gagik.terminal.ui.swing.render.font
 
 import java.awt.Font
 import java.awt.GraphicsEnvironment

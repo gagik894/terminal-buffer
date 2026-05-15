@@ -1,4 +1,4 @@
-package com.gagik.terminal.ui.swing.render
+package com.gagik.terminal.ui.swing.render.cache
 
 import org.junit.jupiter.api.Assertions.assertNotSame
 import org.junit.jupiter.api.Assertions.assertSame
@@ -8,6 +8,7 @@ import java.awt.Font
 import java.awt.font.FontRenderContext
 
 class TerminalComplexTextLayoutCacheTest {
+
     @Test
     fun `constructor rejects non-positive capacities`() {
         assertThrows<IllegalArgumentException> {
@@ -158,6 +159,41 @@ class TerminalComplexTextLayoutCacheTest {
         val second = layoutCache.codePointLayout(0x03A9, Font.PLAIN, secondFrc, fontCache)
 
         assertNotSame(first, second)
+    }
+
+    @Test
+    fun `clusterLayout normalizes pathological cluster sequences exceeding structural length limits`() {
+        // Arrange
+        val fontCache = fontCache()
+        val layoutCache = TerminalComplexTextLayoutCache(clusterCapacityPerStyle = 4)
+        val frc = FontRenderContext(null, false, false)
+        val pathologicalInput = "A".repeat(33) // Exceeds MAX_CLUSTER_LENGTH (32)
+
+        // Act
+        val adversarialLayout = layoutCache.clusterLayout(pathologicalInput, Font.PLAIN, frc, fontCache)
+        val expectedReplacementLayout = layoutCache.clusterLayout("\uFFFD", Font.PLAIN, frc, fontCache)
+
+        // Assert
+        assertSame(expectedReplacementLayout, adversarialLayout,
+            "Sequences exceeding length constraints must collapse into the uniform replacement character layout to insulate OpenType processes")
+    }
+
+    @Test
+    fun `adversarial cluster mitigation intercepts varying long inputs and maps them onto an identical cache instance`() {
+        // Arrange
+        val fontCache = fontCache()
+        val layoutCache = TerminalComplexTextLayoutCache(clusterCapacityPerStyle = 4)
+        val frc = FontRenderContext(null, false, false)
+        val attackSequenceAlpha = "X".repeat(40)
+        val attackSequenceBeta = "Y".repeat(100)
+
+        // Act
+        val firstLayout = layoutCache.clusterLayout(attackSequenceAlpha, Font.PLAIN, frc, fontCache)
+        val secondLayout = layoutCache.clusterLayout(attackSequenceBeta, Font.PLAIN, frc, fontCache)
+
+        // Assert
+        assertSame(firstLayout, secondLayout,
+            "Distinct out-of-bounds adversarial inputs must collapse onto the same cache line to provide O(1) mitigation performance")
     }
 
     private fun fontCache(): TerminalFontCache {

@@ -1,7 +1,8 @@
-package com.gagik.terminal.ui.swing.render
+package com.gagik.terminal.ui.swing.render.cache
 
 import java.awt.Font
 import java.awt.font.FontRenderContext
+import java.util.*
 
 /**
  * Caches whether Java2D's natural ASCII advances match terminal cell advances.
@@ -22,10 +23,10 @@ internal class TerminalAsciiDrawCharsCache {
      * Clears cached compatibility decisions after font settings change.
      */
     fun clear() {
-        java.util.Arrays.fill(fonts, null)
-        java.util.Arrays.fill(contexts, null)
-        java.util.Arrays.fill(cellWidths, 0)
-        java.util.Arrays.fill(compatible, false)
+        Arrays.fill(fonts, null)
+        Arrays.fill(contexts, null)
+        Arrays.fill(cellWidths, 0)
+        Arrays.fill(compatible, false)
     }
 
     /**

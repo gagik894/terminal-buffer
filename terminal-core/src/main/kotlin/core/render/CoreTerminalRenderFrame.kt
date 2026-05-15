@@ -86,10 +86,11 @@ internal class CoreTerminalRenderFrame(
     override val cursor: TerminalRenderCursor
         get() {
             checkValid()
+            val row = state.cursor.row + resolvedScrollbackOffset
             return TerminalRenderCursor(
                 column = state.cursor.col,
-                row = state.cursor.row,
-                visible = state.modes.isCursorVisible && resolvedScrollbackOffset == 0,
+                row = row,
+                visible = state.modes.isCursorVisible && row in 0 until resolvedRows,
                 blinking = state.modes.isCursorBlinking,
                 shape = TerminalRenderCursorShape.BLOCK,
                 generation = state.cursorGeneration,

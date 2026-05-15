@@ -1,9 +1,16 @@
-package com.gagik.terminal.ui.swing.render
+package com.gagik.terminal.ui.swing.render.painter
 
+import com.gagik.terminal.render.api.TerminalRenderCellFlags
 import com.gagik.terminal.render.api.TerminalRenderCursor
 import com.gagik.terminal.render.api.TerminalRenderCursorShape
+import com.gagik.terminal.render.cache.TerminalRenderCache
+import com.gagik.terminal.ui.swing.render.*
+import com.gagik.terminal.ui.swing.render.cache.AwtColorCache
+import com.gagik.terminal.ui.swing.settings.TerminalSwingMetrics
+import com.gagik.terminal.ui.swing.settings.TerminalSwingSettings
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import java.awt.Graphics2D
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import kotlin.test.assertEquals
@@ -75,10 +82,10 @@ class TerminalCursorPainterTest {
 
     private data class Fixture(
         val image: BufferedImage,
-        val g: java.awt.Graphics2D,
-        val settings: com.gagik.terminal.ui.swing.settings.TerminalSwingSettings,
-        val metrics: com.gagik.terminal.ui.swing.settings.TerminalSwingMetrics,
-        val cache: com.gagik.terminal.render.cache.TerminalRenderCache,
+        val g: Graphics2D,
+        val settings: TerminalSwingSettings,
+        val metrics: TerminalSwingMetrics,
+        val cache: TerminalRenderCache,
         val painter: TerminalCursorPainter,
         val textPainter: TerminalTextPainter,
     ) {
@@ -127,7 +134,7 @@ class TerminalCursorPainterTest {
 
     private fun TestRenderFrame.copyWithCursor(cursor: TerminalRenderCursor): TestRenderFrame {
         return TestRenderFrame(
-            cells = arrayOf(arrayOf(TestCell(codeWord = 'A'.code, flags = com.gagik.terminal.render.api.TerminalRenderCellFlags.CODEPOINT))),
+            cells = arrayOf(arrayOf(TestCell(codeWord = 'A'.code, flags = TerminalRenderCellFlags.CODEPOINT))),
             cursorValue = cursor,
         )
     }

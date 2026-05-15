@@ -1,7 +1,8 @@
-package com.gagik.terminal.ui.swing.render
+package com.gagik.terminal.ui.swing.render.painter
 
 import com.gagik.terminal.render.api.TerminalRenderCursorShape
 import com.gagik.terminal.render.cache.TerminalRenderCache
+import com.gagik.terminal.ui.swing.render.cache.AwtColorCache
 import com.gagik.terminal.ui.swing.settings.TerminalColorPalette
 import com.gagik.terminal.ui.swing.settings.TerminalSwingMetrics
 import java.awt.Graphics2D

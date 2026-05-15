@@ -1,9 +1,10 @@
-package com.gagik.terminal.ui.swing.render
+package com.gagik.terminal.ui.swing.render.painter
 
 import com.gagik.terminal.render.api.TerminalRenderAttrs
 import com.gagik.terminal.render.api.TerminalRenderColorKind
 import com.gagik.terminal.render.api.TerminalRenderExtraAttrs
 import com.gagik.terminal.render.api.TerminalRenderUnderline
+import com.gagik.terminal.ui.swing.render.cache.AwtColorCache
 import com.gagik.terminal.ui.swing.settings.TerminalColorPalette
 import com.gagik.terminal.ui.swing.settings.TerminalSwingMetrics
 import java.awt.Graphics2D
@@ -40,23 +41,23 @@ internal class TerminalDecorationPainter(
         if (underline != TerminalRenderUnderline.NONE) {
             g.color = colorCache.color(underlineColor(palette, extraAttr, foreground))
             val y = rowY + metrics.underlineY
-            g.drawLine(x, y, x + width, y)
+            g.fillRect(x, y, width, DECORATION_THICKNESS)
             if (underline == TerminalRenderUnderline.DOUBLE) {
                 val secondY = minOf(rowY + metrics.cellHeight - 1, y + DOUBLE_UNDERLINE_OFFSET)
-                g.drawLine(x, secondY, x + width, secondY)
+                g.fillRect(x, secondY, width, DECORATION_THICKNESS)
             }
         }
 
         if (strikethrough) {
             g.color = colorCache.color(foreground)
             val y = rowY + metrics.strikethroughY
-            g.drawLine(x, y, x + width, y)
+            g.fillRect(x, y, width, DECORATION_THICKNESS)
         }
 
         if (overline) {
             g.color = colorCache.color(foreground)
             val y = rowY + metrics.overlineY
-            g.drawLine(x, y, x + width, y)
+            g.fillRect(x, y, width, DECORATION_THICKNESS)
         }
     }
 
@@ -75,6 +76,7 @@ internal class TerminalDecorationPainter(
     }
 
     private companion object {
+        private const val DECORATION_THICKNESS = 1
         private const val DOUBLE_UNDERLINE_OFFSET = 2
     }
 }
