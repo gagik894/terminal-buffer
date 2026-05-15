@@ -180,6 +180,10 @@ class TerminalColorPalette(
     private fun maybeDim(color: Int, attrWord: Long): Int {
         if (!TerminalRenderAttrs.isFaint(attrWord)) return color
 
+        // Fast-path 50% brightness reduction.
+        // Extracts ARGB channels, performs integer division by 2 on the RGB
+        // components to halve their intensity, and repacks them with the
+        // original alpha mask. This avoids java.awt.Color allocation.
         val alpha = color and 0xFF000000.toInt()
         val red = ((color ushr 16) and 0xFF) / 2
         val green = ((color ushr 8) and 0xFF) / 2

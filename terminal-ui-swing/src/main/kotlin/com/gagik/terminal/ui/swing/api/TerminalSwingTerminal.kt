@@ -245,6 +245,14 @@ class TerminalSwingTerminal(
         event.consume()
     }
 
+    /**
+     * Coalesces high-frequency render requests from the background IO thread.
+     * * The [TerminalSession] may fire `onDirty` thousands of times per second
+     * during heavy output. To prevent flooding the Swing EventQueue and causing
+     * UI lockups, this method uses an atomic flag to ensure only one EDT layout
+     * pass is ever queued at a time. The flag is cleared immediately before the
+     * EDT executes the frame evaluation.
+     */
     private fun schedulePublishedFrame() {
         if (!renderPending.compareAndSet(false, true)) return
 
@@ -353,6 +361,14 @@ class TerminalSwingTerminal(
         }
     }
 
+    /**
+     * Executes [action] synchronously on the EDT, blocking the caller until complete.
+     * * This barrier ensures that when a host invokes public API methods (like
+     * [unbind] or [reloadSettings]) from a background thread, the internal Swing
+     * component state is fully reconciled before the host thread continues executing.
+     * Throws [IllegalStateException] if the thread is interrupted to prevent
+     * corrupted partial-state application.
+     */
     private fun <T> callOnEdtAndWait(action: () -> T): T {
         if (SwingUtilities.isEventDispatchThread()) {
             return action()
