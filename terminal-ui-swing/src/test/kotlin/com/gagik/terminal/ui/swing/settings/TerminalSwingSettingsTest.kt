@@ -44,6 +44,16 @@ class TerminalSwingSettingsTest {
     }
 
     @Test
+    fun settingsDefaultPaletteOwnsSwingThemeColors() {
+        val palette = TerminalSwingSettings.defaultPalette()
+
+        assertEquals(0xFFE6E8EF.toInt(), palette.defaultForeground)
+        assertEquals(0xFF111318.toInt(), palette.defaultBackground)
+        assertEquals(0xFF1D2027.toInt(), palette.indexedColor(0))
+        assertEquals(0xFFC94F6D.toInt(), palette.indexedColor(1))
+    }
+
+    @Test
     fun componentReportsVisibleGridFromFrozenMetrics() {
         val component = TerminalSwingTerminal {
             TerminalSwingSettings(columns = 10, rows = 4)

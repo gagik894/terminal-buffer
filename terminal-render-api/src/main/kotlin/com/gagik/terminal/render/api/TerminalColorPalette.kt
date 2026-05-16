@@ -18,12 +18,12 @@ package com.gagik.terminal.render.api
  * @param indexedColors 256-entry indexed palette in packed ARGB form.
  */
 class TerminalColorPalette(
-    val defaultForeground: Int = 0xFFE6E8EF.toInt(),
-    val defaultBackground: Int = 0xFF111318.toInt(),
+    val defaultForeground: Int = 0xFFFFFFFF.toInt(),
+    val defaultBackground: Int = 0xFF000000.toInt(),
     val selectionForeground: Int = 0xFFFFFFFF.toInt(),
-    val selectionBackground: Int = 0xFF2F6FEB.toInt(),
-    val cursorForeground: Int = 0xFF111318.toInt(),
-    val cursorBackground: Int = 0xFFE6E8EF.toInt(),
+    val selectionBackground: Int = 0xFF000000.toInt(),
+    val cursorForeground: Int = 0xFF000000.toInt(),
+    val cursorBackground: Int = 0xFFFFFFFF.toInt(),
     indexedColors: IntArray = defaultIndexedColors(),
     val boldAsBright: Boolean = true,
 ) {
@@ -58,7 +58,7 @@ class TerminalColorPalette(
         return if (TerminalRenderAttrs.isInverse(attrWord)) {
             backgroundWithoutInverse(attrWord)
         } else {
-            maybeDim(color, attrWord)
+            color
         }
     }
 
@@ -70,7 +70,7 @@ class TerminalColorPalette(
      */
     fun background(attrWord: Long): Int {
         return if (TerminalRenderAttrs.isInverse(attrWord)) {
-            maybeDim(foregroundWithoutInverse(attrWord), attrWord)
+            foregroundWithoutInverse(attrWord)
         } else {
             backgroundWithoutInverse(attrWord)
         }
@@ -157,7 +157,7 @@ class TerminalColorPalette(
             bold = TerminalRenderAttrs.isBold(attrWord),
             applyBoldAsBright = true,
         )
-        return maybeDim(color, attrWord)
+        return color
     }
 
     private fun backgroundWithoutInverse(attrWord: Long): Int {
@@ -190,20 +190,6 @@ class TerminalColorPalette(
             TerminalRenderColorKind.RGB -> 0xFF000000.toInt() or value
             else -> defaultColor
         }
-    }
-
-    private fun maybeDim(color: Int, attrWord: Long): Int {
-        if (!TerminalRenderAttrs.isFaint(attrWord)) return color
-
-        // Fast-path 50% brightness reduction.
-        // Extracts ARGB channels, performs integer division by 2 on the RGB
-        // components to halve their intensity, and repacks them with the
-        // original alpha mask. This avoids platform color allocation.
-        val alpha = color and 0xFF000000.toInt()
-        val red = ((color ushr 16) and 0xFF) / 2
-        val green = ((color ushr 8) and 0xFF) / 2
-        val blue = (color and 0xFF) / 2
-        return alpha or (red shl 16) or (green shl 8) or blue
     }
 
     override fun equals(other: Any?): Boolean {
@@ -258,21 +244,21 @@ class TerminalColorPalette(
         fun defaultIndexedColors(): IntArray {
             val colors = IntArray(INDEXED_COLOR_COUNT)
             val ansi16 = intArrayOf(
-                0xFF1D2027.toInt(),
-                0xFFC94F6D.toInt(),
-                0xFF81B29A.toInt(),
-                0xFFE6C07B.toInt(),
-                0xFF6EA8FE.toInt(),
-                0xFFC678DD.toInt(),
-                0xFF56B6C2.toInt(),
-                0xFFD8DEE9.toInt(),
-                0xFF5C6370.toInt(),
-                0xFFE06C75.toInt(),
-                0xFF98C379.toInt(),
-                0xFFE5C07B.toInt(),
-                0xFF61AFEF.toInt(),
-                0xFFC678DD.toInt(),
-                0xFF56B6C2.toInt(),
+                0xFF000000.toInt(),
+                0xFF800000.toInt(),
+                0xFF008000.toInt(),
+                0xFF808000.toInt(),
+                0xFF000080.toInt(),
+                0xFF800080.toInt(),
+                0xFF008080.toInt(),
+                0xFFC0C0C0.toInt(),
+                0xFF808080.toInt(),
+                0xFFFF0000.toInt(),
+                0xFF00FF00.toInt(),
+                0xFFFFFF00.toInt(),
+                0xFF0000FF.toInt(),
+                0xFFFF00FF.toInt(),
+                0xFF00FFFF.toInt(),
                 0xFFFFFFFF.toInt(),
             )
             ansi16.copyInto(colors)

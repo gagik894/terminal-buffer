@@ -4,13 +4,10 @@ import com.gagik.terminal.render.api.TerminalColorPalette
 import com.gagik.terminal.render.api.TerminalRenderAttrs
 import com.gagik.terminal.render.api.TerminalRenderCellFlags
 import com.gagik.terminal.render.cache.TerminalRenderCache
+import com.gagik.terminal.ui.swing.render.*
 import com.gagik.terminal.ui.swing.render.cache.*
-import com.gagik.terminal.ui.swing.render.cellSpan
 import com.gagik.terminal.ui.swing.render.font.TerminalTextRunBuffer
-import com.gagik.terminal.ui.swing.render.hasDrawableText
-import com.gagik.terminal.ui.swing.render.isFastAsciiCell
 import com.gagik.terminal.ui.swing.render.primitives.TerminalCellPrimitivePainter
-import com.gagik.terminal.ui.swing.render.terminalFontStyle
 import com.gagik.terminal.ui.swing.settings.TerminalSwingMetrics
 import com.gagik.terminal.ui.swing.settings.TerminalSwingSettings
 import java.awt.Font
@@ -179,7 +176,7 @@ internal class TerminalTextPainter(
         val codeWordRow = cache.codeWords[row]
         val attr = attrRow[startColumn]
         val extraAttr = extraAttrRow[startColumn]
-        val foreground = palette.foreground(attr)
+        val foreground = TerminalSwingColors.foreground(palette, attr)
         val fontStyle = terminalFontStyle(attr)
         val decoration = decorationKey(attr, extraAttr)
         var column = startColumn
@@ -192,7 +189,7 @@ internal class TerminalTextPainter(
             val currentExtraAttr = extraAttrRow[column]
             if (
                 !isFastAsciiCell(flags, codeWord) ||
-                palette.foreground(currentAttr) != foreground ||
+                TerminalSwingColors.foreground(palette, currentAttr) != foreground ||
                 terminalFontStyle(currentAttr) != fontStyle ||
                 decorationKey(currentAttr, currentExtraAttr) != decoration
             ) {
@@ -223,7 +220,7 @@ internal class TerminalTextPainter(
         val flags = cache.flags[row][column]
         val attr = cache.attrWords[row][column]
         val extraAttr = cache.extraAttrWords[row][column]
-        val foreground = palette.foreground(attr)
+        val foreground = TerminalSwingColors.foreground(palette, attr)
         val fontStyle = terminalFontStyle(attr)
         val endColumn = minOf(cache.columns, column + cellSpan(flags))
 

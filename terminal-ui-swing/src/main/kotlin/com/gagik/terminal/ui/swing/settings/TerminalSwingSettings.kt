@@ -30,7 +30,7 @@ data class TerminalSwingSettings(
     val font: Font = defaultTerminalFont(),
     val fallbackFonts: List<Font> = defaultFallbackFonts(),
     val useSystemFallbackFonts: Boolean = false,
-    val palette: TerminalColorPalette = TerminalColorPalette(),
+    val palette: TerminalColorPalette = defaultPalette(),
     val columns: Int = 80,
     val rows: Int = 24,
     val cursorBlinkMillis: Int = 600,
@@ -89,6 +89,26 @@ data class TerminalSwingSettings(
             Font("Noto Color Emoji", Font.PLAIN, DEFAULT_FONT_SIZE),
         )
 
+        /**
+         * Returns the default Swing terminal palette.
+         *
+         * Theme colors live in the Swing layer so the dependency-free render
+         * API can remain renderer-neutral.
+         */
+        @JvmStatic
+        fun defaultPalette(): TerminalColorPalette {
+            return TerminalColorPalette(
+                defaultForeground = 0xFFE6E8EF.toInt(),
+                defaultBackground = 0xFF111318.toInt(),
+                selectionForeground = 0xFFFFFFFF.toInt(),
+                selectionBackground = 0xFF2F6FEB.toInt(),
+                cursorForeground = 0xFF111318.toInt(),
+                cursorBackground = 0xFFE6E8EF.toInt(),
+                indexedColors = defaultIndexedColors(),
+                boldAsBright = true,
+            )
+        }
+
         private fun resolveDefaultFontFamily(): String {
             val installedFamilies = GraphicsEnvironment
                 .getLocalGraphicsEnvironment()
@@ -101,6 +121,30 @@ data class TerminalSwingSettings(
                 }
             }
             return Font.MONOSPACED
+        }
+
+        private fun defaultIndexedColors(): IntArray {
+            val colors = TerminalColorPalette.defaultIndexedColors()
+            val ansi16 = intArrayOf(
+                0xFF1D2027.toInt(),
+                0xFFC94F6D.toInt(),
+                0xFF81B29A.toInt(),
+                0xFFE6C07B.toInt(),
+                0xFF6EA8FE.toInt(),
+                0xFFC678DD.toInt(),
+                0xFF56B6C2.toInt(),
+                0xFFD8DEE9.toInt(),
+                0xFF5C6370.toInt(),
+                0xFFE06C75.toInt(),
+                0xFF98C379.toInt(),
+                0xFFE5C07B.toInt(),
+                0xFF61AFEF.toInt(),
+                0xFFC678DD.toInt(),
+                0xFF56B6C2.toInt(),
+                0xFFFFFFFF.toInt(),
+            )
+            ansi16.copyInto(colors)
+            return colors
         }
     }
 }

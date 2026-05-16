@@ -2,6 +2,7 @@ package com.gagik.terminal.ui.swing.render.painter
 
 import com.gagik.terminal.render.api.TerminalColorPalette
 import com.gagik.terminal.render.cache.TerminalRenderCache
+import com.gagik.terminal.ui.swing.render.TerminalSwingColors
 import com.gagik.terminal.ui.swing.render.cache.AwtColorCache
 import com.gagik.terminal.ui.swing.settings.TerminalSwingMetrics
 import java.awt.Graphics2D
@@ -38,11 +39,11 @@ internal class TerminalBackgroundPainter(
         val y = row * metrics.cellHeight
         var column = 0
         while (column < cache.columns) {
-            val background = palette.background(attrRow[column])
+            val background = TerminalSwingColors.background(palette, attrRow[column])
             val start = column
 
             column++
-            while (column < cache.columns && palette.background(attrRow[column]) == background) {
+            while (column < cache.columns && TerminalSwingColors.background(palette, attrRow[column]) == background) {
                 column++
             }
 

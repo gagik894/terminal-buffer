@@ -11,6 +11,17 @@ class TerminalColorPaletteTest {
     }
 
     @Test
+    fun defaultPaletteUsesRendererNeutralAnsiFallbacks() {
+        val palette = TerminalColorPalette()
+
+        assertEquals(0xFFFFFFFF.toInt(), palette.defaultForeground)
+        assertEquals(0xFF000000.toInt(), palette.defaultBackground)
+        assertEquals(0xFF000000.toInt(), palette.indexedColor(0))
+        assertEquals(0xFF800000.toInt(), palette.indexedColor(1))
+        assertEquals(0xFFFFFFFF.toInt(), palette.indexedColor(15))
+    }
+
+    @Test
     fun resolvesDefaultForegroundAndBackground() {
         val palette = TerminalColorPalette(
             defaultForeground = 0xFF010203.toInt(),
@@ -82,6 +93,14 @@ class TerminalColorPaletteTest {
 
         assertEquals(0xFF222222.toInt(), palette.foreground(attrs))
         assertEquals(0xFF111111.toInt(), palette.background(attrs))
+    }
+
+    @Test
+    fun faintDoesNotChangePaletteResolvedColor() {
+        val palette = TerminalColorPalette(defaultForeground = 0xFF224466.toInt())
+        val attrs = TerminalRenderAttrs.pack(faint = true)
+
+        assertEquals(0xFF224466.toInt(), palette.foreground(attrs))
     }
 
     @Test
