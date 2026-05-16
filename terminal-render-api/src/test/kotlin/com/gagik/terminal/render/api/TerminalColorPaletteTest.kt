@@ -1,7 +1,4 @@
-package com.gagik.terminal.ui.swing.settings
-
-import com.gagik.terminal.render.api.TerminalRenderAttrs
-import com.gagik.terminal.render.api.TerminalRenderColorKind
+package com.gagik.terminal.render.api
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith

@@ -1,14 +1,11 @@
-package com.gagik.terminal.ui.swing.settings
-
-import com.gagik.terminal.render.api.TerminalRenderAttrs
-import com.gagik.terminal.render.api.TerminalRenderColorKind
+package com.gagik.terminal.render.api
 
 /**
  * Immutable resolved terminal color palette.
  *
  * Colors are stored as packed ARGB integers so painting code can resolve cell
- * foreground and background colors without allocating AWT [java.awt.Color]
- * instances per cell.
+ * foreground and background colors without allocating platform color objects
+ * per cell.
  *
  * @property defaultForeground default foreground ARGB color.
  * @property defaultBackground default background ARGB color.
@@ -201,7 +198,7 @@ class TerminalColorPalette(
         // Fast-path 50% brightness reduction.
         // Extracts ARGB channels, performs integer division by 2 on the RGB
         // components to halve their intensity, and repacks them with the
-        // original alpha mask. This avoids java.awt.Color allocation.
+        // original alpha mask. This avoids platform color allocation.
         val alpha = color and 0xFF000000.toInt()
         val red = ((color ushr 16) and 0xFF) / 2
         val green = ((color ushr 8) and 0xFF) / 2

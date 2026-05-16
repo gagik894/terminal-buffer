@@ -1,5 +1,6 @@
 package com.gagik.terminal.ui.swing.settings
 
+import com.gagik.terminal.render.api.TerminalColorPalette
 import com.gagik.terminal.ui.swing.api.TerminalSwingTerminal
 import java.awt.Font
 import java.awt.GraphicsEnvironment

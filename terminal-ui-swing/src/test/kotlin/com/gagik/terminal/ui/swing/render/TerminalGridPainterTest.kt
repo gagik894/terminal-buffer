@@ -2,7 +2,6 @@ package com.gagik.terminal.ui.swing.render
 
 import com.gagik.terminal.render.api.*
 import com.gagik.terminal.render.cache.TerminalRenderCache
-import com.gagik.terminal.ui.swing.settings.TerminalColorPalette
 import com.gagik.terminal.ui.swing.settings.TerminalSwingMetrics
 import com.gagik.terminal.ui.swing.settings.TerminalSwingSettings
 import org.junit.jupiter.api.Assertions.assertEquals
