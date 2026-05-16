@@ -12,8 +12,8 @@ import com.gagik.terminal.ui.swing.viewport.TerminalSwingRepaintPlanner
 import com.gagik.terminal.ui.swing.viewport.TerminalSwingScrollModel
 import java.awt.*
 import java.awt.event.*
-import java.lang.reflect.InvocationTargetException
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import javax.swing.JComponent
 import javax.swing.SwingUtilities
 import javax.swing.Timer
@@ -39,6 +39,7 @@ class TerminalSwingTerminal(
     private var lastResizedColumns: Int = NO_RESIZE_DIMENSION
     private var lastResizedRows: Int = NO_RESIZE_DIMENSION
     private val renderPending = AtomicBoolean(false)
+    private val visibleGridSizeSnapshot = AtomicLong(packVisibleGridSize(1, 1))
 
     private val painter = TerminalGridPainter()
     private val repaintPlanner = TerminalSwingRepaintPlanner()
@@ -138,18 +139,19 @@ class TerminalSwingTerminal(
     /**
      * Returns the grid size that fits in this component's current bounds.
      *
-     * This method may be called from any thread; component state is read
-     * synchronously on the EDT.
+     * This method may be called from any thread. EDT callers refresh the
+     * snapshot from live component state before reading it; off-EDT callers read
+     * the last EDT-published snapshot without blocking the event queue.
      *
      * @return dimension where width is columns and height is rows.
      */
     fun visibleGridSize(): Dimension {
-        return callOnEdtAndWait {
-            Dimension(
-                maxOf(1, width / metrics.cellWidth),
-                maxOf(1, height / metrics.cellHeight),
-            )
+        val packed = if (SwingUtilities.isEventDispatchThread()) {
+            updateVisibleGridSizeOnEdt()
+        } else {
+            visibleGridSizeSnapshot.get()
         }
+        return Dimension(unpackVisibleColumns(packed), unpackVisibleRows(packed))
     }
 
     override fun addNotify() {
@@ -322,16 +324,25 @@ class TerminalSwingTerminal(
     }
 
     private fun resizeSessionToVisibleGridOnEdt() {
+        val packedGridSize = updateVisibleGridSizeOnEdt()
         val boundSession = session ?: return
         if (width <= 0 || height <= 0) return
 
-        val columns = maxOf(1, width / metrics.cellWidth)
-        val rows = maxOf(1, height / metrics.cellHeight)
+        val columns = unpackVisibleColumns(packedGridSize)
+        val rows = unpackVisibleRows(packedGridSize)
         if (columns == lastResizedColumns && rows == lastResizedRows) return
 
         lastResizedColumns = columns
         lastResizedRows = rows
         boundSession.resize(columns, rows)
+    }
+
+    private fun updateVisibleGridSizeOnEdt(): Long {
+        val columns = maxOf(1, width / metrics.cellWidth)
+        val rows = maxOf(1, height / metrics.cellHeight)
+        val packed = packVisibleGridSize(columns, rows)
+        visibleGridSizeSnapshot.set(packed)
+        return packed
     }
 
     private fun wheelScrollLines(event: MouseWheelEvent): Double {
@@ -368,41 +379,19 @@ class TerminalSwingTerminal(
         }
     }
 
-    /**
-     * Executes [action] synchronously on the EDT, blocking the caller until complete.
-     *
-     * This barrier is reserved for public read APIs that must return a value
-     * derived from EDT-owned Swing state.
-     * Throws [IllegalStateException] if the thread is interrupted to prevent
-     * corrupted partial-state application.
-     */
-    private fun <T> callOnEdtAndWait(action: () -> T): T {
-        if (SwingUtilities.isEventDispatchThread()) {
-            return action()
-        }
-
-        var result: T? = null
-        try {
-            SwingUtilities.invokeAndWait {
-                result = action()
-            }
-        } catch (error: InterruptedException) {
-            Thread.currentThread().interrupt()
-            throw IllegalStateException("Interrupted while waiting for Swing event dispatch thread", error)
-        } catch (error: InvocationTargetException) {
-            val cause = error.cause ?: error
-            when (cause) {
-                is RuntimeException -> throw cause
-                is Error -> throw cause
-                else -> throw IllegalStateException("Swing event dispatch thread action failed", cause)
-            }
-        }
-
-        @Suppress("UNCHECKED_CAST")
-        return result as T
-    }
-
     private companion object {
         private const val NO_RESIZE_DIMENSION = -1
+
+        private fun packVisibleGridSize(columns: Int, rows: Int): Long {
+            return (columns.toLong() shl 32) or (rows.toLong() and 0xffff_ffffL)
+        }
+
+        private fun unpackVisibleColumns(packed: Long): Int {
+            return (packed ushr 32).toInt()
+        }
+
+        private fun unpackVisibleRows(packed: Long): Int {
+            return packed.toInt()
+        }
     }
 }

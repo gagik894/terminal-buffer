@@ -116,20 +116,45 @@ class TerminalSwingTerminalThreadingTest {
     }
 
     @Test
-    fun `visibleGridSize called off EDT reads component state on EDT`() {
+    fun `visibleGridSize called off EDT reads cached grid size without waiting for EDT`() {
         val component = TerminalSwingTerminal()
-        edtCall {
+        val expected = edtCall {
             component.size = Dimension(160, 80)
+            component.visibleGridSize()
         }
-
-        val visibleFromEdt = edtCall { component.visibleGridSize() }
         val visibleFromBackground = AtomicReference<Dimension>()
+        val edtBlocked = CountDownLatch(1)
+        val releaseEdt = CountDownLatch(1)
+        val returned = CountDownLatch(1)
+        val failure = AtomicReference<Throwable?>()
 
-        runOffEdt {
-            visibleFromBackground.set(component.visibleGridSize())
+        SwingUtilities.invokeLater {
+            try {
+                edtBlocked.countDown()
+                if (!releaseEdt.await(1, TimeUnit.SECONDS)) {
+                    failure.set(AssertionError("EDT blocker was not released"))
+                }
+            } catch (error: Throwable) {
+                failure.set(error)
+            }
+        }
+        assertTrue(edtBlocked.await(1, TimeUnit.SECONDS), "EDT blocker did not start")
+
+        val worker = thread(start = true) {
+            try {
+                visibleFromBackground.set(component.visibleGridSize())
+                returned.countDown()
+            } catch (error: Throwable) {
+                failure.set(error)
+            }
         }
 
-        assertEquals(visibleFromEdt, visibleFromBackground.get())
+        val completedWhileEdtBlocked = returned.await(500, TimeUnit.MILLISECONDS)
+        releaseEdt.countDown()
+        worker.join(1_000)
+        failure.get()?.let { throw it }
+        assertTrue(completedWhileEdtBlocked, "visibleGridSize should not wait for the EDT")
+        assertEquals(expected, visibleFromBackground.get())
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.gagik.terminal.ui.swing.api.TerminalSwingTerminal
 import java.awt.Canvas
 import java.awt.Font
 import java.awt.RenderingHints
+import javax.swing.SwingUtilities
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -48,9 +49,17 @@ class TerminalSwingSettingsTest {
             TerminalSwingSettings(columns = 10, rows = 4)
         }
         val preferred = component.preferredSize
-        component.setSize(preferred)
+        var visibleColumns = 0
+        var visibleRows = 0
 
-        assertEquals(10, component.visibleGridSize().width)
-        assertEquals(4, component.visibleGridSize().height)
+        SwingUtilities.invokeAndWait {
+            component.setSize(preferred)
+            val visible = component.visibleGridSize()
+            visibleColumns = visible.width
+            visibleRows = visible.height
+        }
+
+        assertEquals(10, visibleColumns)
+        assertEquals(4, visibleRows)
     }
 }
