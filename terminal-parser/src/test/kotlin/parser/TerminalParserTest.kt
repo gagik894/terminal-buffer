@@ -703,6 +703,34 @@ class TerminalParserTest {
                 { assertArrayEquals(intArrayOf(0, 0, 0, 0), f.state.charsets) }
             )
         }
+
+        @Test
+        fun `ESC 7 and ESC 8 save and restore designated charsets and shift state`() {
+            val f = TerminalParserFixture()
+
+            // Designate G1 as DEC Special Graphics and shift out to select G1
+            f.acceptAscii("\u001B)0")
+            f.acceptByte(0x0E) // SO (shift out to G1)
+
+            // Verify characters are mapped to DEC special graphics
+            f.acceptAscii("q")
+            assertEquals(listOf(writeCodepoint(0x2500)), f.sink.events)
+            f.sink.events.clear()
+
+            // Save cursor (which should save active charsets and glSlot)
+            f.acceptAscii("\u001B7")
+
+            // Shift in (SI) to restore G0 (which is ASCII)
+            f.acceptByte(0x0F)
+            f.acceptAscii("q")
+            assertEquals(listOf("saveCursor", writeCodepoint('q'.code)), f.sink.events)
+            f.sink.events.clear()
+
+            // Restore cursor (which should restore G1 as the active GL slot)
+            f.acceptAscii("\u001B8")
+            f.acceptAscii("q")
+            assertEquals(listOf("restoreCursor", writeCodepoint(0x2500)), f.sink.events)
+        }
     }
 
     // ----- Reset ------------------------------------------------------------

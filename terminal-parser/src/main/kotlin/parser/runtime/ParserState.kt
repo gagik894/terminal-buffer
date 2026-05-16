@@ -97,6 +97,26 @@ internal class ParserState(
     var grSlot: Int = 2
     var singleShiftSlot: Int = -1
 
+    val savedCharsets: IntArray = IntArray(4) { CHARSET_ASCII }
+    var savedGlSlot: Int = 0
+    var savedGrSlot: Int = 2
+    var isCharsetSaved: Boolean = false
+
+    fun saveCursor() {
+        System.arraycopy(charsets, 0, savedCharsets, 0, 4)
+        savedGlSlot = glSlot
+        savedGrSlot = grSlot
+        isCharsetSaved = true
+    }
+
+    fun restoreCursor() {
+        if (isCharsetSaved) {
+            System.arraycopy(savedCharsets, 0, charsets, 0, 4)
+            glSlot = savedGlSlot
+            grSlot = savedGrSlot
+        }
+    }
+
     // -------------------------------------------------------------------------
     // PARTITION 6: OSC/DCS payload scratch state
     // -------------------------------------------------------------------------
@@ -155,6 +175,13 @@ internal class ParserState(
         glSlot = 0
         grSlot = 2
         singleShiftSlot = -1
+        savedCharsets[0] = CHARSET_ASCII
+        savedCharsets[1] = CHARSET_ASCII
+        savedCharsets[2] = CHARSET_ASCII
+        savedCharsets[3] = CHARSET_ASCII
+        savedGlSlot = 0
+        savedGrSlot = 2
+        isCharsetSaved = false
     }
 
     fun resetAll() {

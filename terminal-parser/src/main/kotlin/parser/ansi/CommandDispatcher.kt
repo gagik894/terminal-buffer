@@ -70,8 +70,14 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
         }
 
         when (finalByte) {
-            '7'.code -> sink.saveCursor()
-            '8'.code -> sink.restoreCursor()
+            '7'.code -> {
+                state.saveCursor()
+                sink.saveCursor()
+            }
+            '8'.code -> {
+                state.restoreCursor()
+                sink.restoreCursor()
+            }
             'c'.code -> sink.resetTerminal()
             'D'.code -> sink.lineFeed()
             'E'.code -> sink.nextLine()
@@ -205,6 +211,11 @@ internal object AnsiCommandDispatcher : CommandDispatcher {
         enable: Boolean,
     ) {
         forEachMaterializedMode(state) { mode ->
+            when (mode) {
+                1048, 1049 -> {
+                    if (enable) state.saveCursor() else state.restoreCursor()
+                }
+            }
             sink.setDecMode(mode, enable)
         }
     }
