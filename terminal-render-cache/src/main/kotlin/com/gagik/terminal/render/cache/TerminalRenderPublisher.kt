@@ -12,25 +12,24 @@ import kotlin.concurrent.withLock
  * One buffer is UI-readable (front).
  * One buffer is spare (recycled after front is replaced).
  *
- * Writer and UI never touch the same buffer simultaneously when UI consumers
- * access the front buffer through [readCurrent].
+ * UI reads are lock-free snapshots of the currently published front buffer.
+ * Readers must not retain the cache after [readCurrent] returns.
  */
 class TerminalRenderPublisher(
     columns: Int,
     rows: Int,
 ) {
     @PublishedApi internal val buffers = Array(3) { TerminalRenderCache(columns, rows) }
-    @PublishedApi internal val readerCounts = IntArray(BUFFER_COUNT)
     private val writerOwned = BooleanArray(BUFFER_COUNT)
 
-    // Buffer indices, reader counts, and writer leases are mutated under publishLock.
+    // Buffer indices and writer leases are mutated under publishLock.
     @PublishedApi internal var frontIndex = NO_FRONT
     private var nextWriteIndex = 0
     @PublishedApi internal val publishLock = ReentrantLock()
     private val bufferAvailable = publishLock.newCondition()
 
     // AtomicReference for lock-free front reads.
-    private val frontRef = AtomicReference<TerminalRenderCache?>(null)
+    @PublishedApi internal val frontRef = AtomicReference<TerminalRenderCache?>(null)
 
     /**
      * Called from render worker thread only.
@@ -64,8 +63,7 @@ class TerminalRenderPublisher(
 
         try {
             // The selected back buffer is writer-exclusive until publish or
-            // release. Resize and UI readers are blocked from mutating or
-            // leasing this specific buffer through publisher state.
+            // release.
             back.updateFrom(reader, scrollbackOffset, viewportRows)
 
             publishLock.withLock {
@@ -92,32 +90,19 @@ class TerminalRenderPublisher(
     fun current(): TerminalRenderCache? = frontRef.get()
 
     /**
-     * Reads the latest published front buffer while preventing it from being
-     * recycled as a writer-owned back buffer.
+     * Reads the latest published front buffer without taking a lock.
      *
-     * The callback should only copy or paint from the cache and must not call
-     * back into this publisher. Returning `null` means no frame has been
-     * published yet.
+     * The callback should only copy or paint from the cache and must not retain
+     * it or call back into this publisher. Returning `null` means no frame has
+     * been published yet. This method deliberately does not lease the front
+     * buffer so Swing paint and repaint planning cannot block publication.
      *
      * @param block reader invoked with the current front buffer.
      * @return [block]'s result, or `null` when no frame is available.
      */
     inline fun <T> readCurrent(block: (TerminalRenderCache) -> T): T? {
-        val index = publishLock.withLock {
-            val i = frontIndex
-            if (i != NO_FRONT) {
-                readerCounts[i]++
-            }
-            i
-        }
-
-        if (index == NO_FRONT) return null
-
-        try {
-            return block(buffers[index])
-        } finally {
-            releaseFrontLease(index)
-        }
+        val cache = frontRef.get() ?: return null
+        return block(cache)
     }
 
 
@@ -127,7 +112,7 @@ class TerminalRenderPublisher(
                 var offset = 0
                 while (offset < BUFFER_COUNT) {
                     val index = (nextWriteIndex + offset) % BUFFER_COUNT
-                    if (index != frontIndex && readerCounts[index] == 0 && !writerOwned[index]) {
+                    if (index != frontIndex && !writerOwned[index]) {
                         writerOwned[index] = true
                         nextWriteIndex = (index + 1) % BUFFER_COUNT
                         return index
@@ -136,17 +121,6 @@ class TerminalRenderPublisher(
                 }
                 bufferAvailable.await()
             }
-        }
-    }
-
-    @PublishedApi
-    internal fun releaseFrontLease(index: Int) {
-        publishLock.withLock {
-            readerCounts[index]--
-            check(readerCounts[index] >= 0) {
-                "TerminalRenderPublisher reader count underflow for buffer $index"
-            }
-            bufferAvailable.signalAll()
         }
     }
 

@@ -7,6 +7,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
+import kotlin.concurrent.withLock
 
 class TerminalRenderPublisherTest {
 
@@ -60,7 +61,7 @@ class TerminalRenderPublisherTest {
     }
 
     @Test
-    fun `reading a leased front snapshot is stable`() {
+    fun `readCurrent exposes current front snapshot`() {
         val publisher = TerminalRenderPublisher(3, 1)
         publisher.updateAndPublish(MockFrame(3, 1, "abc"))
 
@@ -71,6 +72,38 @@ class TerminalRenderPublisherTest {
                 { assertEquals("abc", front.rowText(0)) },
             )
         }
+    }
+
+    @Test
+    fun `readCurrent enters while publish lock is held`() {
+        val publisher = TerminalRenderPublisher(3, 1)
+        publisher.updateAndPublish(MockFrame(3, 1, "abc"))
+
+        val lockHeld = CountDownLatch(1)
+        val releaseLock = CountDownLatch(1)
+        val readerEntered = CountDownLatch(1)
+
+        val locker = thread(start = true) {
+            publisher.publishLock.withLock {
+                lockHeld.countDown()
+                assertTrue(releaseLock.await(1, TimeUnit.SECONDS), "publish lock was not released")
+            }
+        }
+
+        assertTrue(lockHeld.await(1, TimeUnit.SECONDS), "publish lock was not acquired")
+
+        val reader = thread(start = true) {
+            publisher.readCurrent { front ->
+                readerEntered.countDown()
+                assertEquals("abc", front.rowText(0))
+            }
+        }
+
+        assertTrue(readerEntered.await(1, TimeUnit.SECONDS), "readCurrent blocked on publish lock")
+
+        releaseLock.countDown()
+        locker.join()
+        reader.join()
     }
 
     @Test
@@ -228,26 +261,39 @@ class TerminalRenderPublisherTest {
     }
 
     @Test
-    fun `readCurrent keeps pinned snapshot stable across multiple publishes`() {
+    fun `readCurrent callback does not prevent multiple publishes`() {
         val publisher = TerminalRenderPublisher(3, 1)
         publisher.updateAndPublish(MockFrame(3, 1, "abc"))
 
         val readerEntered = CountDownLatch(1)
         val releaseReader = CountDownLatch(1)
+        val firstWriterFinished = AtomicBoolean(false)
+        val secondWriterFinished = AtomicBoolean(false)
 
         val reader = thread(start = true) {
             publisher.readCurrent { front ->
                 readerEntered.countDown()
                 assertEquals("abc", front.rowText(0))
                 assertTrue(releaseReader.await(1, TimeUnit.SECONDS))
-                assertEquals("abc", front.rowText(0))
             }
         }
 
         assertTrue(readerEntered.await(1, TimeUnit.SECONDS))
 
-        publisher.updateAndPublish(MockFrame(3, 1, "def"))
-        publisher.updateAndPublish(MockFrame(3, 1, "ghi"))
+        val firstWriter = thread(start = true) {
+            publisher.updateAndPublish(MockFrame(3, 1, "def"))
+            firstWriterFinished.set(true)
+        }
+        firstWriter.join(1_000)
+
+        val secondWriter = thread(start = true) {
+            publisher.updateAndPublish(MockFrame(3, 1, "ghi"))
+            secondWriterFinished.set(true)
+        }
+        secondWriter.join(1_000)
+
+        assertTrue(firstWriterFinished.get(), "first writer was blocked by readCurrent callback")
+        assertTrue(secondWriterFinished.get(), "second writer was blocked by readCurrent callback")
 
         releaseReader.countDown()
         reader.join()
