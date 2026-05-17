@@ -4,6 +4,8 @@ import com.gagik.terminal.render.api.TerminalColorPalette
 import com.gagik.terminal.render.api.TerminalRenderCursorShape
 import com.gagik.terminal.render.cache.TerminalRenderCache
 import com.gagik.terminal.ui.swing.render.cache.AwtColorCache
+import com.gagik.terminal.ui.swing.render.visualCellRangeSpan
+import com.gagik.terminal.ui.swing.render.visualCellRangeStart
 import com.gagik.terminal.ui.swing.settings.TerminalSwingMetrics
 import java.awt.Graphics2D
 import java.awt.font.FontRenderContext
@@ -29,17 +31,22 @@ internal class TerminalCursorPainter(
         if (!cache.cursorVisible || (cache.cursorBlinking && !cursorBlinkVisible)) return
         if (cache.cursorColumn !in 0 until cache.columns || cache.cursorRow !in 0 until cache.rows) return
 
-        val x = cache.cursorColumn * metrics.cellWidth
+        val cursorIndex = cache.rowOffset(cache.cursorRow) + cache.cursorColumn
+        val cursorFlags = cache.flags[cursorIndex]
+        val startColumn = visualCellRangeStart(cursorFlags, cache.cursorColumn)
+        val columnSpan = visualCellRangeSpan(cursorFlags, cache.cursorColumn, cache.columns)
+        val x = startColumn * metrics.cellWidth
         val y = cache.cursorRow * metrics.cellHeight
+        val width = columnSpan * metrics.cellWidth
         g.color = colorCache.color(palette.cursorBackground)
 
         when (cache.cursorShape) {
-            TerminalRenderCursorShape.BLOCK -> g.fillRect(x, y, metrics.cellWidth, metrics.cellHeight)
+            TerminalRenderCursorShape.BLOCK -> g.fillRect(x, y, width, metrics.cellHeight)
             TerminalRenderCursorShape.UNDERLINE -> {
                 g.fillRect(
                     x,
                     y + metrics.cellHeight - metrics.cursorStrokeWidth,
-                    metrics.cellWidth,
+                    width,
                     metrics.cursorStrokeWidth,
                 )
             }
@@ -53,8 +60,9 @@ internal class TerminalCursorPainter(
                 g = g,
                 cache = cache,
                 metrics = metrics,
-                column = cache.cursorColumn,
+                column = startColumn,
                 row = cache.cursorRow,
+                columnSpan = columnSpan,
                 foreground = palette.cursorForeground,
                 fontRenderContext = fontRenderContext,
             )

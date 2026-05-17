@@ -56,5 +56,15 @@ class TerminalPainterSupportTest {
             assertEquals(2, cellSpan(TerminalRenderCellFlags.CODEPOINT or TerminalRenderCellFlags.WIDE_LEADING))
             assertEquals(2, cellSpan(TerminalRenderCellFlags.CLUSTER or TerminalRenderCellFlags.WIDE_LEADING))
         }
+
+        @Test
+        fun `visual cell range covers wide owners and trailing spacers`() {
+            assertEquals(1, visualCellRangeStart(TerminalRenderCellFlags.CODEPOINT or TerminalRenderCellFlags.WIDE_LEADING, 1))
+            assertEquals(2, visualCellRangeSpan(TerminalRenderCellFlags.CODEPOINT or TerminalRenderCellFlags.WIDE_LEADING, 1, 4))
+            assertEquals(1, visualCellRangeStart(TerminalRenderCellFlags.WIDE_TRAILING, 2))
+            assertEquals(2, visualCellRangeSpan(TerminalRenderCellFlags.WIDE_TRAILING, 2, 4))
+            assertEquals(0, visualCellRangeStart(TerminalRenderCellFlags.WIDE_TRAILING, 0))
+            assertEquals(1, visualCellRangeSpan(TerminalRenderCellFlags.WIDE_TRAILING, 0, 4))
+        }
     }
 }

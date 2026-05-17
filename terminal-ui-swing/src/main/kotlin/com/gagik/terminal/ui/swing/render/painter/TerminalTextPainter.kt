@@ -22,13 +22,13 @@ import java.awt.font.FontRenderContext
 internal class TerminalTextPainter(
     private val colorCache: AwtColorCache,
     private val decorationPainter: TerminalDecorationPainter,
+    private val platformEmojiPainter: TerminalPlatformEmojiPainter = TerminalPlatformEmojiPainter(),
 ) {
     private val fontCache = TerminalFontCache()
     private val complexTextLayouts = TerminalComplexTextLayoutCache()
     private val asciiGlyphVectors = TerminalAsciiGlyphVectorCache()
     private val asciiDrawChars = TerminalAsciiDrawCharsCache()
     private val cellPrimitives = TerminalCellPrimitivePainter()
-    private val platformEmojiPainter = TerminalPlatformEmojiPainter()
     private val textRun = TerminalTextRunBuffer(INITIAL_TEXT_RUN_CAPACITY)
     private val clipBoundsScratch = Rectangle()
 
@@ -109,6 +109,7 @@ internal class TerminalTextPainter(
         metrics: TerminalSwingMetrics,
         column: Int,
         row: Int,
+        columnSpan: Int = 1,
         foreground: Int,
         fontRenderContext: FontRenderContext,
     ) {
@@ -121,9 +122,15 @@ internal class TerminalTextPainter(
         if (!hasDrawableText(flags)) return
 
         val attr = attrWords[index]
+        val safeColumnSpan = maxOf(1, columnSpan)
         val oldClipBounds = g.getClipBounds(clipBoundsScratch) != null
         try {
-            g.clipRect(column * metrics.cellWidth, row * metrics.cellHeight, metrics.cellWidth, metrics.cellHeight)
+            g.clipRect(
+                column * metrics.cellWidth,
+                row * metrics.cellHeight,
+                metrics.cellWidth * safeColumnSpan,
+                metrics.cellHeight,
+            )
             g.font = fontCache.font(terminalFontStyle(attr))
             g.color = colorCache.color(foreground)
 
@@ -143,7 +150,7 @@ internal class TerminalTextPainter(
                         length = length,
                         column = column,
                         row = row,
-                        columnSpan = 1,
+                        columnSpan = safeColumnSpan,
                         metrics = metrics,
                     )
                     if (!paintedEmoji) {
@@ -164,7 +171,7 @@ internal class TerminalTextPainter(
                     codePoint = codeWord,
                     column = column,
                     row = row,
-                    columnSpan = 1,
+                    columnSpan = safeColumnSpan,
                     metrics = metrics,
                 )
             ) {

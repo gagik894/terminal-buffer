@@ -2,6 +2,8 @@ package com.gagik.terminal.ui.swing.viewport
 
 import com.gagik.terminal.render.api.TerminalRenderCursorShape
 import com.gagik.terminal.render.cache.TerminalRenderCache
+import com.gagik.terminal.ui.swing.render.visualCellRangeSpan
+import com.gagik.terminal.ui.swing.render.visualCellRangeStart
 import com.gagik.terminal.ui.swing.settings.TerminalSwingMetrics
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -196,9 +198,12 @@ internal class TerminalSwingRepaintPlanner {
         if (column !in 0 until cache.columns || row !in 0 until visibleRows) return false
         if (skipChangedRows && rowChanged(cache, row)) return false
 
-        val x = column * metrics.cellWidth
+        val flags = cache.flags[cache.rowOffset(row) + column]
+        val startColumn = visualCellRangeStart(flags, column)
+        val columnSpan = visualCellRangeSpan(flags, column, cache.columns)
+        val x = startColumn * metrics.cellWidth
         if (x >= componentWidth) return false
-        val regionWidth = minOf(metrics.cellWidth, componentWidth - x)
+        val regionWidth = minOf(columnSpan * metrics.cellWidth, componentWidth - x)
         if (regionWidth <= 0) return false
 
         val y = rowTop(row, metrics.cellHeight, contentYOffset)

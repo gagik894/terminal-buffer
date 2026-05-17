@@ -23,3 +23,17 @@ internal fun isFastAsciiCell(flags: Int, codeWord: Int): Boolean {
 internal fun cellSpan(flags: Int): Int {
     return if (flags and TerminalRenderCellFlags.WIDE_LEADING != 0) 2 else 1
 }
+
+internal fun visualCellRangeStart(flags: Int, column: Int): Int {
+    return if (flags and TerminalRenderCellFlags.WIDE_TRAILING != 0) maxOf(0, column - 1) else column
+}
+
+internal fun visualCellRangeSpan(flags: Int, column: Int, columns: Int): Int {
+    val start = visualCellRangeStart(flags, column)
+    val span = when {
+        flags and TerminalRenderCellFlags.WIDE_LEADING != 0 -> 2
+        flags and TerminalRenderCellFlags.WIDE_TRAILING != 0 && column > 0 -> 2
+        else -> 1
+    }
+    return minOf(span, columns - start)
+}

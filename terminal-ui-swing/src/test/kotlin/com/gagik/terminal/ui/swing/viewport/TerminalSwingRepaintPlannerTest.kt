@@ -176,6 +176,48 @@ class TerminalSwingRepaintPlannerTest {
     }
 
     @Test
+    fun `cursor blink over wide leader repaints both cells`() {
+        val frame = MutableFrame(columns = 4, rows = 4)
+        frame.cursor = cursor(column = 1, row = 1, blinking = true, generation = 1)
+        frame.setWideCell(row = 1, column = 1)
+        val cache = TerminalRenderCache(columns = 4, rows = 4)
+        cache.updateFrom(frame.reader)
+
+        val repaintSink = RecordingRepaintSink()
+        TerminalSwingRepaintPlanner().requestCursorBlinkRepaint(
+            cache = cache,
+            metrics = METRICS,
+            componentWidth = WIDTH,
+            componentHeight = HEIGHT,
+            contentYOffset = 0.0,
+            repaintSink = repaintSink,
+        )
+
+        assertEquals(listOf(Region(CELL_WIDTH, CELL_HEIGHT, 2 * CELL_WIDTH, CELL_HEIGHT)), repaintSink.regions)
+    }
+
+    @Test
+    fun `cursor blink over wide trailing spacer repaints owner pair`() {
+        val frame = MutableFrame(columns = 4, rows = 4)
+        frame.cursor = cursor(column = 2, row = 1, blinking = true, generation = 1)
+        frame.setWideCell(row = 1, column = 1)
+        val cache = TerminalRenderCache(columns = 4, rows = 4)
+        cache.updateFrom(frame.reader)
+
+        val repaintSink = RecordingRepaintSink()
+        TerminalSwingRepaintPlanner().requestCursorBlinkRepaint(
+            cache = cache,
+            metrics = METRICS,
+            componentWidth = WIDTH,
+            componentHeight = HEIGHT,
+            contentYOffset = 0.0,
+            repaintSink = repaintSink,
+        )
+
+        assertEquals(listOf(Region(CELL_WIDTH, CELL_HEIGHT, 2 * CELL_WIDTH, CELL_HEIGHT)), repaintSink.regions)
+    }
+
+    @Test
     fun `fractional content offset shifts changed row repaint bounds`() {
         val frame = MutableFrame(columns = 4, rows = 4)
         val cache = TerminalRenderCache(columns = 4, rows = 4)
@@ -311,6 +353,7 @@ class TerminalSwingRepaintPlannerTest {
             CharArray(columns) { column -> ('a'.code + row * columns + column).toChar() }
         }
         private val lineGenerations = LongArray(rows) { 1L }
+        private val cellFlags = Array(rows) { IntArray(columns) { TerminalRenderCellFlags.CODEPOINT } }
 
         override var frameGeneration: Long = 1L
         override var structureGeneration: Long = 1L
@@ -330,6 +373,14 @@ class TerminalSwingRepaintPlannerTest {
                 textRows[row][column] = text[column]
                 column++
             }
+            lineGenerations[row]++
+            frameGeneration++
+        }
+
+        fun setWideCell(row: Int, column: Int) {
+            require(column in 0 until columns - 1)
+            cellFlags[row][column] = TerminalRenderCellFlags.CODEPOINT or TerminalRenderCellFlags.WIDE_LEADING
+            cellFlags[row][column + 1] = TerminalRenderCellFlags.WIDE_TRAILING
             lineGenerations[row]++
             frameGeneration++
         }
@@ -357,7 +408,7 @@ class TerminalSwingRepaintPlannerTest {
             while (column < columns) {
                 codeWords[codeOffset + column] = textRows[row][column].code
                 attrWords[attrOffset + column] = TerminalRenderAttrs.DEFAULT
-                flags[flagOffset + column] = TerminalRenderCellFlags.CODEPOINT
+                flags[flagOffset + column] = cellFlags[row][column]
                 extraAttrWords?.set(extraAttrOffset + column, TerminalRenderExtraAttrs.DEFAULT)
                 hyperlinkIds?.set(hyperlinkOffset + column, 0)
                 column++

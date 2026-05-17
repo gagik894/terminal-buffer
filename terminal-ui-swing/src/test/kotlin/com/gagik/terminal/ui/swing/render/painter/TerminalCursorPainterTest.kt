@@ -6,6 +6,8 @@ import com.gagik.terminal.render.api.TerminalRenderCursorShape
 import com.gagik.terminal.render.cache.TerminalRenderCache
 import com.gagik.terminal.ui.swing.render.*
 import com.gagik.terminal.ui.swing.render.cache.AwtColorCache
+import com.gagik.terminal.ui.swing.render.platform.TerminalPlatformEmojiRasterizer
+import com.gagik.terminal.ui.swing.render.primitives.TerminalPlatformEmojiPainter
 import com.gagik.terminal.ui.swing.settings.TerminalSwingMetrics
 import com.gagik.terminal.ui.swing.settings.TerminalSwingSettings
 import org.junit.jupiter.api.Nested
@@ -60,6 +62,41 @@ class TerminalCursorPainterTest {
         }
 
         @Test
+        fun `block cursor over wide leader fills both cells`() {
+            val fixture = wideFixture(cursor(column = 0, shape = TerminalRenderCursorShape.BLOCK))
+
+            fixture.paint()
+
+            assertEquals(TEST_BLUE, fixture.image.getRGB(1, 1))
+            assertEquals(TEST_BLUE, fixture.image.getRGB(fixture.metrics.cellWidth + 1, 1))
+        }
+
+        @Test
+        fun `block cursor over wide trailing spacer fills owner pair`() {
+            val fixture = wideFixture(cursor(column = 1, shape = TerminalRenderCursorShape.BLOCK))
+
+            fixture.paint()
+
+            assertEquals(TEST_BLUE, fixture.image.getRGB(1, 1))
+            assertEquals(TEST_BLUE, fixture.image.getRGB(fixture.metrics.cellWidth + 1, 1))
+        }
+
+        @Test
+        fun `block cursor redraws wide emoji foreground across both cells`() {
+            val fixture = wideEmojiFixture(cursor(column = 0, shape = TerminalRenderCursorShape.BLOCK))
+
+            fixture.paint()
+
+            assertTrue(
+                fixture.image.containsColorInRange(
+                    TEST_RED,
+                    xStart = fixture.metrics.cellWidth,
+                    xEnd = fixture.metrics.cellWidth * 2,
+                ),
+            )
+        }
+
+        @Test
         fun `underline cursor fills bottom stroke only`() {
             val fixture = fixture(cursor(shape = TerminalRenderCursorShape.UNDERLINE))
 
@@ -67,6 +104,17 @@ class TerminalCursorPainterTest {
 
             assertEquals(TEST_BLUE, fixture.image.getRGB(1, fixture.metrics.cellHeight - 1))
             assertEquals(TEST_BLACK, fixture.image.getRGB(1, 1))
+        }
+
+        @Test
+        fun `underline cursor over wide leader spans both cells`() {
+            val fixture = wideFixture(cursor(column = 0, shape = TerminalRenderCursorShape.UNDERLINE))
+
+            fixture.paint()
+
+            assertEquals(TEST_BLUE, fixture.image.getRGB(1, fixture.metrics.cellHeight - 1))
+            assertEquals(TEST_BLUE, fixture.image.getRGB(fixture.metrics.cellWidth + 1, fixture.metrics.cellHeight - 1))
+            assertEquals(TEST_BLACK, fixture.image.getRGB(fixture.metrics.cellWidth + 1, 1))
         }
 
         @Test
@@ -113,6 +161,102 @@ class TerminalCursorPainterTest {
             painter = TerminalCursorPainter(colorCache, textPainter),
             textPainter = textPainter,
         )
+    }
+
+    private fun wideFixture(cursor: TerminalRenderCursor): Fixture {
+        val image = BufferedImage(50, 30, BufferedImage.TYPE_INT_ARGB)
+        val settings = defaultTestSettings(foreground = TEST_WHITE, background = TEST_BLACK)
+        val metrics = testMetrics(image, settings)
+        val colorCache = AwtColorCache()
+        val textPainter = TerminalTextPainter(colorCache, TerminalDecorationPainter(colorCache))
+        val frame = TestRenderFrame(
+            cells = arrayOf(
+                arrayOf(
+                    TestCell(
+                        codeWord = 0x4F60,
+                        flags = TerminalRenderCellFlags.CODEPOINT or TerminalRenderCellFlags.WIDE_LEADING,
+                    ),
+                    TestCell(flags = TerminalRenderCellFlags.WIDE_TRAILING),
+                ),
+            ),
+            cursorValue = cursor,
+        )
+        val cache = renderCache(frame)
+        return Fixture(
+            image = image,
+            g = image.createGraphics().also {
+                it.color = colorCache.color(TEST_BLACK)
+                it.fillRect(0, 0, image.width, image.height)
+            },
+            settings = settings,
+            metrics = metrics,
+            cache = cache,
+            painter = TerminalCursorPainter(colorCache, textPainter),
+            textPainter = textPainter,
+        )
+    }
+
+    private fun wideEmojiFixture(cursor: TerminalRenderCursor): Fixture {
+        val metrics = TerminalSwingMetrics(
+            cellWidth = 10,
+            cellHeight = 20,
+            baseline = 14,
+            underlineY = 15,
+            strikethroughY = 8,
+            overlineY = 0,
+            cursorStrokeWidth = 1,
+        )
+        val image = BufferedImage(metrics.cellWidth * 3, metrics.cellHeight, BufferedImage.TYPE_INT_ARGB)
+        val settings = defaultTestSettings(foreground = TEST_WHITE, background = TEST_BLACK)
+        val colorCache = AwtColorCache()
+        val textPainter = TerminalTextPainter(
+            colorCache = colorCache,
+            decorationPainter = TerminalDecorationPainter(colorCache),
+            platformEmojiPainter = TerminalPlatformEmojiPainter(FakeEmojiRasterizer),
+        )
+        val frame = TestRenderFrame(
+            cells = arrayOf(
+                arrayOf(
+                    TestCell(
+                        codeWord = 0x1F600,
+                        flags = TerminalRenderCellFlags.CODEPOINT or TerminalRenderCellFlags.WIDE_LEADING,
+                    ),
+                    TestCell(flags = TerminalRenderCellFlags.WIDE_TRAILING),
+                ),
+            ),
+            cursorValue = cursor,
+        )
+        val cache = renderCache(frame)
+        return Fixture(
+            image = image,
+            g = image.createGraphics().also {
+                it.color = colorCache.color(TEST_BLACK)
+                it.fillRect(0, 0, image.width, image.height)
+            },
+            settings = settings,
+            metrics = metrics,
+            cache = cache,
+            painter = TerminalCursorPainter(colorCache, textPainter),
+            textPainter = textPainter,
+        )
+    }
+
+    private object FakeEmojiRasterizer : TerminalPlatformEmojiRasterizer {
+        override val available: Boolean = true
+
+        override fun rasterize(text: String, pixelSize: Int): BufferedImage {
+            val image = BufferedImage(pixelSize, pixelSize, BufferedImage.TYPE_INT_ARGB)
+            var y = 0
+            while (y < image.height) {
+                var x = 0
+                while (x < image.width) {
+                    image.setRGB(x, y, TEST_RED)
+                    x++
+                }
+                y++
+            }
+            return image
+        }
     }
 
     private fun cursor(
