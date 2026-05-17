@@ -83,21 +83,27 @@ internal class TerminalBoxDrawingPainter {
         val cx = x + w / 2.0
         val cy = y + h / 2.0
 
+        val tL = if (left != NONE) thickness(left, w, h) else 0.0
+        val tR = if (right != NONE) thickness(right, w, h) else 0.0
+        val tU = if (up != NONE) thickness(up, w, h) else 0.0
+        val tD = if (down != NONE) thickness(down, w, h) else 0.0
+
+        // The maximum thickness of the perpendicular axis dictates how far
+        // a line must cross the center to perfectly seal the outer corner gap.
+        val maxV = maxOf(tU, tD)
+        val maxH = maxOf(tL, tR)
+
         if (left != NONE) {
-            val t = thickness(left, w, h)
-            fillRectBounds(g, x, cy - t / 2.0, cx, cy + t / 2.0)
+            fillRectBounds(g, x, cy - tL / 2.0, cx + maxV / 2.0, cy + tL / 2.0)
         }
         if (right != NONE) {
-            val t = thickness(right, w, h)
-            fillRectBounds(g, cx, cy - t / 2.0, x + w, cy + t / 2.0)
+            fillRectBounds(g, cx - maxV / 2.0, cy - tR / 2.0, x + w, cy + tR / 2.0)
         }
         if (up != NONE) {
-            val t = thickness(up, w, h)
-            fillRectBounds(g, cx - t / 2.0, y, cx + t / 2.0, cy)
+            fillRectBounds(g, cx - tU / 2.0, y, cx + tU / 2.0, cy + maxH / 2.0)
         }
         if (down != NONE) {
-            val t = thickness(down, w, h)
-            fillRectBounds(g, cx - t / 2.0, cy, cx + t / 2.0, y + h)
+            fillRectBounds(g, cx - tD / 2.0, cy - maxH / 2.0, cx + tD / 2.0, y + h)
         }
     }
 
@@ -174,28 +180,40 @@ internal class TerminalBoxDrawingPainter {
     private fun paintDashedHorizontal(
         g: Graphics2D, x: Double, y: Double, w: Double, h: Double, style: Int, dashCount: Int
     ) {
-        val lineThickness = thickness(style, w, h)
-        val centerY = y + h / 2.0
-        val units = dashUnits(dashCount)
+        val t = thickness(style, w, h)
+        val cy = y + h / 2.0
+        val units = dashCount * 2.0 // Total unit scale for perfect tiling
 
-        for (dash in 0 until dashCount) {
-            val startX = x + dashStart(w, units, dash)
-            val endX = x + dashEnd(w, units, dash)
-            fillRectBounds(g, startX, centerY - lineThickness / 2.0, endX, centerY + lineThickness / 2.0)
+        // Topology: Half-dash at edges, Full-dashes in the middle.
+        // E.g., for dashCount = 3: Half (0), Full (1), Full (2), Half (3)
+        for (i in 0..dashCount) {
+            val startUnit = if (i == 0) 0.0 else i * 2.0 - 0.5
+            val endUnit = if (i == dashCount) units else i * 2.0 + 0.5
+
+            // Calculate absolute geometry before snapping to integer bounds.
+            // This prevents accumulating float-drift (jitter) across the segments.
+            val startX = x + (startUnit * w / units)
+            val endX = x + (endUnit * w / units)
+
+            fillRectBounds(g, startX, cy - t / 2.0, endX, cy + t / 2.0)
         }
     }
 
     private fun paintDashedVertical(
         g: Graphics2D, x: Double, y: Double, w: Double, h: Double, style: Int, dashCount: Int
     ) {
-        val lineThickness = thickness(style, w, h)
-        val centerX = x + w / 2.0
-        val units = dashUnits(dashCount)
+        val t = thickness(style, w, h)
+        val cx = x + w / 2.0
+        val units = dashCount * 2.0
 
-        for (dash in 0 until dashCount) {
-            val startY = y + dashStart(h, units, dash)
-            val endY = y + dashEnd(h, units, dash)
-            fillRectBounds(g, centerX - lineThickness / 2.0, startY, centerX + lineThickness / 2.0, endY)
+        for (i in 0..dashCount) {
+            val startUnit = if (i == 0) 0.0 else i * 2.0 - 0.5
+            val endUnit = if (i == dashCount) units else i * 2.0 + 0.5
+
+            val startY = y + (startUnit * h / units)
+            val endY = y + (endUnit * h / units)
+
+            fillRectBounds(g, cx - t / 2.0, startY, cx + t / 2.0, endY)
         }
     }
 
@@ -308,11 +326,6 @@ internal class TerminalBoxDrawingPainter {
 
     private fun doubleOffset(w: Double, h: Double): Double = maxOf(2.0, minOf(w, h) / 5.0)
     private fun dashUnits(dashCount: Int): Int = maxOf(1, dashCount * 2 - 1)
-    private fun dashStart(length: Double, units: Int, dash: Int): Double = dash * 2.0 * length / units
-    
-    private fun dashEnd(length: Double, units: Int, dash: Int): Double {
-        return maxOf(dashStart(length, units, dash) + 1.0, ((dash * 2.0 + 1.0) * length + units - 1.0) / units)
-    }
 
     private companion object {
         private const val KAPPA = 0.552284749831
