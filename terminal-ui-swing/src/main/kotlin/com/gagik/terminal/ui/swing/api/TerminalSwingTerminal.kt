@@ -46,6 +46,7 @@ class TerminalSwingTerminal(
     private var selectionCaretAbsoluteRow: Long? = null
     private var selectionCaretColumn: Int = 0
     private var selectingWithMouse: Boolean = false
+    private var selectionIsBlock: Boolean = false
     private var lastSelectionDragX: Int = 0
     private var lastSelectionDragY: Int = 0
     private val selectionAutoscrollTimer = Timer(50) {
@@ -327,6 +328,7 @@ class TerminalSwingTerminal(
         requestFocusInWindow()
 
         selectingWithMouse = true
+        selectionIsBlock = event.isAltDown
         lastSelectionDragX = event.x
         lastSelectionDragY = event.y
 
@@ -374,6 +376,7 @@ class TerminalSwingTerminal(
         if (event.modifiersEx and MouseEvent.BUTTON1_DOWN_MASK == 0) return
 
         selectingWithMouse = true
+        selectionIsBlock = event.isAltDown
         lastSelectionDragX = event.x
         lastSelectionDragY = event.y
 
@@ -470,14 +473,16 @@ class TerminalSwingTerminal(
                 anchorColumn = clampedStartCol,
                 anchorRow = clampedStartRow,
                 caretColumn = clampedEndCol,
-                caretRow = clampedEndRow
+                caretRow = clampedEndRow,
+                isBlock = selectionIsBlock,
             )
         } else {
             CellSelection(
                 anchorColumn = clampedEndCol,
                 anchorRow = clampedEndRow,
                 caretColumn = clampedStartCol,
-                caretRow = clampedStartRow
+                caretRow = clampedStartRow,
+                isBlock = selectionIsBlock,
             )
         }
     }
@@ -516,8 +521,14 @@ class TerminalSwingTerminal(
 
     private fun selectionAutoscrollDelta(y: Int): Double {
         return when {
-            y < 0 -> 1.0
-            y >= height -> -1.0
+            y < 0 -> {
+                val distance = -y
+                kotlin.math.floor(1.0 + (distance / 20.0))
+            }
+            y >= height -> {
+                val distance = y - height
+                -kotlin.math.floor(1.0 + (distance / 20.0))
+            }
             else -> 0.0
         }
     }

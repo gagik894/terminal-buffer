@@ -21,6 +21,7 @@ data class CellSelection(
     val anchorRow: Int,
     val caretColumn: Int,
     val caretRow: Int,
+    val isBlock: Boolean = false,
 ) {
     init {
         require(anchorColumn >= 0) { "anchorColumn must be >= 0, was $anchorColumn" }
@@ -45,6 +46,13 @@ data class CellSelection(
      */
     fun packedColumnRange(row: Int, columns: Int): Long {
         if (isEmpty || row < startRow || row > endRow) return NO_RANGE
+
+        if (isBlock) {
+            val start = minOf(anchorColumn, caretColumn).coerceIn(0, columns)
+            val end = maxOf(anchorColumn, caretColumn).coerceIn(0, columns)
+            if (start >= end) return NO_RANGE
+            return packRange(start, end)
+        }
 
         val start = when {
             startRow == endRow -> startColumn

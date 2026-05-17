@@ -90,6 +90,26 @@ class TerminalSwingTerminalSelectionTest {
     }
 
     @Test
+    fun `alt drag creates rectangular block selection`() {
+        val frame = TestRenderFrame.text("hello world")
+        val session = testSession(frame = frame)
+        val component = TerminalSwingTerminal()
+
+        SwingUtilities.invokeAndWait {
+            component.setSize(300, 80)
+            component.bind(session)
+            session.publisher.updateAndPublish(StaticFrameReader(frame))
+            component.mouseListeners.forEach { it.mousePressed(mousePressedWithAlt(component, x = 8, y = 8)) }
+            component.mouseMotionListeners.forEach { it.mouseDragged(mouseDraggedWithAlt(component, x = 80, y = 8)) }
+        }
+
+        val selection = component.currentSelection()
+        assertNotNull(selection)
+        assertTrue(selection!!.isBlock, "selection should be block selection")
+        session.close()
+    }
+
+    @Test
     fun `windows native ctrl c copies selected text to clipboard`() {
         val clipboard = RecordingClipboard()
         val frame = TestRenderFrame.text("hello world")
@@ -255,6 +275,42 @@ class TerminalSwingTerminalSelectionTest {
             x,
             y,
             1,
+            false,
+            MouseEvent.BUTTON1,
+        )
+    }
+
+    private fun mousePressedWithAlt(
+        component: TerminalSwingTerminal,
+        x: Int,
+        y: Int,
+    ): MouseEvent {
+        return MouseEvent(
+            component,
+            MouseEvent.MOUSE_PRESSED,
+            System.currentTimeMillis(),
+            InputEvent.BUTTON1_DOWN_MASK or InputEvent.ALT_DOWN_MASK,
+            x,
+            y,
+            1,
+            false,
+            MouseEvent.BUTTON1,
+        )
+    }
+
+    private fun mouseDraggedWithAlt(
+        component: TerminalSwingTerminal,
+        x: Int,
+        y: Int,
+    ): MouseEvent {
+        return MouseEvent(
+            component,
+            MouseEvent.MOUSE_DRAGGED,
+            System.currentTimeMillis(),
+            InputEvent.BUTTON1_DOWN_MASK or InputEvent.ALT_DOWN_MASK,
+            x,
+            y,
+            0,
             false,
             MouseEvent.BUTTON1,
         )
