@@ -107,6 +107,7 @@ surface or maintenance cost without meaningful modern terminal value.
   routes into core mode snapshots for application cursor keys, application
   keypad, cursor blink, focus reporting, bracketed paste, mouse tracking modes,
   and mouse UTF-8/SGR/URXVT encoding selectors.
+- `DONE(parser/core/integration/host)`: `DECSCUSR` cursor style / shape and blinking support (`CSI Ps SP q`) maps to dynamic render cursor shapes (BLOCK, UNDERLINE, BAR).
 - `DONE(parser/core/integration)`: safe xterm window/grid size reports:
   - `CSI 14 t`, report window size in pixels
   - `CSI 18 t`, report terminal size in characters
@@ -128,7 +129,6 @@ surface or maintenance cost without meaningful modern terminal value.
 - `TODO(parser/core)`: broader DEC-specific status reports beyond the safe
   DSR/CPR/DA baseline.
 - `TODO(parser)`: character attribute/protection commands not covered by SGR:
-  - `DECSCUSR`, cursor style
   - `DECSACE`
 - `TODO(parser)`: full tab-stop and margin variants beyond the current common set.
 - `TODO(parser)`: rectangular area operations:
@@ -280,8 +280,7 @@ Missing:
 - `DONE(core/host/ui)`: cursor visibility and blink state are exposed through
   durable core modes, render-frame cursor snapshots, and Swing repaint/cursor
   painting logic.
-- `TODO(parser/core/integration/host)`: cursor style protocol support still
-  needs `DECSCUSR` parsing/routing and non-hardcoded render cursor shapes.
+- `DONE(parser/core/integration/host)`: cursor style protocol support (`DECSCUSR`) parsed, routed, and maps dynamically to render shapes (BLOCK, UNDERLINE, BAR).
 - `TODO(core)`: synchronized output mode state (`?2026`) if renderer integration
   needs batching semantics.
 - `DONE(core/integration/host)`: title and icon title state are stored in core,

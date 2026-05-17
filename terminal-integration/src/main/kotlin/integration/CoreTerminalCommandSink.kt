@@ -8,6 +8,7 @@ import com.gagik.terminal.protocol.AnsiMode
 import com.gagik.terminal.protocol.DecPrivateMode
 import com.gagik.terminal.protocol.MouseEncodingMode
 import com.gagik.terminal.protocol.MouseTrackingMode
+import com.gagik.terminal.render.api.TerminalRenderCursorShape
 
 /**
  * Production bridge from parser semantic commands to the terminal core.
@@ -126,6 +127,35 @@ class CoreTerminalCommandSink(
 
     override fun restoreCursor() {
         terminal.restoreCursor()
+    }
+
+    override fun setCursorStyle(style: Int) {
+        when (style) {
+            0, 1 -> {
+                terminal.setCursorBlinking(true)
+                terminal.setCursorShape(TerminalRenderCursorShape.BLOCK)
+            }
+            2 -> {
+                terminal.setCursorBlinking(false)
+                terminal.setCursorShape(TerminalRenderCursorShape.BLOCK)
+            }
+            3 -> {
+                terminal.setCursorBlinking(true)
+                terminal.setCursorShape(TerminalRenderCursorShape.UNDERLINE)
+            }
+            4 -> {
+                terminal.setCursorBlinking(false)
+                terminal.setCursorShape(TerminalRenderCursorShape.UNDERLINE)
+            }
+            5 -> {
+                terminal.setCursorBlinking(true)
+                terminal.setCursorShape(TerminalRenderCursorShape.BAR)
+            }
+            6 -> {
+                terminal.setCursorBlinking(false)
+                terminal.setCursorShape(TerminalRenderCursorShape.BAR)
+            }
+        }
     }
 
     override fun cursorUp(n: Int) {

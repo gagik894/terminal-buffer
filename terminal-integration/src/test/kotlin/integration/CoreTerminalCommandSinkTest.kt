@@ -8,6 +8,8 @@ import com.gagik.parser.api.TerminalOutputParser
 import com.gagik.parser.api.TerminalParsers
 import com.gagik.terminal.protocol.MouseEncodingMode
 import com.gagik.terminal.protocol.MouseTrackingMode
+import com.gagik.terminal.render.api.TerminalRenderCursorShape
+import com.gagik.terminal.render.api.TerminalRenderFrameReader
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -433,6 +435,65 @@ class CoreTerminalCommandSinkTest {
 
             f.acceptAscii("\u001B[?47l")
             assertEquals("PQ", f.terminal.getLineAsString(0))
+        }
+
+        @Test
+        fun `DECSCUSR cursor style parsed from bytes updates core cursor shape and blinking`() {
+            val f = Fixture()
+
+            // 0 -> Blinking Block (default/omitted is 0)
+            f.acceptAscii("\u001B[ q")
+            (f.terminal as TerminalRenderFrameReader).readRenderFrame { frame ->
+                assertAll(
+                    { assertTrue(frame.cursor.blinking) },
+                    { assertEquals(TerminalRenderCursorShape.BLOCK, frame.cursor.shape) },
+                )
+            }
+
+            // 2 -> Steady Block
+            f.acceptAscii("\u001B[2 q")
+            (f.terminal as TerminalRenderFrameReader).readRenderFrame { frame ->
+                assertAll(
+                    { assertFalse(frame.cursor.blinking) },
+                    { assertEquals(TerminalRenderCursorShape.BLOCK, frame.cursor.shape) },
+                )
+            }
+
+            // 3 -> Blinking Underline
+            f.acceptAscii("\u001B[3 q")
+            (f.terminal as TerminalRenderFrameReader).readRenderFrame { frame ->
+                assertAll(
+                    { assertTrue(frame.cursor.blinking) },
+                    { assertEquals(TerminalRenderCursorShape.UNDERLINE, frame.cursor.shape) },
+                )
+            }
+
+            // 4 -> Steady Underline
+            f.acceptAscii("\u001B[4 q")
+            (f.terminal as TerminalRenderFrameReader).readRenderFrame { frame ->
+                assertAll(
+                    { assertFalse(frame.cursor.blinking) },
+                    { assertEquals(TerminalRenderCursorShape.UNDERLINE, frame.cursor.shape) },
+                )
+            }
+
+            // 5 -> Blinking Bar
+            f.acceptAscii("\u001B[5 q")
+            (f.terminal as TerminalRenderFrameReader).readRenderFrame { frame ->
+                assertAll(
+                    { assertTrue(frame.cursor.blinking) },
+                    { assertEquals(TerminalRenderCursorShape.BAR, frame.cursor.shape) },
+                )
+            }
+
+            // 6 -> Steady Bar
+            f.acceptAscii("\u001B[6 q")
+            (f.terminal as TerminalRenderFrameReader).readRenderFrame { frame ->
+                assertAll(
+                    { assertFalse(frame.cursor.blinking) },
+                    { assertEquals(TerminalRenderCursorShape.BAR, frame.cursor.shape) },
+                )
+            }
         }
     }
 
