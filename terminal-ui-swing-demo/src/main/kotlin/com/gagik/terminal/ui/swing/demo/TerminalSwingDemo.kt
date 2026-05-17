@@ -6,6 +6,7 @@ import com.gagik.terminal.pty.TerminalPtySessions
 import com.gagik.terminal.session.TerminalSession
 import com.gagik.terminal.ui.swing.api.TerminalSwingTerminal
 import com.gagik.terminal.ui.swing.settings.TerminalSwingSettings
+import com.gagik.terminal.ui.swing.settings.TerminalTheme
 import java.awt.BorderLayout
 import java.awt.event.ComponentAdapter
 import java.awt.event.ComponentEvent
@@ -32,14 +33,38 @@ private object TerminalSwingDemo {
     private const val INITIAL_ROWS = 30
 
     fun start(command: List<String>) {
-        val terminal = TerminalSwingTerminal {
-            TerminalSwingSettings(
-                columns = INITIAL_COLUMNS,
-                rows = INITIAL_ROWS,
-            )
-        }
+        var currentTheme = TerminalTheme.CAMPBELL
+        var currentSettings = TerminalSwingSettings(
+            columns = INITIAL_COLUMNS,
+            rows = INITIAL_ROWS,
+            theme = currentTheme
+        )
+
+        val terminal = TerminalSwingTerminal { currentSettings }
 
         val frame = JFrame("Terminal Swing Demo")
+        
+        // Add a premium JMenuBar for dynamic theme switching
+        val menuBar = javax.swing.JMenuBar()
+        val themeMenu = javax.swing.JMenu("Themes")
+        
+        TerminalTheme.values().forEach { theme ->
+            val themeDisplayName = theme.name.lowercase().split("_").joinToString(" ") { 
+                it.replaceFirstChar { c -> if (c.isLowerCase()) c.titlecase() else c.toString() } 
+            }
+            val menuItem = javax.swing.JMenuItem(themeDisplayName)
+            menuItem.addActionListener {
+                currentTheme = theme
+                currentSettings = currentSettings.copy(
+                    theme = currentTheme,
+                    palette = currentTheme.createPalette()
+                )
+                terminal.reloadSettings()
+            }
+            themeMenu.add(menuItem)
+        }
+        menuBar.add(themeMenu)
+        frame.jMenuBar = menuBar
         val listener = DemoPtyEventListener(frame)
 
         val session = try {

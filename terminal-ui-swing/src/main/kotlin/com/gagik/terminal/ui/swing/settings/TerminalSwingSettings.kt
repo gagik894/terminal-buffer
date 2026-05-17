@@ -30,7 +30,8 @@ data class TerminalSwingSettings(
     val font: Font = defaultTerminalFont(),
     val fallbackFonts: List<Font> = defaultFallbackFonts(),
     val useSystemFallbackFonts: Boolean = false,
-    val palette: TerminalColorPalette = defaultPalette(),
+    val theme: TerminalTheme = TerminalTheme.CAMPBELL,
+    val palette: TerminalColorPalette = theme.createPalette(),
     val columns: Int = 80,
     val rows: Int = 24,
     val cursorBlinkMillis: Int = 600,
@@ -97,16 +98,7 @@ data class TerminalSwingSettings(
          */
         @JvmStatic
         fun defaultPalette(): TerminalColorPalette {
-            return TerminalColorPalette(
-                defaultForeground = 0xFFE6E8EF.toInt(),
-                defaultBackground = 0xFF111318.toInt(),
-                selectionForeground = 0xFFFFFFFF.toInt(),
-                selectionBackground = 0xFF2F6FEB.toInt(),
-                cursorForeground = 0xFF111318.toInt(),
-                cursorBackground = 0xFFE6E8EF.toInt(),
-                indexedColors = defaultIndexedColors(),
-                boldAsBright = true,
-            )
+            return TerminalTheme.CAMPBELL.createPalette()
         }
 
         private fun resolveDefaultFontFamily(): String {
@@ -122,30 +114,173 @@ data class TerminalSwingSettings(
             }
             return Font.MONOSPACED
         }
+    }
+}
 
-        private fun defaultIndexedColors(): IntArray {
-            val colors = TerminalColorPalette.defaultIndexedColors()
-            val ansi16 = intArrayOf(
-                0xFF1D2027.toInt(),
-                0xFFC94F6D.toInt(),
-                0xFF81B29A.toInt(),
-                0xFFE6C07B.toInt(),
-                0xFF6EA8FE.toInt(),
-                0xFFC678DD.toInt(),
-                0xFF56B6C2.toInt(),
-                0xFFD8DEE9.toInt(),
-                0xFF5C6370.toInt(),
-                0xFFE06C75.toInt(),
-                0xFF98C379.toInt(),
-                0xFFE5C07B.toInt(),
-                0xFF61AFEF.toInt(),
-                0xFFC678DD.toInt(),
-                0xFF56B6C2.toInt(),
-                0xFFFFFFFF.toInt(),
+/**
+ * Built-in terminal color themes with verified correct ANSI color mappings.
+ */
+enum class TerminalTheme {
+    CAMPBELL,
+    ONE_DARK,
+    NORD,
+    TOKYO_NIGHT,
+    EVERFOREST;
+
+    fun createPalette(): TerminalColorPalette {
+        return when (this) {
+            CAMPBELL -> TerminalColorPalette(
+                defaultForeground = 0xFFF2F2F2.toInt(),
+                defaultBackground = 0xFF0C0C0C.toInt(),
+                selectionForeground = 0xFFFFFFFF.toInt(),
+                selectionBackground = 0xFF3B78FF.toInt(),
+                cursorForeground = 0xFF0C0C0C.toInt(),
+                cursorBackground = 0xFFF2F2F2.toInt(),
+                indexedColors = createIndexedColors(
+                    intArrayOf(
+                        0xFF0C0C0C.toInt(), // 0: Black
+                        0xFFC50F1F.toInt(), // 1: Red
+                        0xFF13A10E.toInt(), // 2: Green
+                        0xFFC19C00.toInt(), // 3: Yellow
+                        0xFF0037DA.toInt(), // 4: Blue
+                        0xFF881798.toInt(), // 5: Magenta
+                        0xFF3A96DD.toInt(), // 6: Cyan
+                        0xFFCCCCCC.toInt(), // 7: White
+                        0xFF767676.toInt(), // 8: Bright Black
+                        0xFFE74856.toInt(), // 9: Bright Red
+                        0xFF16C60C.toInt(), // 10: Bright Green
+                        0xFFF9F1A5.toInt(), // 11: Bright Yellow
+                        0xFF3B78FF.toInt(), // 12: Bright Blue
+                        0xFFB4009E.toInt(), // 13: Bright Magenta
+                        0xFF61D6D6.toInt(), // 14: Bright Cyan
+                        0xFFF2F2F2.toInt(), // 15: Bright White
+                    )
+                ),
+                boldAsBright = true
             )
-            ansi16.copyInto(colors)
-            return colors
+            ONE_DARK -> TerminalColorPalette(
+                defaultForeground = 0xFFABB2BF.toInt(),
+                defaultBackground = 0xFF1E2127.toInt(),
+                selectionForeground = 0xFFFFFFFF.toInt(),
+                selectionBackground = 0xFF404859.toInt(),
+                cursorForeground = 0xFF1E2127.toInt(),
+                cursorBackground = 0xFFABB2BF.toInt(),
+                indexedColors = createIndexedColors(
+                    intArrayOf(
+                        0xFF1E2127.toInt(), // 0: Black
+                        0xFFE06C75.toInt(), // 1: Red
+                        0xFF98C379.toInt(), // 2: Green
+                        0xFFD19A66.toInt(), // 3: Yellow
+                        0xFF61AFEF.toInt(), // 4: Blue
+                        0xFFC678DD.toInt(), // 5: Magenta
+                        0xFF56B6C2.toInt(), // 6: Cyan
+                        0xFFABB2BF.toInt(), // 7: White
+                        0xFF5C6370.toInt(), // 8: Bright Black
+                        0xFFF48C96.toInt(), // 9: Bright Red
+                        0xFFABE188.toInt(), // 10: Bright Green
+                        0xFFF3D89D.toInt(), // 11: Bright Yellow
+                        0xFF7EC2FC.toInt(), // 12: Bright Blue
+                        0xFFDE9BF2.toInt(), // 13: Bright Magenta
+                        0xFF70E1EC.toInt(), // 14: Bright Cyan
+                        0xFFFFFFFF.toInt(), // 15: Bright White
+                    )
+                ),
+                boldAsBright = true
+            )
+            NORD -> TerminalColorPalette(
+                defaultForeground = 0xFFD8DEE9.toInt(),
+                defaultBackground = 0xFF2E3440.toInt(),
+                selectionForeground = 0xFFECEFF4.toInt(),
+                selectionBackground = 0xFF434C5E.toInt(),
+                cursorForeground = 0xFF2E3440.toInt(),
+                cursorBackground = 0xFFD8DEE9.toInt(),
+                indexedColors = createIndexedColors(
+                    intArrayOf(
+                        0xFF3B4252.toInt(), // 0: Black
+                        0xFFBF616A.toInt(), // 1: Red
+                        0xFFA3BE8C.toInt(), // 2: Green
+                        0xFFEBCB8B.toInt(), // 3: Yellow
+                        0xFF81A1C1.toInt(), // 4: Blue
+                        0xFFB48EAD.toInt(), // 5: Magenta
+                        0xFF88C0D0.toInt(), // 6: Cyan
+                        0xFFE5E9F0.toInt(), // 7: White
+                        0xFF4C566A.toInt(), // 8: Bright Black
+                        0xFFD08770.toInt(), // 9: Bright Red
+                        0xFFA3BE8C.toInt(), // 10: Bright Green
+                        0xFFEBCB8B.toInt(), // 11: Bright Yellow
+                        0xFF88C0D0.toInt(), // 12: Bright Blue
+                        0xFFB48EAD.toInt(), // 13: Bright Magenta
+                        0xFF8FBCBB.toInt(), // 14: Bright Cyan
+                        0xFFECEFF4.toInt(), // 15: Bright White
+                    )
+                ),
+                boldAsBright = true
+            )
+            TOKYO_NIGHT -> TerminalColorPalette(
+                defaultForeground = 0xFFA9B1D6.toInt(),
+                defaultBackground = 0xFF1A1B26.toInt(),
+                selectionForeground = 0xFFC0CAF5.toInt(),
+                selectionBackground = 0xFF33467C.toInt(),
+                cursorForeground = 0xFF1A1B26.toInt(),
+                cursorBackground = 0xFFA9B1D6.toInt(),
+                indexedColors = createIndexedColors(
+                    intArrayOf(
+                        0xFF15161E.toInt(), // 0: Black
+                        0xFFF7768E.toInt(), // 1: Red
+                        0xFF9ECE6A.toInt(), // 2: Green
+                        0xFFE0AF68.toInt(), // 3: Yellow
+                        0xFF7AA2F7.toInt(), // 4: Blue
+                        0xFFBB9AF7.toInt(), // 5: Magenta
+                        0xFF7DCFFF.toInt(), // 6: Cyan
+                        0xFFA9B1D6.toInt(), // 7: White
+                        0xFF414868.toInt(), // 8: Bright Black
+                        0xFFFF9E64.toInt(), // 9: Bright Red
+                        0xFF9ECE6A.toInt(), // 10: Bright Green
+                        0xFFE0AF68.toInt(), // 11: Bright Yellow
+                        0xFF7AA2F7.toInt(), // 12: Bright Blue
+                        0xFFBB9AF7.toInt(), // 13: Bright Magenta
+                        0xFF7DCFFF.toInt(), // 14: Bright Cyan
+                        0xFFC0CAF5.toInt(), // 15: Bright White
+                    )
+                ),
+                boldAsBright = true
+            )
+            EVERFOREST -> TerminalColorPalette(
+                defaultForeground = 0xFFD3C6AA.toInt(),
+                defaultBackground = 0xFF2D353B.toInt(),
+                selectionForeground = 0xFFE6E2CC.toInt(),
+                selectionBackground = 0xFF475258.toInt(),
+                cursorForeground = 0xFF2D353B.toInt(),
+                cursorBackground = 0xFFD3C6AA.toInt(),
+                indexedColors = createIndexedColors(
+                    intArrayOf(
+                        0xFF343F44.toInt(), // 0: Black
+                        0xFFE67E80.toInt(), // 1: Red
+                        0xFFA7C080.toInt(), // 2: Green
+                        0xFFDBBC7F.toInt(), // 3: Yellow
+                        0xFF7FBBB3.toInt(), // 4: Blue
+                        0xFFD699B6.toInt(), // 5: Magenta
+                        0xFF83C092.toInt(), // 6: Cyan
+                        0xFFD3C6AA.toInt(), // 7: White
+                        0xFF475258.toInt(), // 8: Bright Black
+                        0xFFE67E80.toInt(), // 9: Bright Red
+                        0xFFA7C080.toInt(), // 10: Bright Green
+                        0xFFDBBC7F.toInt(), // 11: Bright Yellow
+                        0xFF7FBBB3.toInt(), // 12: Bright Blue
+                        0xFFD699B6.toInt(), // 13: Bright Magenta
+                        0xFF83C092.toInt(), // 14: Bright Cyan
+                        0xFFE6E2CC.toInt(), // 15: Bright White
+                    )
+                ),
+                boldAsBright = true
+            )
         }
+    }
+
+    private fun createIndexedColors(ansi16: IntArray): IntArray {
+        val colors = TerminalColorPalette.defaultIndexedColors()
+        ansi16.copyInto(colors)
+        return colors
     }
 }
 
