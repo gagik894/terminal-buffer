@@ -136,6 +136,53 @@ class TerminalWriterUnicodeTest {
     }
 
     @Test
+    fun `writeCluster_textPresentationSymbolStaysNarrowButEmojiPresentationIsWide`() {
+        val text = TerminalBuffers.create(width = 6, height = 2)
+        val emoji = TerminalBuffers.create(width = 6, height = 2)
+
+        text.writeCodepoint(0x2691)
+        text.writeCodepoint('X'.code)
+
+        emoji.writeCluster(intArrayOf(0x2691, 0xFE0F))
+        emoji.writeCodepoint('X'.code)
+
+        assertAll(
+            { assertEquals('X'.code, text.getCodepointAt(1, 0), "Text-presentation flag must consume one cell") },
+            { assertEquals(2, text.cursorCol) },
+            { assertEquals(-1, emoji.getCodepointAt(1, 0), "Emoji-presentation flag must reserve a spacer") },
+            { assertEquals('X'.code, emoji.getCodepointAt(2, 0)) },
+            { assertEquals(3, emoji.cursorCol) },
+        )
+    }
+
+    @Test
+    fun `junieFooterTextFlagWidthDoesNotPushRedrawCursorOneRowLow`() {
+        val buffer = TerminalBuffers.create(width = 100, height = 30)
+        val footer = "  ~  \u2691 Brave off ctrl + b"
+
+        buffer.positionCursor(col = 0, row = 20)
+        repeat(4) {
+            buffer.carriageReturn()
+            buffer.newLine()
+        }
+        buffer.writeText(footer)
+        repeat(100 - footer.length) {
+            buffer.writeCodepoint(' '.code)
+        }
+
+        buffer.carriageReturn()
+        buffer.cursorUp(4)
+        buffer.cursorRight(6)
+        buffer.writeCodepoint('l'.code)
+
+        assertAll(
+            { assertEquals('l'.code, buffer.getCodepointAt(6, 20)) },
+            { assertEquals(20, buffer.cursorRow) },
+            { assertEquals(7, buffer.cursorCol) },
+        )
+    }
+
+    @Test
     fun `writeCluster_ambiguousWidthCluster_usesCoreModePolicy`() {
         val narrow = TerminalBuffers.create(width = 6, height = 2)
         val wide = TerminalBuffers.create(width = 6, height = 2)

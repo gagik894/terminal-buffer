@@ -69,12 +69,30 @@ internal class TerminalWriterImpl(
     ): Int {
         if (length == 0) return 0
 
-        val baseWidth = UnicodeWidth.calculate(codepoints[0], state.modes.treatAmbiguousAsWide)
+        val base = codepoints[0]
+        val baseWidth =
+            if (hasEmojiPresentationSelector(codepoints, length) && isBmpEmojiPresentationBase(base)) {
+                2
+            } else {
+                UnicodeWidth.calculate(base, state.modes.treatAmbiguousAsWide)
+            }
 
         // If a combining mark (width 0) is sent without a base character,
         // force it to width 1 so it consumes a cell and doesn't break grid alignment.
         return if (baseWidth > 0) baseWidth else 1
     }
+
+    private fun hasEmojiPresentationSelector(
+        codepoints: IntArray,
+        length: Int,
+    ): Boolean {
+        for (i in 1 until length) {
+            if (codepoints[i] == EMOJI_PRESENTATION_SELECTOR) return true
+        }
+        return false
+    }
+
+    private fun isBmpEmojiPresentationBase(codepoint: Int): Boolean = codepoint in 0x2600..0x27BF
 
     override fun newLine() = mutationEngine.newLine()
 
@@ -250,5 +268,9 @@ internal class TerminalWriterImpl(
 
     override fun resetPen() {
         state.pen.resetSgr()
+    }
+
+    private companion object {
+        const val EMOJI_PRESENTATION_SELECTOR: Int = 0xFE0F
     }
 }

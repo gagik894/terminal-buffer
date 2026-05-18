@@ -240,6 +240,56 @@ class CoreTerminalCommandSinkTest {
                 { assertFalse(attr?.selectiveEraseProtected == true) },
             )
         }
+
+        @Test
+        fun `CR CR LF only advances cursor by exactly one row`() {
+            val f = Fixture(terminal = TerminalBuffers.create(width = 80, height = 10))
+
+            // Move to row 5, col 10
+            f.acceptAscii("\u001B[6;11H")
+            assertEquals(5, f.terminal.cursorRow)
+            assertEquals(10, f.terminal.cursorCol)
+
+            // Feed CR CR LF
+            f.acceptAscii("\r\r\n")
+            assertEquals(6, f.terminal.cursorRow)
+            assertEquals(0, f.terminal.cursorCol)
+        }
+
+        @Test
+        fun `CR CR LF at bottom row scrolls by exactly one line`() {
+            val f = Fixture(terminal = TerminalBuffers.create(width = 80, height = 10))
+
+            // Move cursor to bottom row 9, col 10
+            f.acceptAscii("\u001B[10;11H")
+            assertEquals(9, f.terminal.cursorRow)
+            assertEquals(10, f.terminal.cursorCol)
+
+            // Feed CR CR LF
+            f.acceptAscii("\r\r\n")
+            // Since we were at the bottom row, LF scrolls up.
+            // The cursor row remains at 9, column becomes 0.
+            assertEquals(9, f.terminal.cursorRow)
+            assertEquals(0, f.terminal.cursorCol)
+        }
+
+        @Test
+        fun `redraw cursor positioning sequence is correct`() {
+            val f = Fixture(terminal = TerminalBuffers.create(width = 100, height = 30))
+
+            // simulate end of first draw
+            f.acceptAscii("\r\n\r\n\r\n\r\n") // 4 CR LF pairs
+            val rowAfterDraw = f.terminal.cursorRow
+            f.acceptAscii("\u001B[99C") // right 99 — should stay on same row
+            assertEquals(rowAfterDraw, f.terminal.cursorRow)
+            assertEquals(99, f.terminal.cursorCol)
+
+            // simulate redraw cursor positioning
+            f.acceptAscii("\r") // CR
+            f.acceptAscii("\u001B[4A") // up 4
+            assertEquals(rowAfterDraw - 4, f.terminal.cursorRow)
+            assertEquals(0, f.terminal.cursorCol)
+        }
     }
 
     @Nested

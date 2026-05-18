@@ -112,7 +112,7 @@ class UnicodeWidthTest {
     @DisplayName("Fallback & Range Boundaries")
     inner class FallbackAndBoundaryTests {
         @ParameterizedTest(name = "Default narrow fallback cp=0x{0} returns 1")
-        @ValueSource(ints = [0x0102, 0x0370, 0x10FFFF])
+        @ValueSource(ints = [0x0102, 0x0370, 0x2691, 0x2764, 0x10FFFF])
         fun `default fallback returns narrow width 1`(cp: Int) {
             assertEquals(1, UnicodeWidth.calculate(cp, ambiguousAsWide = false))
             assertEquals(1, UnicodeWidth.calculate(cp, ambiguousAsWide = true))
