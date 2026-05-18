@@ -147,10 +147,6 @@ internal object UnicodeWidth {
                 0x231B, // Watches
                 0x2329,
                 0x232A, // Angle brackets
-                0x2600,
-                0x26FF, // Misc Symbols (Legacy Terminal Hack for BMP Emojis)
-                0x2700,
-                0x27BF, // Dingbats (Legacy Terminal Hack)
                 0x2E80,
                 0x303E, // CJK Radicals
                 0x3040,
